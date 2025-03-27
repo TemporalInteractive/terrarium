@@ -77,6 +77,34 @@ impl Context {
         }
     }
 
+    pub async fn init_headless(
+        optional_features: Features,
+        required_features: Features,
+        required_downlevel_capabilities: DownlevelCapabilities,
+        required_limits: Limits,
+        no_gpu_validation: bool,
+    ) -> Self {
+        let mut flags = wgpu::InstanceFlags::DEBUG;
+        if !no_gpu_validation {
+            flags |= wgpu::InstanceFlags::VALIDATION;
+        }
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN,
+            flags,
+            backend_options: wgpu::BackendOptions::default(),
+        });
+
+        Self::init_with_instance(
+            instance,
+            optional_features,
+            required_features,
+            required_downlevel_capabilities,
+            required_limits,
+        )
+        .await
+    }
+
     pub async fn init_with_window(
         surface: &mut Surface,
         window: Arc<Window>,
@@ -108,31 +136,17 @@ impl Context {
         .await
     }
 
-    pub async fn init(
-        optional_features: Features,
-        required_features: Features,
-        required_downlevel_capabilities: DownlevelCapabilities,
-        required_limits: Limits,
-        no_gpu_validation: bool,
+    pub fn init_with_xr(
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
     ) -> Self {
-        let mut flags = wgpu::InstanceFlags::DEBUG;
-        if !no_gpu_validation {
-            flags |= wgpu::InstanceFlags::VALIDATION;
-        }
-
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN,
-            flags,
-            backend_options: wgpu::BackendOptions::default(),
-        });
-
-        Self::init_with_instance(
+        Self {
             instance,
-            optional_features,
-            required_features,
-            required_downlevel_capabilities,
-            required_limits,
-        )
-        .await
+            adapter,
+            device,
+            queue,
+        }
     }
 }

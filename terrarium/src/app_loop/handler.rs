@@ -99,6 +99,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.state {
+                    // xr preframe
+
                     let frame = state.surface.acquire(&state.context);
                     let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
                         format: Some(state.surface.config().view_formats[0]),
@@ -107,6 +109,15 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     if state.app_loop.render(&view, &state.context) {
                         event_loop.exit();
                     }
+                    // xr post frame -> camera & joystick positions
+
+                    // update camera data buffer
+
+                    // update input manager with joystick data (only usable for next frame), meaning 1 frame delay
+
+                    // submit cmd encoder to queue
+
+                    // xr post frame submit
 
                     frame.present();
 

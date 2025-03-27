@@ -11,5 +11,7 @@ publish = false
 terrarium.workspace = true
 
 anyhow.workspace = true
+clap.workspace = true
+glam.workspace = true
 wgpu.workspace = true
 winit.workspace = true
