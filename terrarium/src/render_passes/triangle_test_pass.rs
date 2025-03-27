@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use glam::Mat4;
 use wgsl_includes::include_wgsl;
 
@@ -5,6 +7,7 @@ use crate::wgpu_util::PipelineDatabase;
 
 pub struct TriangleTestPassParameters<'a> {
     pub view_proj: Mat4,
+    pub xr_camera_buffer: &'a wgpu::Buffer,
     pub dst_view: &'a wgpu::TextureView,
     pub target_format: wgpu::TextureFormat,
 }
@@ -22,7 +25,7 @@ pub fn encode(
     let pipeline = pipeline_database.render_pipeline(
         device,
         wgpu::RenderPipelineDescriptor {
-            label: Some("appearance-wgpu::blit"),
+            label: Some(&format!("terrarium::blit {:?}", parameters.target_format)),
             layout: None,
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -39,20 +42,46 @@ pub fn encode(
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview: Some(NonZeroU32::new(2).unwrap()),
             cache: None,
         },
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("appearance-wgpu::blit"),
-                bind_group_layouts: &[],
+                label: Some("terrarium::blit"),
+                bind_group_layouts: &[
+                //     &device.create_bind_group_layout(
+                //     &wgpu::BindGroupLayoutDescriptor {
+                //         label: None,
+                //         entries: &[wgpu::BindGroupLayoutEntry {
+                //             binding: 0,
+                //             visibility: wgpu::ShaderStages::VERTEX,
+                //             ty: wgpu::BindingType::Buffer {
+                //                 ty: wgpu::BufferBindingType::Uniform,
+                //                 has_dynamic_offset: false,
+                //                 min_binding_size: None,
+                //             },
+                //             count: None,
+                //         }],
+                //     },
+                // )
+                ],
                 push_constant_ranges: &[wgpu::PushConstantRange {
                     stages: wgpu::ShaderStages::VERTEX,
-                    range: 0..std::mem::size_of::<Mat4>() as u32,
+                    range: 0..size_of::<Mat4>() as u32,
                 }],
             })
         },
     );
+
+    // let bind_group_layout = pipeline.get_bind_group_layout(0);
+    // let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    //     label: None,
+    //     layout: &bind_group_layout,
+    //     entries: &[wgpu::BindGroupEntry {
+    //         binding: 0,
+    //         resource: parameters.xr_camera_buffer.as_entire_binding(),
+    //     }],
+    // });
 
     {
         let mut rpass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -75,6 +104,7 @@ pub fn encode(
             0,
             bytemuck::bytes_of(&parameters.view_proj),
         );
+        //rpass.set_bind_group(0, &bind_group, &[]);
         rpass.draw(0..3, 0..1);
     }
 }

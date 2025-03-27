@@ -12,7 +12,13 @@ pub trait AppLoop: 'static + Sized {
         window: Arc<Window>,
     ) -> Self;
 
-    fn render(&mut self, view: &wgpu::TextureView, ctx: &wgpu_util::Context) -> bool;
+    fn render(
+        &mut self,
+        xr_camera_buffer: &wgpu::Buffer,
+        view: &wgpu::TextureView,
+        ctx: &wgpu_util::Context,
+        pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) -> wgpu::CommandEncoder;
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context);
 
     fn window_event(&mut self, _event: winit::event::WindowEvent) {}

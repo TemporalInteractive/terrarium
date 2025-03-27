@@ -14,7 +14,6 @@ use winit::window::Window;
 
 pub struct MinimalApp {
     swapchain_format: wgpu::TextureFormat,
-    pipeline_database: wgpu_util::PipelineDatabase,
 }
 
 impl AppLoop for MinimalApp {
@@ -25,11 +24,16 @@ impl AppLoop for MinimalApp {
     ) -> Self {
         Self {
             swapchain_format: config.view_formats[0],
-            pipeline_database: wgpu_util::PipelineDatabase::new(),
         }
     }
 
-    fn render(&mut self, view: &wgpu::TextureView, ctx: &wgpu_util::Context) -> bool {
+    fn render(
+        &mut self,
+        xr_camera_buffer: &wgpu::Buffer,
+        view: &wgpu::TextureView,
+        ctx: &wgpu_util::Context,
+        pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) -> wgpu::CommandEncoder {
         let mut command_encoder = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -38,18 +42,16 @@ impl AppLoop for MinimalApp {
             &TriangleTestPassParameters {
                 view_proj: Mat4::perspective_rh(60.0, 1.0, 0.01, 100.0)
                     * Mat4::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+                xr_camera_buffer,
                 dst_view: view,
-                target_format: self.swapchain_format,
+                target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
             },
             &ctx.device,
             &mut command_encoder,
-            &mut self.pipeline_database,
+            pipeline_database,
         );
 
-        // TODO: move
-        ctx.queue.submit(Some(command_encoder.finish()));
-
-        false
+        command_encoder
     }
 
     fn resize(&mut self, _config: &wgpu::SurfaceConfiguration, _ctx: &wgpu_util::Context) {}
