@@ -1,0 +1,26 @@
+[workspace.package]
+name = "terrarium"
+authors = ["Jason de Wolff <jason.dewolff@temporalinteractive.com>"]
+description = "Terrarium is a VR renderer build with wgpu."
+edition = "2021"
+homepage = "https://github.com/TemporalInteractive/terrarium"
+keywords = ["engine", "vr", "graphics"]
+license = "MIT"
+rust-version = "1.85"
+repository = "https://github.com/TemporalInteractive/terrarium"
+version = "0.0.1"
+readme = "README.md"
+publish = true
+
+[workspace.dependencies]
+terrarium = { version = "0.0.1", path = "terrarium" }
+
+ugm = { version = "0.0.1", default-features = false, features = ["gltf, wgpu"] }
+wgsl-includes = { version = "0.0.1", default-features = false }
+
+[workspace]
+members = [
+    "examples/minimal",
+    "terrarium",
+]
+resolver = "2"
