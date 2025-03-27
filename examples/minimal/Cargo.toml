@@ -9,3 +9,7 @@ publish = false
 
 [dependencies]
 terrarium.workspace = true
+
+anyhow.workspace = true
+wgpu.workspace = true
+winit.workspace = true

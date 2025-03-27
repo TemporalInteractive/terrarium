@@ -8,3 +8,14 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+ash.workspace = true
+bytemuck.workspace = true
+futures.workspace = true
+glam.workspace = true
+openxr.workspace = true
+ugm.workspace = true
+wgpu.workspace = true
+wgpu-hal.workspace = true
+wgsl-includes.workspace = true
+winit.workspace = true

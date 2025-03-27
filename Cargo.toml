@@ -15,8 +15,17 @@ publish = true
 [workspace.dependencies]
 terrarium = { version = "0.0.1", path = "terrarium" }
 
-ugm = { version = "0.0.1", default-features = false, features = ["gltf, wgpu"] }
+anyhow = { version = "1.0.65", default-features = true }
+ash = { version = "0.38.0", default-features = true }
+bytemuck = { version = "1.12.1", default-features = true, features = ["derive"] }
+futures = { version = "0.3.24", default-features = true }
+glam = { version = "0.30.1", default-features = true }
+openxr = { version = "0.19.0", default-features = true, features = ["loaded", "linked", "static"] }
+ugm = { version = "0.0.1", default-features = false, features = ["gltf", "wgpu"] }
+wgpu = { version = "24.0.3", default-features = true }
+wgpu-hal = { version = "24.0.2", default-features = true }
 wgsl-includes = { version = "0.0.1", default-features = false }
+winit = { version = "0.30.5", default-features = false, features = ["rwh_06"] }
 
 [workspace]
 members = [
