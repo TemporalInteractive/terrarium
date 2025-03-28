@@ -11,5 +11,15 @@
                 "example-minimal"
             ],
         },
+        {
+            "label": "rust: cargo build example-input-handling",
+            "type": "process",
+            "command": "cargo",
+            "args": [
+                "build",
+                "-p",
+                "example-input-handling"
+            ],
+        },
     ]
 }

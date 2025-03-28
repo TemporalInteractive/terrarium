@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::Parser;
 use glam::Mat4;
 use terrarium::{
@@ -21,7 +23,7 @@ struct SizedResources {
 impl SizedResources {
     pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("terrarium::render_target"),
+            label: Some("example-minimal::depth"),
             size: wgpu::Extent3d {
                 width: config.width,
                 height: config.height,
@@ -39,7 +41,7 @@ impl SizedResources {
     }
 }
 
-pub struct MinimalApp {
+pub struct ExampleApp {
     model: ugm::Model,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -47,21 +49,20 @@ pub struct MinimalApp {
     sized_resources: SizedResources,
 }
 
-impl AppLoop for MinimalApp {
+impl AppLoop for ExampleApp {
     fn new(
         config: &wgpu::SurfaceConfiguration,
-        ctx: &std::sync::Arc<wgpu_util::Context>,
-        _window: std::sync::Arc<Window>,
+        ctx: &wgpu_util::Context,
+        _window: Arc<Window>,
     ) -> Self {
-        let model = ugm::Model::read_from_buffer(
-            &std::fs::read("examples/minimal/assets/Sponza.ugm").unwrap(),
-        )
-        .unwrap();
+        let model =
+            ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
+                .unwrap();
 
         let vertex_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("terrarium::vertices"),
+                label: Some("example-minimal::vertices"),
                 contents: bytemuck::cast_slice(model.meshes[0].packed_vertices.as_slice()),
                 usage: wgpu::BufferUsages::VERTEX
                     | wgpu::BufferUsages::STORAGE
@@ -71,7 +72,7 @@ impl AppLoop for MinimalApp {
         let index_buffer = ctx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("terrarium::indices"),
+                label: Some("example-minimal::indices"),
                 contents: bytemuck::cast_slice(model.meshes[0].indices.as_slice()),
                 usage: wgpu::BufferUsages::INDEX
                     | wgpu::BufferUsages::STORAGE
@@ -146,9 +147,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    std::env::set_var("RUST_BACKTRACE", "1");
-
-    AppLoopHandler::<MinimalApp>::new(&AppLoopHandlerCreateDesc {
+    AppLoopHandler::<ExampleApp>::new(&AppLoopHandlerCreateDesc {
         title: "Terrarium".to_owned(),
         width: 1920,
         height: 1080,

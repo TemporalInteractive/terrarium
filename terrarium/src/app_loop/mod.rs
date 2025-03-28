@@ -8,7 +8,7 @@ pub mod handler;
 pub trait AppLoop: 'static + Sized {
     fn new(
         config: &wgpu::SurfaceConfiguration,
-        ctx: &Arc<wgpu_util::Context>,
+        ctx: &wgpu_util::Context,
         window: Arc<Window>,
     ) -> Self;
 

@@ -17,14 +17,3 @@ glam.workspace = true
 ugm.workspace = true
 wgpu.workspace = true
 winit.workspace = true
-
-[build-dependencies]
-ugm = { workspace = true, features = ["gltf"] }
-xshell.workspace = true
-
-[profile.dev.build-override]
-opt-level = 3
-codegen-units = 16
-[profile.release.build-override]
-opt-level = 3
-codegen-units = 16

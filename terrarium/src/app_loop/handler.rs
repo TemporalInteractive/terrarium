@@ -14,7 +14,7 @@ use super::AppLoop;
 use crate::{
     render_passes::blit_pass::{self, BlitPassParameters},
     wgpu_util::{self},
-    xr::{openxr_view_to_view_proj, XrCameraData, XrState},
+    xr::{openxr_view_to_view_proj, XrCameraData},
 };
 
 #[derive(Debug, Clone)]
@@ -104,8 +104,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.state {
-                    let xr_frame_state = if let Some(xr_state) = &mut state.xr_state {
-                        xr_state.pre_frame().unwrap()
+                    let xr_frame_state = if let Some(xr) = &mut state.context.xr {
+                        xr.pre_frame().unwrap()
                     } else {
                         None
                     };
@@ -134,9 +134,9 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         &mut state.pipeline_database,
                     );
 
-                    let xr_post_frame_data = if let Some(xr_state) = &mut state.xr_state {
+                    let xr_views = if let Some(xr) = &mut state.context.xr {
                         if let Some(xr_frame_state) = xr_frame_state {
-                            let xr_post_frame_data = xr_state
+                            let xr_views = xr
                                 .post_frame(
                                     &state.rt_texture_view,
                                     xr_frame_state,
@@ -150,7 +150,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                             // update input manager with joystick data (only usable for next frame), meaning 1 frame delay
 
-                            Some(xr_post_frame_data)
+                            Some(xr_views)
                         } else {
                             None
                         }
@@ -159,13 +159,10 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     };
 
                     let mut xr_camera_data = XrCameraData::default();
-                    if let Some(xr_post_frame_data) = &xr_post_frame_data {
-                        for i in 0..xr_post_frame_data.views.len() {
-                            xr_camera_data.stage_to_clip_space[i] = openxr_view_to_view_proj(
-                                &xr_post_frame_data.views[i],
-                                0.01,
-                                1000.0,
-                            );
+                    if let Some(xr_views) = &xr_views {
+                        for i in 0..xr_views.len() {
+                            xr_camera_data.stage_to_clip_space[i] =
+                                openxr_view_to_view_proj(&xr_views[i], 0.01, 1000.0);
                         }
                     } else {
                         for i in 0..2 {
@@ -181,13 +178,9 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                     state.context.queue.submit(Some(command_encoder.finish()));
 
-                    if let Some(xr_state) = &mut state.xr_state {
-                        if let (Some(xr_frame_state), Some(xr_post_frame_data)) =
-                            (xr_frame_state, xr_post_frame_data)
-                        {
-                            xr_state
-                                .post_frame_submit(xr_frame_state, &xr_post_frame_data.views)
-                                .unwrap();
+                    if let Some(xr) = &mut state.context.xr {
+                        if let (Some(xr_frame_state), Some(xr_views)) = (xr_frame_state, xr_views) {
+                            xr.post_frame_submit(xr_frame_state, &xr_views).unwrap();
                         }
                     }
 
@@ -232,9 +225,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 struct State<R: AppLoop> {
     window: Arc<Window>,
     surface: wgpu_util::Surface,
-    context: Arc<wgpu_util::Context>,
+    context: wgpu_util::Context,
     pipeline_database: wgpu_util::PipelineDatabase,
-    xr_state: Option<XrState>,
     xr_camera_buffer: wgpu::Buffer,
     rt_texture_view: wgpu::TextureView,
     app_loop: R,
@@ -246,26 +238,43 @@ impl<R: AppLoop> State<R> {
         window: Arc<Window>,
         no_gpu_validation: bool,
     ) -> Self {
-        let (context, xr_state) = if let Ok((context, xr_state)) =
-            XrState::initialize_with_wgpu(R::required_features(), R::required_limits())
+        let context = if let Ok(context) =
+            wgpu_util::Context::init_with_xr(R::required_features(), R::required_limits())
         {
-            (Arc::new(context), Some(xr_state))
+            context
         } else {
-            let context = Arc::new(
-                wgpu_util::Context::init_with_window(
-                    &mut surface,
-                    window.clone(),
-                    R::optional_features(),
-                    R::required_features(),
-                    R::required_downlevel_capabilities(),
-                    R::required_limits(),
-                    no_gpu_validation,
-                )
-                .await,
-            );
-
-            (context, None)
+            wgpu_util::Context::init_with_window(
+                &mut surface,
+                window.clone(),
+                R::optional_features(),
+                R::required_features(),
+                R::required_downlevel_capabilities(),
+                R::required_limits(),
+                no_gpu_validation,
+            )
+            .await
         };
+
+        // let (context, xr_state) = if let Ok((context, xr_state)) =
+        //     XrState::initialize_with_wgpu(R::required_features(), R::required_limits())
+        // {
+        //     (Arc::new(context), Some(xr_state))
+        // } else {
+        //     let context = Arc::new(
+        //         wgpu_util::Context::init_with_window(
+        //             &mut surface,
+        //             window.clone(),
+        //             R::optional_features(),
+        //             R::required_features(),
+        //             R::required_downlevel_capabilities(),
+        //             R::required_limits(),
+        //             no_gpu_validation,
+        //         )
+        //         .await,
+        //     );
+
+        //     (context, None)
+        // };
 
         surface.resume(&context, window.clone(), true);
 
@@ -285,7 +294,6 @@ impl<R: AppLoop> State<R> {
             surface,
             context,
             pipeline_database: wgpu_util::PipelineDatabase::new(),
-            xr_state,
             xr_camera_buffer,
             rt_texture_view,
             app_loop,
