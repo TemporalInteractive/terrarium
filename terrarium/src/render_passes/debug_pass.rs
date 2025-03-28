@@ -13,7 +13,7 @@ pub struct DebugPassParameters<'a> {
     pub target_format: wgpu::TextureFormat,
     pub vertex_buffer: &'a wgpu::Buffer,
     pub index_buffer: &'a wgpu::Buffer,
-    //pub depth_texture: &'a wgpu::Texture,
+    pub depth_texture: &'a wgpu::Texture,
 }
 
 pub fn encode(
@@ -59,13 +59,13 @@ pub fn encode(
         ],
     };
 
-    // let depth_stencil = Some(wgpu::DepthStencilState {
-    //     format: parameters.depth_texture.format(),
-    //     depth_write_enabled: true,
-    //     depth_compare: wgpu::CompareFunction::LessEqual,
-    //     stencil: wgpu::StencilState::default(),
-    //     bias: wgpu::DepthBiasState::default(),
-    // });
+    let depth_stencil = Some(wgpu::DepthStencilState {
+        format: parameters.depth_texture.format(),
+        depth_write_enabled: true,
+        depth_compare: wgpu::CompareFunction::LessEqual,
+        stencil: wgpu::StencilState::default(),
+        bias: wgpu::DepthBiasState::default(),
+    });
 
     let shader = pipeline_database
         .shader_from_src(device, include_wgsl!("terrarium/shaders/debug_pass.wgsl"));
@@ -95,7 +95,7 @@ pub fn encode(
                 polygon_mode: wgpu::PolygonMode::Fill,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState::default(),
             multiview: Some(NonZeroU32::new(2).unwrap()),
             cache: None,
@@ -136,6 +136,14 @@ pub fn encode(
         }],
     });
 
+    let depth_view = parameters
+        .depth_texture
+        .create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            array_layer_count: Some(2),
+            ..Default::default()
+        });
+
     {
         let mut rpass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -147,7 +155,14 @@ pub fn encode(
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Discard,
+                }),
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });

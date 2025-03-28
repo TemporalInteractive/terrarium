@@ -1,6 +1,7 @@
 @include terrarium/shaders/packing.wgsl
 
 struct VertexOutput {
+    @location(0) normal_ws: vec3<f32>,
     @builtin(position) position: vec4<f32>,
 };
 
@@ -32,11 +33,14 @@ fn vs_main(
 
     var result: VertexOutput;
     //result.position = pc.view_proj * vec4<f32>(position + vec3<f32>(0.0, 0.0, 10.0), 1.0);
-    result.position = xr_view_proj[view_index] * vec4<f32>(position + vec3<f32>(0.0, 0.0, 10.0), 1.0);
+    result.normal_ws = PackedNormalizedXyz10::unpack(packed_normal, 0);
+    result.position = xr_view_proj[view_index] * vec4<f32>(position, 1.0);
     return result;
 }
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+
+
+    return vec4<f32>(vertex.normal_ws * 0.5 + 0.5, 1.0);
 }

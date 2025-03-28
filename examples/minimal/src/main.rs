@@ -1,5 +1,5 @@
 use clap::Parser;
-use glam::{Mat4, Vec3};
+use glam::{Mat4, UVec2, Vec3};
 use terrarium::{
     app_loop::{
         handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
@@ -17,15 +17,42 @@ use ugm::{mesh::PackedVertex, speedy::Readable};
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
+struct SizedResources {
+    depth_texture: wgpu::Texture,
+}
+
+impl SizedResources {
+    pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("terrarium::render_target"),
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 2,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        Self { depth_texture }
+    }
+}
+
 pub struct MinimalApp {
     model: ugm::Model,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+
+    sized_resources: SizedResources,
 }
 
 impl AppLoop for MinimalApp {
     fn new(
-        _config: &wgpu::SurfaceConfiguration,
+        config: &wgpu::SurfaceConfiguration,
         ctx: &std::sync::Arc<wgpu_util::Context>,
         _window: std::sync::Arc<Window>,
     ) -> Self {
@@ -54,10 +81,13 @@ impl AppLoop for MinimalApp {
                     | wgpu::BufferUsages::COPY_DST,
             });
 
+        let sized_resources = SizedResources::new(config, &ctx.device);
+
         Self {
             model,
             vertex_buffer,
             index_buffer,
+            sized_resources,
         }
     }
 
@@ -94,6 +124,7 @@ impl AppLoop for MinimalApp {
                 target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
                 vertex_buffer: &self.vertex_buffer,
                 index_buffer: &self.index_buffer,
+                depth_texture: &self.sized_resources.depth_texture,
             },
             &ctx.device,
             &mut command_encoder,
@@ -103,7 +134,9 @@ impl AppLoop for MinimalApp {
         command_encoder
     }
 
-    fn resize(&mut self, _config: &wgpu::SurfaceConfiguration, _ctx: &wgpu_util::Context) {}
+    fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
+        self.sized_resources = SizedResources::new(config, &ctx.device);
+    }
 
     fn required_features() -> wgpu::Features {
         wgpu::Features::MULTIVIEW | wgpu::Features::PUSH_CONSTANTS

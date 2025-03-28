@@ -604,7 +604,8 @@ impl XrState {
 
         let mut view_proj_matrices = [Mat4::IDENTITY; 2];
         for i in 0..2 {
-            view_proj_matrices[i] = openxr_view_to_view_proj(&views[i], 0.01, 1000.0);
+            view_proj_matrices[i] = openxr_view_to_view_proj(&views[i], 0.01, 10000.0);
+            // TODO: fix?
         }
         queue.write_buffer(xr_camera_buffer, 0, bytemuck::bytes_of(&view_proj_matrices));
 
