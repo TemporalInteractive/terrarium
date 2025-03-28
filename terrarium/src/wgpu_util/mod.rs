@@ -1,12 +1,6 @@
 use bytemuck::Pod;
 use futures::{channel::oneshot, executor::block_on};
-use std::{future::IntoFuture, sync::Arc};
-use wgpu::{DownlevelCapabilities, Features, Instance, Limits, PowerPreference};
-use winit::{
-    dpi::PhysicalSize,
-    event::{Event, StartCause},
-    window::Window,
-};
+use std::future::IntoFuture;
 
 pub mod context;
 pub mod pipeline_database;

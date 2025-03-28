@@ -1,7 +1,4 @@
-use bytemuck::Pod;
-use futures::{channel::oneshot, executor::block_on};
-use std::{future::IntoFuture, sync::Arc};
-use wgpu::{DownlevelCapabilities, Features, Instance, Limits, PowerPreference};
+use std::sync::Arc;
 use winit::{
     dpi::PhysicalSize,
     event::{Event, StartCause},

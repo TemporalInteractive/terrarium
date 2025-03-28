@@ -1,19 +1,16 @@
 use clap::Parser;
-use glam::{Mat4, UVec2, Vec3};
+use glam::Mat4;
 use terrarium::{
     app_loop::{
         handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
         AppLoop,
     },
-    render_passes::{
-        debug_pass::{self, DebugPassParameters},
-        triangle_test_pass::{self, TriangleTestPassParameters},
-    },
+    render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
 };
 
 use anyhow::Result;
-use ugm::{mesh::PackedVertex, speedy::Readable};
+use ugm::speedy::Readable;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
