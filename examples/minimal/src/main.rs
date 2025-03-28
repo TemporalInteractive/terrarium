@@ -5,25 +5,59 @@ use terrarium::{
         handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
         AppLoop,
     },
-    render_passes::triangle_test_pass::{self, TriangleTestPassParameters},
+    render_passes::{
+        debug_pass::{self, DebugPassParameters},
+        triangle_test_pass::{self, TriangleTestPassParameters},
+    },
     wgpu_util,
 };
 
 use anyhow::Result;
+use ugm::{mesh::PackedVertex, speedy::Readable};
+use wgpu::util::DeviceExt;
 use winit::window::Window;
 
 pub struct MinimalApp {
-    swapchain_format: wgpu::TextureFormat,
+    model: ugm::Model,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
 }
 
 impl AppLoop for MinimalApp {
     fn new(
-        config: &wgpu::SurfaceConfiguration,
-        _ctx: &std::sync::Arc<wgpu_util::Context>,
+        _config: &wgpu::SurfaceConfiguration,
+        ctx: &std::sync::Arc<wgpu_util::Context>,
         _window: std::sync::Arc<Window>,
     ) -> Self {
+        let model = ugm::Model::read_from_buffer(
+            &std::fs::read("examples/minimal/assets/Sponza.ugm").unwrap(),
+        )
+        .unwrap();
+
+        let vertex_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("terrarium::vertices"),
+                contents: bytemuck::cast_slice(model.meshes[0].packed_vertices.as_slice()),
+                usage: wgpu::BufferUsages::VERTEX
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let index_buffer = ctx
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("terrarium::indices"),
+                contents: bytemuck::cast_slice(model.meshes[0].indices.as_slice()),
+                usage: wgpu::BufferUsages::INDEX
+                    | wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST,
+            });
+
         Self {
-            swapchain_format: config.view_formats[0],
+            model,
+            vertex_buffer,
+            index_buffer,
         }
     }
 
@@ -38,13 +72,28 @@ impl AppLoop for MinimalApp {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        triangle_test_pass::encode(
-            &TriangleTestPassParameters {
+        // triangle_test_pass::encode(
+        //     &TriangleTestPassParameters {
+        //         view_proj: Mat4::perspective_rh(60.0, 1.0, 0.01, 100.0)
+        //             * Mat4::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+        //         xr_camera_buffer,
+        //         dst_view: view,
+        //         target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        //     },
+        //     &ctx.device,
+        //     &mut command_encoder,
+        //     pipeline_database,
+        // );
+
+        debug_pass::encode(
+            &DebugPassParameters {
                 view_proj: Mat4::perspective_rh(60.0, 1.0, 0.01, 100.0)
                     * Mat4::from_translation(Vec3::new(0.0, 0.0, -1.0)),
                 xr_camera_buffer,
                 dst_view: view,
                 target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                vertex_buffer: &self.vertex_buffer,
+                index_buffer: &self.index_buffer,
             },
             &ctx.device,
             &mut command_encoder,
@@ -80,6 +129,8 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    std::env::set_var("RUST_BACKTRACE", "1");
 
     AppLoopHandler::<MinimalApp>::new(&AppLoopHandlerCreateDesc {
         title: "Terrarium".to_owned(),

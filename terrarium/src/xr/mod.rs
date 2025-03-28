@@ -37,7 +37,7 @@ pub fn openxr_pose_to_glam(pose: &openxr::Posef) -> (Vec3, Quat) {
 
 fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Mat4 {
     let pose = v.pose;
-    let (xr_translation, xr_rotation) = crate::xr::openxr_pose_to_glam(&pose);
+    let (xr_translation, xr_rotation) = openxr_pose_to_glam(&pose);
 
     let view = Mat4::look_at_rh(
         xr_translation,
@@ -602,11 +602,11 @@ impl XrState {
             &self.stage,
         )?;
 
-        // let mut view_proj_matrices = [Mat4::IDENTITY; 2];
-        // for i in 0..2 {
-        //     view_proj_matrices[i] = openxr_view_to_view_proj(&views[i], 0.01, 1000.0);
-        // }
-        // queue.write_buffer(xr_camera_buffer, 0, bytemuck::bytes_of(&view_proj_matrices));
+        let mut view_proj_matrices = [Mat4::IDENTITY; 2];
+        for i in 0..2 {
+            view_proj_matrices[i] = openxr_view_to_view_proj(&views[i], 0.01, 1000.0);
+        }
+        queue.write_buffer(xr_camera_buffer, 0, bytemuck::bytes_of(&view_proj_matrices));
 
         // We need to ask which swapchain image to use for rendering! Which one will we get?
         // Who knows! It's up to the runtime to decide.
