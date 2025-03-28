@@ -7,7 +7,7 @@ use wgsl_includes::include_wgsl;
 use crate::wgpu_util::PipelineDatabase;
 
 pub struct DebugPassParameters<'a> {
-    pub view_proj: Mat4,
+    pub local_to_world_space: Mat4,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub dst_view: &'a wgpu::TextureView,
     pub target_format: wgpu::TextureFormat,
@@ -170,7 +170,7 @@ pub fn encode(
         rpass.set_push_constants(
             wgpu::ShaderStages::VERTEX,
             0,
-            bytemuck::bytes_of(&parameters.view_proj),
+            bytemuck::bytes_of(&parameters.local_to_world_space),
         );
 
         rpass.set_vertex_buffer(0, parameters.vertex_buffer.slice(..));

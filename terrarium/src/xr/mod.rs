@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use ash::vk::{self, Handle};
+use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec2, Vec3};
 use openxr::{self as xr, ActionInput, ViewConfigurationView};
 
@@ -16,6 +17,22 @@ use crate::{
 const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const VK_COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 const VIEW_TYPE: xr::ViewConfigurationType = xr::ViewConfigurationType::PRIMARY_STEREO;
+
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+pub struct XrCameraData {
+    pub stage_to_clip_space: [Mat4; 2],
+    pub world_to_stage_space: Mat4,
+}
+
+impl Default for XrCameraData {
+    fn default() -> Self {
+        Self {
+            stage_to_clip_space: [Mat4::IDENTITY; 2],
+            world_to_stage_space: Mat4::IDENTITY,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct PostFrameData {
@@ -35,7 +52,7 @@ pub fn openxr_pose_to_glam(pose: &openxr::Posef) -> (Vec3, Quat) {
     (translation, rotation)
 }
 
-fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Mat4 {
+pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Mat4 {
     let pose = v.pose;
     let (xr_translation, xr_rotation) = openxr_pose_to_glam(&pose);
 
@@ -373,8 +390,8 @@ impl XrState {
             right_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY)?;
         let left_space =
             left_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY)?;
-        let stage =
-            session.create_reference_space(xr::ReferenceSpaceType::STAGE, xr::Posef::IDENTITY)?;
+        let stage = session
+            .create_reference_space(xr::ReferenceSpaceType::LOCAL_FLOOR, xr::Posef::IDENTITY)?;
 
         let views = xr_instance
             .enumerate_view_configuration_views(xr_system_id, VIEW_TYPE)
@@ -455,10 +472,8 @@ impl XrState {
     pub fn post_frame(
         &mut self,
         rt_texture_view: &wgpu::TextureView,
-        xr_camera_buffer: &wgpu::Buffer,
         xr_frame_state: xr::FrameState,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         command_encoder: &mut wgpu::CommandEncoder,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> Result<PostFrameData> {
@@ -601,13 +616,6 @@ impl XrState {
             xr_frame_state.predicted_display_time,
             &self.stage,
         )?;
-
-        let mut view_proj_matrices = [Mat4::IDENTITY; 2];
-        for i in 0..2 {
-            view_proj_matrices[i] = openxr_view_to_view_proj(&views[i], 0.01, 10000.0);
-            // TODO: fix?
-        }
-        queue.write_buffer(xr_camera_buffer, 0, bytemuck::bytes_of(&view_proj_matrices));
 
         // We need to ask which swapchain image to use for rendering! Which one will we get?
         // Who knows! It's up to the runtime to decide.

@@ -1,19 +1,20 @@
 @include terrarium/shaders/packing.wgsl
+@include terrarium/shaders/xr.wgsl
 
 struct VertexOutput {
     @location(0) normal_ws: vec3<f32>,
-    @builtin(position) position: vec4<f32>,
+    @builtin(position) position_cs: vec4<f32>,
 };
 
-// struct PushConstant {
-//     view_proj: mat4x4<f32>,
-// }
+struct PushConstant {
+    local_to_world_space: mat4x4<f32>,
+}
 
-// var<push_constant> pc : PushConstant;
+var<push_constant> pc : PushConstant;
 
 @group(0)
 @binding(0)
-var<uniform> xr_view_proj: array<mat4x4<f32>, 2>;
+var<uniform> xr_camera: XrCamera;
 
 @vertex
 fn vs_main(
@@ -27,14 +28,13 @@ fn vs_main(
     let packed_normal = PackedNormalizedXyz10(_packed_normal);
     let packed_tangent = PackedNormalizedXyz10(_packed_tangent);
 
-    // let x: f32 = f32(i32(in_vertex_index) - 1);
-    // let y: f32 = f32(i32(in_vertex_index & 1u) * 2 - 1);
-    // let position = vec3<f32>(x, y, -5.0);// * f32(view_index));
+    let position_world_space: vec4<f32> = pc.local_to_world_space * vec4<f32>(position, 1.0);
+    let position_stage_space: vec4<f32> = xr_camera.world_to_stage_space * position_world_space;
+    let position_clip_space: vec4<f32> = xr_camera.stage_to_clip_space[view_index] * position_stage_space;
 
     var result: VertexOutput;
-    //result.position = pc.view_proj * vec4<f32>(position + vec3<f32>(0.0, 0.0, 10.0), 1.0);
     result.normal_ws = PackedNormalizedXyz10::unpack(packed_normal, 0);
-    result.position = xr_view_proj[view_index] * vec4<f32>(position, 1.0);
+    result.position_cs = position_clip_space;
     return result;
 }
 

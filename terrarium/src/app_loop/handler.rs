@@ -13,8 +13,8 @@ use winit::{
 use super::AppLoop;
 use crate::{
     render_passes::blit_pass::{self, BlitPassParameters},
-    wgpu_util::{self, PipelineDatabase},
-    xr::XrState,
+    wgpu_util::{self},
+    xr::{openxr_view_to_view_proj, XrCameraData, XrState},
 };
 
 #[derive(Debug, Clone)]
@@ -139,18 +139,14 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                             let xr_post_frame_data = xr_state
                                 .post_frame(
                                     &state.rt_texture_view,
-                                    &state.xr_camera_buffer,
                                     xr_frame_state,
                                     &state.context.device,
-                                    &state.context.queue,
                                     &mut command_encoder,
                                     &mut state.pipeline_database,
                                 )
                                 .unwrap();
 
                             // xr post frame -> camera & joystick positions
-
-                            // update camera data buffer
 
                             // update input manager with joystick data (only usable for next frame), meaning 1 frame delay
 
@@ -161,6 +157,27 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     } else {
                         None
                     };
+
+                    let mut xr_camera_data = XrCameraData::default();
+                    if let Some(xr_post_frame_data) = &xr_post_frame_data {
+                        for i in 0..xr_post_frame_data.views.len() {
+                            xr_camera_data.stage_to_clip_space[i] = openxr_view_to_view_proj(
+                                &xr_post_frame_data.views[i],
+                                0.01,
+                                1000.0,
+                            );
+                        }
+                    } else {
+                        for i in 0..2 {
+                            xr_camera_data.stage_to_clip_space[i] =
+                                Mat4::perspective_rh(60.0f32.to_radians(), 1.0, 0.01, 1000.0);
+                        }
+                    }
+                    state.context.queue.write_buffer(
+                        &state.xr_camera_buffer,
+                        0,
+                        bytemuck::bytes_of(&xr_camera_data),
+                    );
 
                     state.context.queue.submit(Some(command_encoder.finish()));
 
@@ -258,7 +275,7 @@ impl<R: AppLoop> State<R> {
 
         let xr_camera_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::xr_camera"),
-            size: size_of::<Mat4>() as u64 * 2,
+            size: size_of::<XrCameraData>() as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });

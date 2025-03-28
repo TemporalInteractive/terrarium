@@ -102,23 +102,9 @@ impl AppLoop for MinimalApp {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        // triangle_test_pass::encode(
-        //     &TriangleTestPassParameters {
-        //         view_proj: Mat4::perspective_rh(60.0, 1.0, 0.01, 100.0)
-        //             * Mat4::from_translation(Vec3::new(0.0, 0.0, -1.0)),
-        //         xr_camera_buffer,
-        //         dst_view: view,
-        //         target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        //     },
-        //     &ctx.device,
-        //     &mut command_encoder,
-        //     pipeline_database,
-        // );
-
         debug_pass::encode(
             &DebugPassParameters {
-                view_proj: Mat4::perspective_rh(60.0, 1.0, 0.01, 100.0)
-                    * Mat4::from_translation(Vec3::new(0.0, 0.0, -1.0)),
+                local_to_world_space: Mat4::from_cols_array(&self.model.nodes[0].transform),
                 xr_camera_buffer,
                 dst_view: view,
                 target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
