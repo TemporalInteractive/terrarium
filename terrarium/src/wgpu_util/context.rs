@@ -12,12 +12,6 @@ use super::surface::Surface;
 use crate::render_passes::blit_pass::{self, BlitPassParameters};
 use crate::{wgpu_util, xr};
 
-pub struct XrInstance {
-    pub instance: openxr::Instance,
-    pub session: openxr::Session<openxr::Vulkan>,
-    session_running: bool,
-}
-
 struct XrSwapchain {
     handle: openxr::Swapchain<openxr::Vulkan>,
     resolution: vk::Extent2D,
@@ -25,13 +19,15 @@ struct XrSwapchain {
 }
 
 pub struct XrContext {
-    pub instance: XrInstance,
+    pub instance: openxr::Instance,
+    pub session: openxr::Session<openxr::Vulkan>,
+    session_running: bool,
     pub environment_blend_mode: openxr::EnvironmentBlendMode,
     pub frame_wait: openxr::FrameWaiter,
     pub frame_stream: openxr::FrameStream<openxr::Vulkan>,
     event_storage: openxr::EventDataBuffer,
     view_configs: Vec<openxr::ViewConfigurationView>,
-    stage: openxr::Space,
+    pub stage: openxr::Space,
     swapchain: Option<XrSwapchain>,
 }
 
@@ -104,7 +100,7 @@ impl Context {
         }
     }
 
-    pub async fn init_headless(
+    pub(crate) async fn init_headless(
         optional_features: Features,
         required_features: Features,
         required_downlevel_capabilities: DownlevelCapabilities,
@@ -132,7 +128,7 @@ impl Context {
         .await
     }
 
-    pub async fn init_with_window(
+    pub(crate) async fn init_with_window(
         surface: &mut Surface,
         window: Arc<Window>,
         optional_features: Features,
@@ -163,7 +159,7 @@ impl Context {
         .await
     }
 
-    pub fn init_with_xr(
+    pub(crate) fn init_with_xr(
         required_features: wgpu::Features,
         required_limits: wgpu::Limits,
     ) -> Result<Self> {
@@ -390,11 +386,9 @@ impl Context {
         )?;
 
         let xr = Some(XrContext {
-            instance: XrInstance {
-                instance: xr_instance,
-                session,
-                session_running: false,
-            },
+            instance: xr_instance,
+            session,
+            session_running: false,
             environment_blend_mode,
             frame_wait,
             frame_stream,
@@ -415,8 +409,8 @@ impl Context {
 }
 
 impl XrContext {
-    pub fn pre_frame(&mut self) -> Result<Option<openxr::FrameState>> {
-        while let Some(event) = self.instance.instance.poll_event(&mut self.event_storage)? {
+    pub(crate) fn pre_frame(&mut self) -> Result<Option<openxr::FrameState>> {
+        while let Some(event) = self.instance.poll_event(&mut self.event_storage)? {
             use openxr::Event::*;
             match event {
                 SessionStateChanged(e) => {
@@ -424,12 +418,12 @@ impl XrContext {
                     // find quit messages!
                     match e.state() {
                         openxr::SessionState::READY => {
-                            self.instance.session.begin(xr::VIEW_TYPE)?;
-                            self.instance.session_running = true;
+                            self.session.begin(xr::VIEW_TYPE)?;
+                            self.session_running = true;
                         }
                         openxr::SessionState::STOPPING => {
-                            self.instance.session.end()?;
-                            self.instance.session_running = false;
+                            self.session.end()?;
+                            self.session_running = false;
                         }
                         openxr::SessionState::EXITING | openxr::SessionState::LOSS_PENDING => {
                             return Ok(None);
@@ -444,7 +438,7 @@ impl XrContext {
             }
         }
 
-        if !self.instance.session_running {
+        if !self.session_running {
             // Don't grind up the CPU
             std::thread::sleep(std::time::Duration::from_millis(10));
             return Ok(None);
@@ -460,7 +454,7 @@ impl XrContext {
         Ok(Some(xr_frame_state))
     }
 
-    pub fn post_frame(
+    pub(crate) fn post_frame(
         &mut self,
         rt_texture_view: &wgpu::TextureView,
         xr_frame_state: openxr::FrameState,
@@ -480,7 +474,7 @@ impl XrContext {
         // TODO:
         // self.session.sync_actions(&[(&self.action_set).into()])?;
 
-        let (_, views) = self.instance.session.locate_views(
+        let (_, views) = self.session.locate_views(
             xr::VIEW_TYPE,
             xr_frame_state.predicted_display_time,
             &self.stage,
@@ -514,7 +508,7 @@ impl XrContext {
         Ok(views)
     }
 
-    pub fn post_frame_submit(
+    pub(crate) fn post_frame_submit(
         &mut self,
         xr_frame_state: openxr::FrameState,
         views: &[openxr::View],
@@ -575,7 +569,6 @@ impl XrContext {
                 height: self.view_configs[0].recommended_image_rect_height,
             };
             let handle = self
-                .instance
                 .session
                 .create_swapchain(&openxr::SwapchainCreateInfo {
                     create_flags: openxr::SwapchainCreateFlags::EMPTY,
@@ -598,7 +591,6 @@ impl XrContext {
             // onto it! We'll also create a buffer for each generated texture here as well.
             let images = handle.enumerate_images().unwrap();
 
-            //let textures = vec![];
             let mut texture_views = vec![];
             for color_image in images {
                 let color_image = vk::Image::from_raw(color_image);

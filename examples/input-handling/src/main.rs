@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glam::Mat4;
+use input::InputHandler;
 use terrarium::{
     app_loop::{
         handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
@@ -44,6 +45,8 @@ impl SizedResources {
 }
 
 pub struct ExampleApp {
+    input_handler: InputHandler,
+
     model: ugm::Model,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -57,6 +60,8 @@ impl AppLoop for ExampleApp {
         ctx: &wgpu_util::Context,
         _window: Arc<Window>,
     ) -> Self {
+        let input_handler = InputHandler::new(&ctx.xr);
+
         let model =
             ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
                 .unwrap();
@@ -84,6 +89,7 @@ impl AppLoop for ExampleApp {
         let sized_resources = SizedResources::new(config, &ctx.device);
 
         Self {
+            input_handler,
             model,
             vertex_buffer,
             index_buffer,

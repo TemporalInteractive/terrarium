@@ -1,8 +1,11 @@
+use std::{collections::HashMap, fmt::Display};
+
+use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
-use crate::UP;
+use crate::{wgpu_util, UP};
 
 pub const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const VK_COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
@@ -40,7 +43,7 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 
     let view = Mat4::look_at_rh(
         xr_translation,
-        xr_translation + xr_rotation * Vec3::Z, // FORWARD?
+        xr_translation + xr_rotation * Vec3::Z, // FORWARD.unwrap()
         xr_rotation * UP,
     );
 
@@ -73,6 +76,288 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
     proj * view
 }
 
+pub enum XrHand {
+    Left,
+    Right,
+}
+
+impl Display for XrHand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Left => f.write_str("left"),
+            Self::Right => f.write_str("right"),
+        }
+    }
+}
+
+pub enum XrControllerProfile {
+    Oculus,
+    Vive,
+    Valve,
+    KhronosSimple,
+}
+
+impl XrControllerProfile {
+    pub fn from_system_name(system_name: &str) -> Self {
+        if system_name.contains("Oculus") {
+            Self::Oculus
+        } else if system_name.contains("Vive") {
+            Self::Vive
+        } else if system_name.contains("Valve") {
+            Self::Valve
+        } else {
+            Self::KhronosSimple
+        }
+    }
+
+    pub fn interaction_profile_path(&self) -> &'static str {
+        match self {
+            Self::Oculus => "/interaction_profiles/oculus/touch_controller",
+            Self::Vive => "/interaction_profiles/htc/vive_controller",
+            Self::Valve => "/interaction_profiles/valve/index_controller",
+            Self::KhronosSimple => "/interaction_profiles/khr/simple_controller",
+        }
+    }
+}
+
+pub struct XrHandInputActions {
+    pub digital: HashMap<String, openxr::Action<bool>>,
+    pub analog: HashMap<String, openxr::Action<f32>>,
+    pub analog_2d: HashMap<String, openxr::Action<openxr::Vector2f>>,
+    pub pose: HashMap<String, (openxr::Action<openxr::Posef>, openxr::Space)>,
+}
+
+impl XrHandInputActions {
+    pub fn new(
+        hand: XrHand,
+        profile: &XrControllerProfile,
+        action_set: &openxr::ActionSet,
+        xr: &wgpu_util::XrContext,
+    ) -> Result<Self> {
+        let mut digital = HashMap::new();
+        let mut analog = HashMap::new();
+        let mut analog_2d = HashMap::new();
+        let mut pose = HashMap::new();
+
+        let mut submit_digital_action = |input_path: &str| -> Result<()> {
+            digital.insert(
+                format!("/user/hand/{}/input/{}", hand, input_path),
+                action_set
+                    .create_action::<bool>(
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &[],
+                    )
+                    .unwrap(),
+            );
+
+            Ok(())
+        };
+
+        let mut submit_analog_action = |input_path: &str| -> Result<()> {
+            analog.insert(
+                format!("/user/hand/{}/input/{}", hand, input_path),
+                action_set
+                    .create_action::<f32>(
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &[],
+                    )
+                    .unwrap(),
+            );
+
+            Ok(())
+        };
+
+        let mut submit_analog_2d_action = |input_path: &str| -> Result<()> {
+            analog_2d.insert(
+                format!("/user/hand/{}/input/{}", hand, input_path),
+                action_set
+                    .create_action::<openxr::Vector2f>(
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &format!("{}_{}", hand, input_path.replace("/", "_")),
+                        &[],
+                    )
+                    .unwrap(),
+            );
+
+            Ok(())
+        };
+
+        let mut submit_pose_action = |input_path: &str| -> Result<()> {
+            let action = action_set
+                .create_action::<openxr::Posef>(
+                    &format!("{}_{}", hand, input_path.replace("/", "_")),
+                    &format!("{}_{}", hand, input_path.replace("/", "_")),
+                    &[],
+                )
+                .unwrap();
+
+            let space = action
+                .create_space(
+                    xr.session.clone(),
+                    openxr::Path::NULL,
+                    openxr::Posef::IDENTITY,
+                )
+                .unwrap();
+
+            pose.insert(
+                format!("/user/hand/{}/input/{}", hand, input_path),
+                (action, space),
+            );
+
+            Ok(())
+        };
+
+        match profile {
+            XrControllerProfile::Oculus => {
+                submit_analog_2d_action("thumbstick").unwrap();
+                submit_digital_action("thumbstick/click").unwrap();
+                submit_digital_action("thumbstick/touch").unwrap();
+                submit_analog_action("squeeze/value").unwrap();
+                submit_analog_action("trigger/value").unwrap();
+                submit_pose_action("grip/pose").unwrap();
+                submit_pose_action("aim/pose").unwrap();
+
+                match hand {
+                    XrHand::Left => {
+                        submit_digital_action("menu/click").unwrap();
+                        submit_digital_action("x/click").unwrap();
+                        submit_digital_action("x/touch").unwrap();
+                        submit_digital_action("y/click").unwrap();
+                        submit_digital_action("y/touch").unwrap();
+                    }
+                    XrHand::Right => {
+                        submit_digital_action("system/click").unwrap();
+                        submit_digital_action("a/click").unwrap();
+                        submit_digital_action("a/touch").unwrap();
+                        submit_digital_action("b/click").unwrap();
+                        submit_digital_action("b/touch").unwrap();
+                    }
+                }
+            }
+            XrControllerProfile::Vive => {
+                submit_digital_action("system/click").unwrap();
+                submit_digital_action("squeeze/click").unwrap();
+                submit_digital_action("menu/click").unwrap();
+                submit_analog_action("trigger/value").unwrap();
+                submit_digital_action("trigger/click").unwrap();
+                submit_analog_2d_action("trackpad").unwrap();
+                submit_digital_action("trackpad/click").unwrap();
+                submit_digital_action("trackpad/touch").unwrap();
+                submit_pose_action("grip/pose").unwrap();
+                submit_pose_action("aim/pose").unwrap();
+            }
+            XrControllerProfile::Valve => {
+                submit_digital_action("system/click").unwrap();
+                submit_digital_action("system/touch").unwrap();
+                submit_digital_action("a/click").unwrap();
+                submit_digital_action("a/touch").unwrap();
+                submit_digital_action("b/click").unwrap();
+                submit_digital_action("b/touch").unwrap();
+                submit_analog_action("squeeze/value").unwrap();
+                submit_analog_action("squeeze/force").unwrap();
+                submit_digital_action("trigger/click").unwrap();
+                submit_analog_action("trigger/value").unwrap();
+                submit_digital_action("trigger/touch").unwrap();
+                submit_analog_2d_action("thumbstick").unwrap();
+                submit_digital_action("thumbstick/click").unwrap();
+                submit_digital_action("thumbstick/touch").unwrap();
+                submit_analog_2d_action("trackpad").unwrap();
+                submit_digital_action("trackpad/touch").unwrap();
+                submit_analog_action("trackpad/force").unwrap();
+                submit_pose_action("grip/pose").unwrap();
+                submit_pose_action("aim/pose").unwrap();
+            }
+            XrControllerProfile::KhronosSimple => {
+                submit_digital_action("menu/click").unwrap();
+                submit_digital_action("system/click").unwrap();
+                submit_pose_action("grip/pose").unwrap();
+                submit_pose_action("aim/pose").unwrap();
+            }
+        }
+
+        Ok(Self {
+            digital,
+            analog,
+            analog_2d,
+            pose,
+        })
+    }
+}
+
+pub struct XrInputActions {
+    pub profile: XrControllerProfile,
+    pub action_set: openxr::ActionSet,
+    pub hand_input_actions: [XrHandInputActions; 2],
+}
+
+impl XrInputActions {
+    pub fn new(xr: &wgpu_util::XrContext) -> Result<Self> {
+        let system = xr
+            .instance
+            .system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY)
+            .unwrap();
+        let system_properties = xr.instance.system_properties(system).unwrap();
+
+        let profile = XrControllerProfile::from_system_name(&system_properties.system_name);
+        let interaction_profile_path = profile.interaction_profile_path();
+
+        let action_set = xr
+            .instance
+            .create_action_set("input", "input pose information", 0)
+            .unwrap();
+        let hand_input_actions = [
+            XrHandInputActions::new(XrHand::Left, &profile, &action_set, xr).unwrap(),
+            XrHandInputActions::new(XrHand::Right, &profile, &action_set, xr).unwrap(),
+        ];
+
+        let mut bindings = vec![];
+        for hand_input_actions in &hand_input_actions {
+            for (path, action) in &hand_input_actions.digital {
+                bindings.push(openxr::Binding::new(
+                    action,
+                    xr.instance.string_to_path(path).unwrap(),
+                ));
+            }
+            for (path, action) in &hand_input_actions.analog {
+                bindings.push(openxr::Binding::new(
+                    action,
+                    xr.instance.string_to_path(path).unwrap(),
+                ));
+            }
+            for (path, action) in &hand_input_actions.analog_2d {
+                bindings.push(openxr::Binding::new(
+                    action,
+                    xr.instance.string_to_path(path).unwrap(),
+                ));
+            }
+            for (path, action) in &hand_input_actions.pose {
+                bindings.push(openxr::Binding::new(
+                    &action.0,
+                    xr.instance.string_to_path(path).unwrap(),
+                ));
+            }
+        }
+
+        xr.instance
+            .suggest_interaction_profile_bindings(
+                xr.instance
+                    .string_to_path(interaction_profile_path)
+                    .unwrap(),
+                &bindings,
+            )
+            .unwrap();
+        xr.session.attach_action_sets(&[&action_set]).unwrap();
+
+        Ok(Self {
+            profile,
+            action_set,
+            hand_input_actions,
+        })
+    }
+}
+
 // pub struct XrState {
 //     xr_instance: xr::Instance,
 //     environment_blend_mode: xr::EnvironmentBlendMode,
@@ -99,40 +384,40 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //         wgpu_features: wgpu::Features,
 //         wgpu_limits: wgpu::Limits,
 //     ) -> anyhow::Result<(wgpu_util::Context, XrState)> {
-//         let action_set = xr_instance.create_action_set("input", "input pose information", 0)?;
+//         let action_set = xr_instance.create_action_set("input", "input pose information", 0).unwrap();
 //         let right_action =
-//             action_set.create_action::<xr::Posef>("right_hand", "Right Hand Controller", &[])?;
+//             action_set.create_action::<xr::Posef>("right_hand", "Right Hand Controller", &[]).unwrap();
 //         let left_action =
-//             action_set.create_action::<xr::Posef>("left_hand", "Left Hand Controller", &[])?;
+//             action_set.create_action::<xr::Posef>("left_hand", "Left Hand Controller", &[]).unwrap();
 //         let right_thumbstick_action = action_set.create_action::<xr::Vector2f>(
 //             "right_thumbstick",
 //             "Right Hand Controller Thumbstick",
 //             &[],
-//         )?;
+//         ).unwrap();
 //         xr_instance.suggest_interaction_profile_bindings(
-//             xr_instance.string_to_path("/interaction_profiles/oculus/touch_controller")?, // /interaction_profiles/khr/simple_controller
+//             xr_instance.string_to_path("/interaction_profiles/oculus/touch_controller").unwrap(), // /interaction_profiles/khr/simple_controller
 //             &[
 //                 xr::Binding::new(
 //                     &right_action,
-//                     xr_instance.string_to_path("/user/hand/right/input/grip/pose")?,
+//                     xr_instance.string_to_path("/user/hand/right/input/grip/pose").unwrap(),
 //                 ),
 //                 xr::Binding::new(
 //                     &left_action,
-//                     xr_instance.string_to_path("/user/hand/left/input/grip/pose")?,
+//                     xr_instance.string_to_path("/user/hand/left/input/grip/pose").unwrap(),
 //                 ),
 //                 xr::Binding::new(
 //                     &right_thumbstick_action,
-//                     xr_instance.string_to_path("/user/hand/left/input/thumbstick")?,
+//                     xr_instance.string_to_path("/user/hand/left/input/thumbstick").unwrap(),
 //                 ),
 //             ],
-//         )?;
-//         session.attach_action_sets(&[&action_set])?;
+//         ).unwrap();
+//         session.attach_action_sets(&[&action_set]).unwrap();
 //         let right_space =
-//             right_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY)?;
+//             right_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY).unwrap();
 //         let left_space =
-//             left_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY)?;
+//             left_action.create_space(session.clone(), xr::Path::NULL, xr::Posef::IDENTITY).unwrap();
 //         let stage = session
-//             .create_reference_space(xr::ReferenceSpaceType::LOCAL_FLOOR, xr::Posef::IDENTITY)?;
+//             .create_reference_space(xr::ReferenceSpaceType::LOCAL_FLOOR, xr::Posef::IDENTITY).unwrap();
 
 //         let views = xr_instance
 //             .enumerate_view_configuration_views(xr_system_id, VIEW_TYPE)
@@ -166,7 +451,7 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //     }
 
 //     pub fn pre_frame(&mut self) -> Result<Option<xr::FrameState>> {
-//         while let Some(event) = self.xr_instance.poll_event(&mut self.event_storage)? {
+//         while let Some(event) = self.xr_instance.poll_event(&mut self.event_storage).unwrap() {
 //             use xr::Event::*;
 //             match event {
 //                 SessionStateChanged(e) => {
@@ -174,11 +459,11 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //                     // find quit messages!
 //                     match e.state() {
 //                         xr::SessionState::READY => {
-//                             self.session.begin(VIEW_TYPE)?;
+//                             self.session.begin(VIEW_TYPE).unwrap();
 //                             self.session_running = true;
 //                         }
 //                         xr::SessionState::STOPPING => {
-//                             self.session.end()?;
+//                             self.session.end().unwrap();
 //                             self.session_running = false;
 //                         }
 //                         xr::SessionState::EXITING | xr::SessionState::LOSS_PENDING => {
@@ -203,9 +488,9 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //         // Block until the previous frame is finished displaying, and is ready for another one.
 //         // Also returns a prediction of when the next frame will be displayed, for use with
 //         // predicting locations of controllers, viewpoints, etc.
-//         let xr_frame_state = self.frame_wait.wait()?;
+//         let xr_frame_state = self.frame_wait.wait().unwrap();
 //         // Must be called before any rendering is done!
-//         self.frame_stream.begin()?;
+//         self.frame_stream.begin().unwrap();
 
 //         Ok(Some(xr_frame_state))
 //     }
@@ -225,7 +510,7 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //                 xr_frame_state.predicted_display_time,
 //                 self.environment_blend_mode,
 //                 &[],
-//             )?;
+//             ).unwrap();
 //             return Ok(PostFrameData::default());
 //         }
 
@@ -326,14 +611,14 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //         //     }
 //         // });
 
-//         self.session.sync_actions(&[(&self.action_set).into()])?;
+//         self.session.sync_actions(&[(&self.action_set).into()]).unwrap();
 //         let locate_hand_pose = |action: &xr::Action<xr::Posef>,
 //                                 space: &xr::Space|
 //          -> anyhow::Result<Option<(Vec3, Quat)>> {
-//             if action.is_active(&self.session, xr::Path::NULL)? {
+//             if action.is_active(&self.session, xr::Path::NULL).unwrap() {
 //                 Ok(Some(openxr_pose_to_glam(
 //                     &space
-//                         .locate(&self.stage, xr_frame_state.predicted_display_time)?
+//                         .locate(&self.stage, xr_frame_state.predicted_display_time).unwrap()
 //                         .pose,
 //                 )))
 //             } else {
@@ -341,8 +626,8 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //             }
 //         };
 
-//         let left_hand = locate_hand_pose(&self.left_action, &self.left_space)?;
-//         let right_hand = locate_hand_pose(&self.right_action, &self.right_space)?;
+//         let left_hand = locate_hand_pose(&self.left_action, &self.left_space).unwrap();
+//         let right_hand = locate_hand_pose(&self.right_action, &self.right_space).unwrap();
 
 //         let right_thumbstick = if let Ok(value) =
 //             xr::Vector2f::get(&self.right_thumbstick_action, &self.session, xr::Path::NULL)
@@ -356,9 +641,9 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //             VIEW_TYPE,
 //             xr_frame_state.predicted_display_time,
 //             &self.stage,
-//         )?;
+//         ).unwrap();
 
-//         // We need to ask which swapchain image to use for rendering! Which one will we get?
+//         // We need to ask which swapchain image to use for rendering! Which one will we get.unwrap()
 //         // Who knows! It's up to the runtime to decide.
 //         let image_index = swapchain.handle.acquire_image().unwrap();
 
@@ -432,7 +717,7 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 //                                     .image_rect(rect),
 //                             ),
 //                     ])],
-//             )?;
+//             ).unwrap();
 //         }
 
 //         Ok(())

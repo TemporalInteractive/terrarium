@@ -1,15 +1,11 @@
 use std::collections::HashMap;
 
 use glam::{Quat, Vec2, Vec3};
+use terrarium::{wgpu_util, xr::XrInputActions};
 use winit::{
     event::{DeviceEvent, ElementState, MouseButton, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
-
-pub enum XrHand {
-    Left,
-    Right,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct XrPose {
@@ -71,15 +67,21 @@ impl InputState {
     }
 }
 
-#[derive(Debug, Default)]
 pub struct InputHandler {
     state: [InputState; 2],
+    xr_input_actions: Option<XrInputActions>,
     frame_idx: u32,
 }
 
 impl InputHandler {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(xr: &Option<wgpu_util::XrContext>) -> Self {
+        let xr_input_actions = xr.as_ref().map(|xr| XrInputActions::new(xr).unwrap());
+
+        Self {
+            state: std::array::from_fn(|_| Default::default()),
+            xr_input_actions,
+            frame_idx: 0,
+        }
     }
 
     pub fn current(&self) -> &InputState {

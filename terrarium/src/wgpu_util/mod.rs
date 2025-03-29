@@ -6,7 +6,7 @@ pub mod context;
 pub mod pipeline_database;
 pub mod surface;
 
-pub use context::Context;
+pub use context::*;
 pub use pipeline_database::PipelineDatabase;
 pub use surface::Surface;
 
