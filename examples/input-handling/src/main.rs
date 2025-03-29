@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glam::Mat4;
-use input::InputHandler;
 use terrarium::{
     app_loop::{
         handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
         AppLoop,
     },
+    helpers::input_handler::InputHandler,
     render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
     xr::XrHand,
@@ -17,8 +17,6 @@ use anyhow::Result;
 use ugm::speedy::Readable;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
-
-mod input;
 
 struct SizedResources {
     depth_texture: wgpu::Texture,
@@ -132,6 +130,8 @@ impl AppLoop for ExampleApp {
         {
             println!("value: {}", thumbstick);
         }
+
+        self.input_handler.update();
 
         command_encoder
     }

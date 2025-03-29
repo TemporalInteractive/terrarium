@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
-use glam::{Quat, Vec2, Vec3};
+use glam::Vec2;
 use openxr::ActionInput;
-use terrarium::{
-    wgpu_util,
-    xr::{XrHand, XrInputActions, XrPose},
-};
 use winit::{
     event::{DeviceEvent, ElementState, MouseButton, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
+};
+
+use crate::{
+    wgpu_util,
+    xr::{XrHand, XrInputActions, XrPose},
 };
 
 #[derive(Debug, Clone)]
