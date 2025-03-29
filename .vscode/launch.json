@@ -5,11 +5,11 @@
             "name": "Example Minimal",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target/debug/example-input-handling.exe",
+            "program": "${workspaceFolder}/target/debug/example-massive.exe",
             "args": [
             ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "rust: cargo build example-input-handling"
+            "preLaunchTask": "rust: cargo build example-massive"
         },
     ]
 }

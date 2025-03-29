@@ -1,0 +1,20 @@
+[package]
+name = "example-massive"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+terrarium.workspace = true
+
+anyhow.workspace = true
+bytemuck.workspace = true
+clap.workspace = true
+glam.workspace = true
+openxr.workspace = true
+ugm.workspace = true
+wgpu.workspace = true
+winit.workspace = true

@@ -34,6 +34,7 @@ xshell = { version = "0.2.7", default-features = true }
 [workspace]
 members = [
     "examples/input-handling",
+    "examples/massive",
     "examples/minimal",
     "terrarium",
 ]

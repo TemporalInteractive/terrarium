@@ -21,5 +21,15 @@
                 "example-input-handling"
             ],
         },
+        {
+            "label": "rust: cargo build example-massive",
+            "type": "process",
+            "command": "cargo",
+            "args": [
+                "build",
+                "-p",
+                "example-massive"
+            ],
+        },
     ]
 }

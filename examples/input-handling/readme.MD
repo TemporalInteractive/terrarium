@@ -1,10 +1,8 @@
 # Input Handling
 
-Terrarium only forwards input events from winit and openxr. It leaves it up to you how to handle these input events. This example tries to demonstrate how this can be done gracefully.
+Terrarium forwards all input events from winit and openxr. There's a `InputHandler` inside the terrarium helpers to get you up and running, however using it is completely optional.
 
-The available properties in `XrHandState` vary based on the connected XR device, or will be left completely empty when testing in a disconnected environment.
-
-All available control paths can be found at the [OpenXR Specification](https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html).
+The available properties in `XrHandState` vary based on the connected XR device, or will be left completely empty when testing in a disconnected environment. All available id paths can be found at the [OpenXR Specification](https://www.khronos.org/registry/OpenXR/specs/1.0/html/xrspec.html).
 
 ## Khronos Simple Controller Profile
 These controls are guaranteed to be available on any XR device.

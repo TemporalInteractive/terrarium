@@ -3,10 +3,7 @@ use std::sync::Arc;
 use clap::Parser;
 use glam::Mat4;
 use terrarium::{
-    app_loop::{
-        handler::{AppLoopHandler, AppLoopHandlerCreateDesc},
-        AppLoop,
-    },
+    app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
 };

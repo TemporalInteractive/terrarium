@@ -10,12 +10,49 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use super::AppLoop;
 use crate::{
     render_passes::blit_pass::{self, BlitPassParameters},
     wgpu_util::{self},
     xr::{openxr_view_to_view_proj, XrCameraData},
 };
+
+pub trait AppLoop: 'static + Sized {
+    fn new(
+        config: &wgpu::SurfaceConfiguration,
+        ctx: &wgpu_util::Context,
+        window: Arc<Window>,
+    ) -> Self;
+
+    fn render(
+        &mut self,
+        xr_camera_buffer: &wgpu::Buffer,
+        view: &wgpu::TextureView,
+        ctx: &wgpu_util::Context,
+        pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) -> wgpu::CommandEncoder;
+    fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context);
+
+    fn window_event(&mut self, _event: winit::event::WindowEvent) {}
+    fn device_event(&mut self, _event: winit::event::DeviceEvent) {}
+    fn xr_post_frame(&mut self, _xr_frame_state: &openxr::FrameState, _xr: &wgpu_util::XrContext) {}
+
+    fn optional_features() -> wgpu::Features {
+        wgpu::Features::empty()
+    }
+    fn required_features() -> wgpu::Features {
+        wgpu::Features::empty()
+    }
+    fn required_downlevel_capabilities() -> wgpu::DownlevelCapabilities {
+        wgpu::DownlevelCapabilities {
+            flags: wgpu::DownlevelFlags::empty(),
+            shader_model: wgpu::ShaderModel::Sm5,
+            ..wgpu::DownlevelCapabilities::default()
+        }
+    }
+    fn required_limits() -> wgpu::Limits {
+        wgpu::Limits::downlevel_webgl2_defaults()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AppLoopHandlerCreateDesc {
