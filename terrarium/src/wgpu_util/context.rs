@@ -621,7 +621,7 @@ impl XrContext {
                             memory_flags: wgpu_hal::MemoryFlags::empty(),
                             view_formats: vec![],
                         },
-                        None,
+                        Some(Box::new(|| ())),
                     )
                 };
                 let texture = unsafe {
