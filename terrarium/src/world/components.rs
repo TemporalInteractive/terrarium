@@ -1,7 +1,3 @@
-use std::sync::OnceLock;
-
-use ugm::mesh::Mesh;
-
 use crate::gpu_resources::GpuMesh;
 
 use super::transform::Transform;

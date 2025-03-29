@@ -1,21 +1,17 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use clap::Parser;
-use glam::Mat4;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     gpu_resources::{GpuMesh, GpuResources},
     helpers::input_handler::InputHandler,
-    render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
     world::{components::MeshComponent, transform::Transform},
     xr::XrHand,
     RenderParameters, Renderer,
 };
-
-use anyhow::Result;
 use ugm::speedy::Readable;
-use wgpu::util::DeviceExt;
 use winit::window::Window;
 use world::World;
 
@@ -43,31 +39,10 @@ impl AppLoop for ExampleApp {
         let model =
             ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
                 .unwrap();
-
         world.create_entity("Sponza", Transform::default(), |builder| {
             let gpu_mesh = GpuMesh::new(&model.meshes[0], &mut gpu_resources, ctx);
             builder.with(MeshComponent::new(gpu_mesh))
         });
-
-        // let vertex_buffer = ctx
-        //     .device
-        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //         label: Some("example-input-handling::vertices"),
-        //         contents: bytemuck::cast_slice(model.meshes[0].packed_vertices.as_slice()),
-        //         usage: wgpu::BufferUsages::VERTEX
-        //             | wgpu::BufferUsages::STORAGE
-        //             | wgpu::BufferUsages::COPY_DST,
-        //     });
-
-        // let index_buffer = ctx
-        //     .device
-        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //         label: Some("example-input-handling::indices"),
-        //         contents: bytemuck::cast_slice(model.meshes[0].indices.as_slice()),
-        //         usage: wgpu::BufferUsages::INDEX
-        //             | wgpu::BufferUsages::STORAGE
-        //             | wgpu::BufferUsages::COPY_DST,
-        //     });
 
         Self {
             input_handler,
@@ -99,21 +74,6 @@ impl AppLoop for ExampleApp {
             ctx,
             pipeline_database,
         );
-
-        // debug_pass::encode(
-        //     &DebugPassParameters {
-        //         local_to_world_space: Mat4::from_cols_array(&self.model.nodes[0].transform),
-        //         xr_camera_buffer,
-        //         dst_view: view,
-        //         target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        //         vertex_buffer: &self.vertex_buffer,
-        //         index_buffer: &self.index_buffer,
-        //         depth_texture: &self.sized_resources.depth_texture,
-        //     },
-        //     &ctx.device,
-        //     &mut command_encoder,
-        //     pipeline_database,
-        // );
 
         if let Some(thumbstick) = self
             .input_handler
