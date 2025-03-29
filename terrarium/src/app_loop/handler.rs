@@ -136,6 +136,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                     let xr_views = if let Some(xr) = &mut state.context.xr {
                         if let Some(xr_frame_state) = xr_frame_state {
+                            state.app_loop.xr_post_frame(&xr_frame_state, xr);
+
                             let xr_views = xr
                                 .post_frame(
                                     &state.rt_texture_view,
@@ -145,10 +147,6 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                                     &mut state.pipeline_database,
                                 )
                                 .unwrap();
-
-                            // xr post frame -> camera & joystick positions
-
-                            // update input manager with joystick data (only usable for next frame), meaning 1 frame delay
 
                             Some(xr_views)
                         } else {
@@ -254,27 +252,6 @@ impl<R: AppLoop> State<R> {
             )
             .await
         };
-
-        // let (context, xr_state) = if let Ok((context, xr_state)) =
-        //     XrState::initialize_with_wgpu(R::required_features(), R::required_limits())
-        // {
-        //     (Arc::new(context), Some(xr_state))
-        // } else {
-        //     let context = Arc::new(
-        //         wgpu_util::Context::init_with_window(
-        //             &mut surface,
-        //             window.clone(),
-        //             R::optional_features(),
-        //             R::required_features(),
-        //             R::required_downlevel_capabilities(),
-        //             R::required_limits(),
-        //             no_gpu_validation,
-        //         )
-        //         .await,
-        //     );
-
-        //     (context, None)
-        // };
 
         surface.resume(&context, window.clone(), true);
 

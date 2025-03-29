@@ -27,24 +27,35 @@ impl Default for XrCameraData {
     }
 }
 
-pub fn openxr_pose_to_glam(pose: &openxr::Posef) -> (Vec3, Quat) {
-    // with enough sign errors anything is possible
-    let rotation = {
-        let o = pose.orientation;
-        Quat::from_rotation_x(180.0f32.to_radians()) * glam::quat(o.w, o.z, o.y, o.x)
-    };
-    let translation = glam::vec3(-pose.position.x, pose.position.y, -pose.position.z);
-    (translation, rotation)
+#[derive(Debug, Clone, Copy)]
+pub struct XrPose {
+    pub orientation: Quat,
+    pub translation: Vec3,
+}
+
+impl XrPose {
+    pub fn from_openxr(pose: &openxr::Posef) -> Self {
+        // with enough sign errors anything is possible
+        let orientation = {
+            let o = pose.orientation;
+            Quat::from_rotation_x(180.0f32.to_radians()) * glam::quat(o.w, o.z, o.y, o.x)
+        };
+        let translation = glam::vec3(-pose.position.x, pose.position.y, -pose.position.z);
+
+        Self {
+            orientation,
+            translation,
+        }
+    }
 }
 
 pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Mat4 {
-    let pose = v.pose;
-    let (xr_translation, xr_rotation) = openxr_pose_to_glam(&pose);
+    let pose = XrPose::from_openxr(&v.pose);
 
     let view = Mat4::look_at_rh(
-        xr_translation,
-        xr_translation + xr_rotation * Vec3::Z, // FORWARD.unwrap()
-        xr_rotation * UP,
+        pose.translation,
+        pose.translation + pose.orientation * Vec3::Z, // FORWARD?
+        pose.orientation * UP,
     );
 
     let [tan_left, tan_right, tan_down, tan_up] = [
@@ -76,6 +87,7 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
     proj * view
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum XrHand {
     Left,
     Right,

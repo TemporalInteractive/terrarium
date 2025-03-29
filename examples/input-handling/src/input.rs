@@ -1,24 +1,59 @@
 use std::collections::HashMap;
 
 use glam::{Quat, Vec2, Vec3};
-use terrarium::{wgpu_util, xr::XrInputActions};
+use openxr::ActionInput;
+use terrarium::{
+    wgpu_util,
+    xr::{XrHand, XrInputActions, XrPose},
+};
 use winit::{
     event::{DeviceEvent, ElementState, MouseButton, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct XrPose {
-    pub orientation: Quat,
-    pub position: Vec3,
-}
-
-#[derive(Debug, Default, Clone)]
-struct XrHandState {
+#[derive(Debug, Clone)]
+pub struct XrHandState {
+    hand: XrHand,
     digital: HashMap<String, bool>,
     analog: HashMap<String, f32>,
     analog_2d: HashMap<String, Vec2>,
     pose: HashMap<String, XrPose>,
+}
+
+impl XrHandState {
+    fn new(hand: XrHand) -> Self {
+        Self {
+            hand,
+            digital: HashMap::new(),
+            analog: HashMap::new(),
+            analog_2d: HashMap::new(),
+            pose: HashMap::new(),
+        }
+    }
+
+    pub fn digital(&self, id: &str) -> Option<bool> {
+        self.digital
+            .get(&format!("/user/hand/{}{}", self.hand, id))
+            .copied()
+    }
+
+    pub fn analog(&self, id: &str) -> Option<f32> {
+        self.analog
+            .get(&format!("/user/hand/{}{}", self.hand, id))
+            .copied()
+    }
+
+    pub fn analog_2d(&self, id: &str) -> Option<Vec2> {
+        self.analog_2d
+            .get(&format!("/user/hand/{}{}", self.hand, id))
+            .copied()
+    }
+
+    pub fn pose(&self, id: &str) -> Option<XrPose> {
+        self.pose
+            .get(&format!("/user/hand/{}{}", self.hand, id))
+            .copied()
+    }
 }
 
 #[derive(Debug)]
@@ -40,7 +75,10 @@ impl Default for InputState {
             mouse_position: Vec2::ZERO,
             mouse_motion: Vec2::ZERO,
             mouse_wheel: 0.0,
-            xr_hand: std::array::from_fn(|_| Default::default()),
+            xr_hand: [
+                XrHandState::new(XrHand::Left),
+                XrHandState::new(XrHand::Right),
+            ],
         }
     }
 }
@@ -64,6 +102,10 @@ impl InputState {
 
     pub fn mouse_wheel(&self) -> f32 {
         self.mouse_wheel
+    }
+
+    pub fn xr_hand(&self, hand: XrHand) -> &XrHandState {
+        &self.xr_hand[hand as usize]
     }
 }
 
@@ -124,10 +166,78 @@ impl InputHandler {
         }
     }
 
-    pub fn handle_device_input(&mut self, device_event: &DeviceEvent) {
-        if let DeviceEvent::MouseMotion { delta } = device_event {
+    pub fn handle_device_input(&mut self, event: &DeviceEvent) {
+        if let DeviceEvent::MouseMotion { delta } = event {
             self.current_mut().mouse_motion += Vec2::new(delta.0 as f32, delta.1 as f32);
         }
+    }
+
+    pub fn handle_xr_input(
+        &mut self,
+        xr_frame_state: &openxr::FrameState,
+        xr: &wgpu_util::XrContext,
+    ) {
+        let mut xr_hand = [
+            XrHandState::new(XrHand::Left),
+            XrHandState::new(XrHand::Right),
+        ];
+
+        if let Some(xr_input_actions) = &self.xr_input_actions {
+            xr.session
+                .sync_actions(&[(&xr_input_actions.action_set).into()])
+                .unwrap();
+
+            for (i, xr_hand) in xr_hand.iter_mut().enumerate() {
+                for (path, action) in &xr_input_actions.hand_input_actions[i].digital {
+                    let value =
+                        if let Ok(value) = bool::get(action, &xr.session, openxr::Path::NULL) {
+                            value.current_state
+                        } else {
+                            false
+                        };
+
+                    xr_hand.digital.insert(path.to_owned(), value);
+                }
+
+                for (path, action) in &xr_input_actions.hand_input_actions[i].analog {
+                    let value = if let Ok(value) = f32::get(action, &xr.session, openxr::Path::NULL)
+                    {
+                        value.current_state
+                    } else {
+                        0.0
+                    };
+
+                    xr_hand.analog.insert(path.to_owned(), value);
+                }
+
+                for (path, action) in &xr_input_actions.hand_input_actions[i].analog_2d {
+                    let value = if let Ok(value) =
+                        openxr::Vector2f::get(action, &xr.session, openxr::Path::NULL)
+                    {
+                        Vec2::new(value.current_state.x, value.current_state.y)
+                    } else {
+                        Vec2::ZERO
+                    };
+
+                    xr_hand.analog_2d.insert(path.to_owned(), value);
+                }
+
+                for (path, (action, space)) in &xr_input_actions.hand_input_actions[i].pose {
+                    if action.is_active(&xr.session, openxr::Path::NULL).unwrap() {
+                        let value = XrPose::from_openxr(
+                            &space
+                                .locate(&xr.stage, xr_frame_state.predicted_display_time)
+                                .unwrap()
+                                .pose,
+                        );
+
+                        xr_hand.pose.insert(path.to_owned(), value);
+                    }
+                }
+            }
+        }
+
+        self.current_mut().xr_hand = xr_hand;
     }
 
     pub fn update(&mut self) {

@@ -10,6 +10,7 @@ use terrarium::{
     },
     render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
+    xr::XrHand,
 };
 
 use anyhow::Result;
@@ -123,11 +124,32 @@ impl AppLoop for ExampleApp {
             pipeline_database,
         );
 
+        if let Some(thumbstick) = self
+            .input_handler
+            .current()
+            .xr_hand(XrHand::Right)
+            .analog_2d("/input/thumbstick")
+        {
+            println!("value: {}", thumbstick);
+        }
+
         command_encoder
     }
 
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
         self.sized_resources = SizedResources::new(config, &ctx.device);
+    }
+
+    fn window_event(&mut self, event: winit::event::WindowEvent) {
+        self.input_handler.handle_window_input(&event);
+    }
+
+    fn device_event(&mut self, event: winit::event::DeviceEvent) {
+        self.input_handler.handle_device_input(&event);
+    }
+
+    fn xr_post_frame(&mut self, xr_frame_state: &openxr::FrameState, xr: &wgpu_util::XrContext) {
+        self.input_handler.handle_xr_input(xr_frame_state, xr);
     }
 
     fn required_features() -> wgpu::Features {

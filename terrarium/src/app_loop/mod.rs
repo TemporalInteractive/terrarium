@@ -23,6 +23,7 @@ pub trait AppLoop: 'static + Sized {
 
     fn window_event(&mut self, _event: winit::event::WindowEvent) {}
     fn device_event(&mut self, _event: winit::event::DeviceEvent) {}
+    fn xr_post_frame(&mut self, _xr_frame_state: &openxr::FrameState, _xr: &wgpu_util::XrContext) {}
 
     fn optional_features() -> wgpu::Features {
         wgpu::Features::empty()
