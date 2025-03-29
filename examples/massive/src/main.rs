@@ -4,50 +4,28 @@ use clap::Parser;
 use glam::Mat4;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
+    gpu_resources::{GpuMesh, GpuResources},
     helpers::input_handler::InputHandler,
     render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
+    world::{components::MeshComponent, transform::Transform},
     xr::XrHand,
+    RenderParameters, Renderer,
 };
 
 use anyhow::Result;
 use ugm::speedy::Readable;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
+use world::World;
 
-struct SizedResources {
-    depth_texture: wgpu::Texture,
-}
-
-impl SizedResources {
-    pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("example-input-handling::depth"),
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 2,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-
-        Self { depth_texture }
-    }
-}
+mod world;
 
 pub struct ExampleApp {
     input_handler: InputHandler,
-
-    model: ugm::Model,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-
-    sized_resources: SizedResources,
+    world: World,
+    renderer: Renderer,
+    gpu_resources: GpuResources,
 }
 
 impl AppLoop for ExampleApp {
@@ -57,39 +35,45 @@ impl AppLoop for ExampleApp {
         _window: Arc<Window>,
     ) -> Self {
         let input_handler = InputHandler::new(&ctx.xr);
+        let mut world = World::new();
+
+        let renderer = Renderer::new(config, ctx);
+        let mut gpu_resources = GpuResources::new(&ctx.device);
 
         let model =
             ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
                 .unwrap();
 
-        let vertex_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("example-input-handling::vertices"),
-                contents: bytemuck::cast_slice(model.meshes[0].packed_vertices.as_slice()),
-                usage: wgpu::BufferUsages::VERTEX
-                    | wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_DST,
-            });
+        world.create_entity("Sponza", Transform::default(), |builder| {
+            let gpu_mesh = GpuMesh::new(&model.meshes[0], &mut gpu_resources, ctx);
+            builder.with(MeshComponent::new(gpu_mesh))
+        });
 
-        let index_buffer = ctx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("example-input-handling::indices"),
-                contents: bytemuck::cast_slice(model.meshes[0].indices.as_slice()),
-                usage: wgpu::BufferUsages::INDEX
-                    | wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_DST,
-            });
+        // let vertex_buffer = ctx
+        //     .device
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         label: Some("example-input-handling::vertices"),
+        //         contents: bytemuck::cast_slice(model.meshes[0].packed_vertices.as_slice()),
+        //         usage: wgpu::BufferUsages::VERTEX
+        //             | wgpu::BufferUsages::STORAGE
+        //             | wgpu::BufferUsages::COPY_DST,
+        //     });
 
-        let sized_resources = SizedResources::new(config, &ctx.device);
+        // let index_buffer = ctx
+        //     .device
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         label: Some("example-input-handling::indices"),
+        //         contents: bytemuck::cast_slice(model.meshes[0].indices.as_slice()),
+        //         usage: wgpu::BufferUsages::INDEX
+        //             | wgpu::BufferUsages::STORAGE
+        //             | wgpu::BufferUsages::COPY_DST,
+        //     });
 
         Self {
             input_handler,
-            model,
-            vertex_buffer,
-            index_buffer,
-            sized_resources,
+            world,
+            renderer,
+            gpu_resources,
         }
     }
 
@@ -104,20 +88,32 @@ impl AppLoop for ExampleApp {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        debug_pass::encode(
-            &DebugPassParameters {
-                local_to_world_space: Mat4::from_cols_array(&self.model.nodes[0].transform),
+        self.renderer.render(
+            &mut RenderParameters {
+                world: self.world.specs(),
                 xr_camera_buffer,
-                dst_view: view,
-                target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                vertex_buffer: &self.vertex_buffer,
-                index_buffer: &self.index_buffer,
-                depth_texture: &self.sized_resources.depth_texture,
+                view,
+                gpu_resources: &mut self.gpu_resources,
             },
-            &ctx.device,
             &mut command_encoder,
+            ctx,
             pipeline_database,
         );
+
+        // debug_pass::encode(
+        //     &DebugPassParameters {
+        //         local_to_world_space: Mat4::from_cols_array(&self.model.nodes[0].transform),
+        //         xr_camera_buffer,
+        //         dst_view: view,
+        //         target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        //         vertex_buffer: &self.vertex_buffer,
+        //         index_buffer: &self.index_buffer,
+        //         depth_texture: &self.sized_resources.depth_texture,
+        //     },
+        //     &ctx.device,
+        //     &mut command_encoder,
+        //     pipeline_database,
+        // );
 
         if let Some(thumbstick) = self
             .input_handler
@@ -134,7 +130,7 @@ impl AppLoop for ExampleApp {
     }
 
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
-        self.sized_resources = SizedResources::new(config, &ctx.device);
+        self.renderer.resize(config, ctx);
     }
 
     fn window_event(&mut self, event: winit::event::WindowEvent) {
@@ -155,9 +151,15 @@ impl AppLoop for ExampleApp {
 
     fn required_limits() -> wgpu::Limits {
         wgpu::Limits {
+            max_compute_invocations_per_workgroup: 512,
+            max_compute_workgroup_size_x: 512,
+            max_buffer_size: (1024 << 20),
+            max_storage_buffer_binding_size: (1024 << 20),
+            max_sampled_textures_per_shader_stage: 1024 * 32,
+            max_push_constant_size: 128,
+            max_bind_groups: 8,
             max_texture_dimension_1d: 4096,
             max_texture_dimension_2d: 4096,
-            max_push_constant_size: 128,
             ..wgpu::Limits::default()
         }
     }

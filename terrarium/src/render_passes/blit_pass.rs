@@ -22,8 +22,8 @@ pub fn encode(
         parameters.target_format, parameters.multiview
     );
 
-    let shader =
-        pipeline_database.shader_from_src(device, include_wgsl!("terrarium/shaders/blit.wgsl"));
+    let shader = pipeline_database
+        .shader_from_src(device, include_wgsl!("terrarium/shaders/blit_pass.wgsl"));
     let pipeline = pipeline_database.render_pipeline(
         device,
         wgpu::RenderPipelineDescriptor {

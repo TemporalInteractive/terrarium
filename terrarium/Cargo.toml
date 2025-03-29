@@ -14,6 +14,7 @@ bytemuck.workspace = true
 futures.workspace = true
 glam.workspace = true
 openxr.workspace = true
+specs.workspace = true
 ugm.workspace = true
 wgpu.workspace = true
 wgpu-hal.workspace = true

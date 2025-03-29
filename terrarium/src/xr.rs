@@ -5,7 +5,7 @@ use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
-use crate::{wgpu_util, UP};
+use crate::{wgpu_util, world::transform::UP};
 
 pub const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const VK_COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
