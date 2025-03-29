@@ -160,9 +160,9 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                     let mut xr_camera_data = XrCameraData::default();
                     if let Some(xr_views) = &xr_views {
-                        for i in 0..xr_views.len() {
+                        for (i, xr_view) in xr_views.iter().enumerate() {
                             xr_camera_data.stage_to_clip_space[i] =
-                                openxr_view_to_view_proj(&xr_views[i], 0.01, 1000.0);
+                                openxr_view_to_view_proj(xr_view, 0.01, 1000.0);
                         }
                     } else {
                         for i in 0..2 {

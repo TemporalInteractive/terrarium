@@ -1,22 +1,12 @@
-use std::{
-    ffi::{c_void, CString},
-    num::NonZeroU32,
-};
-
-use anyhow::{Context, Result};
-use ash::vk::{self, Handle};
+use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec2, Vec3};
-use openxr::{self as xr, ActionInput, ViewConfigurationView};
+use glam::{Mat4, Quat, Vec3};
 
-use crate::{
-    render_passes::blit_pass::{self, BlitPassParameters},
-    wgpu_util,
-};
+use crate::UP;
 
 pub const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const VK_COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
-pub const VIEW_TYPE: xr::ViewConfigurationType = xr::ViewConfigurationType::PRIMARY_STEREO;
+pub const VIEW_TYPE: openxr::ViewConfigurationType = openxr::ViewConfigurationType::PRIMARY_STEREO;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -34,14 +24,6 @@ impl Default for XrCameraData {
     }
 }
 
-// #[derive(Default)]
-// pub struct PostFrameData {
-//     pub views: Vec<openxr::View>,
-//     pub left_hand: Option<(Vec3, Quat)>,
-//     pub right_hand: Option<(Vec3, Quat)>,
-//     pub right_thumbstick: Vec2,
-// }
-
 pub fn openxr_pose_to_glam(pose: &openxr::Posef) -> (Vec3, Quat) {
     // with enough sign errors anything is possible
     let rotation = {
@@ -58,8 +40,8 @@ pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Ma
 
     let view = Mat4::look_at_rh(
         xr_translation,
-        xr_translation + xr_rotation * Vec3::Z,
-        xr_rotation * Vec3::Y,
+        xr_translation + xr_rotation * Vec3::Z, // FORWARD?
+        xr_rotation * UP,
     );
 
     let [tan_left, tan_right, tan_down, tan_up] = [

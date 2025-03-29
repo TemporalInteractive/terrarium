@@ -1,3 +1,5 @@
+#![allow(clippy::missing_transmute_annotations)]
+
 use anyhow::Result;
 use ash::vk::{self, Handle};
 use std::ffi::{c_void, CString};
@@ -28,7 +30,7 @@ pub struct XrContext {
     pub frame_wait: openxr::FrameWaiter,
     pub frame_stream: openxr::FrameStream<openxr::Vulkan>,
     event_storage: openxr::EventDataBuffer,
-    views: Vec<openxr::ViewConfigurationView>,
+    view_configs: Vec<openxr::ViewConfigurationView>,
     stage: openxr::Space,
     swapchain: Option<XrSwapchain>,
 }
@@ -376,11 +378,11 @@ impl Context {
             )
         }?;
 
-        let views = xr_instance
+        let view_configs = xr_instance
             .enumerate_view_configuration_views(xr_system_id, xr::VIEW_TYPE)
             .unwrap();
-        assert_eq!(views.len(), 2);
-        assert_eq!(views[0], views[1]);
+        assert_eq!(view_configs.len(), 2);
+        assert_eq!(view_configs[0], view_configs[1]);
 
         let stage = session.create_reference_space(
             openxr::ReferenceSpaceType::LOCAL_FLOOR,
@@ -397,7 +399,7 @@ impl Context {
             frame_wait,
             frame_stream,
             event_storage: openxr::EventDataBuffer::new(),
-            views,
+            view_configs,
             stage,
             swapchain: None,
         });
@@ -484,20 +486,15 @@ impl XrContext {
             &self.stage,
         )?;
 
+        let swapchain = self.get_swapchain(device).unwrap();
+
         // We need to ask which swapchain image to use for rendering! Which one will we get?
         // Who knows! It's up to the runtime to decide.
-        let image_index = self
-            .get_swapchain(device)
-            .unwrap()
-            .handle
-            .acquire_image()
-            .unwrap();
+        let image_index = swapchain.handle.acquire_image().unwrap();
 
         // Wait until the image is available to render to. The compositor could still be
         // reading from it.
-        &self
-            .get_swapchain(device)
-            .unwrap()
+        swapchain
             .handle
             .wait_image(openxr::Duration::INFINITE)
             .unwrap();
@@ -505,7 +502,7 @@ impl XrContext {
         blit_pass::encode(
             &BlitPassParameters {
                 src_view: rt_texture_view,
-                dst_view: &self.get_swapchain(device).unwrap().buffers[image_index as usize],
+                dst_view: &swapchain.buffers[image_index as usize],
                 multiview: Some(NonZeroU32::new(2).unwrap()),
                 target_format: xr::WGPU_COLOR_FORMAT,
             },
@@ -574,8 +571,8 @@ impl XrContext {
             // used for displaying to screen, typically this is a backbuffer and a front buffer,
             // one for rendering data to, and one for displaying on-screen.
             let resolution = vk::Extent2D {
-                width: self.views[0].recommended_image_rect_width,
-                height: self.views[0].recommended_image_rect_height,
+                width: self.view_configs[0].recommended_image_rect_width,
+                height: self.view_configs[0].recommended_image_rect_height,
             };
             let handle = self
                 .instance
