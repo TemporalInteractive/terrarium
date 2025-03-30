@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use specs::Join;
 use ugm::mesh::PackedVertex;
@@ -10,6 +11,13 @@ use crate::{
     wgpu_util::PipelineDatabase,
     world::components::{MeshComponent, TransformComponent},
 };
+
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+struct PushConstant {
+    local_to_world_space: Mat4,
+    inv_trans_local_to_world_space: Mat4,
+}
 
 pub struct GbufferPassParameters<'a> {
     pub world: &'a specs::World,
@@ -107,8 +115,8 @@ pub fn encode(
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("terrarium::gbuffer_pass"),
-                bind_group_layouts: &[&device.create_bind_group_layout(
-                    &wgpu::BindGroupLayoutDescriptor {
+                bind_group_layouts: &[
+                    &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
                         entries: &[wgpu::BindGroupLayoutEntry {
                             binding: 0,
@@ -120,11 +128,12 @@ pub fn encode(
                             },
                             count: None,
                         }],
-                    },
-                )],
+                    }),
+                    parameters.gpu_resources.vertex_pool().bind_group_layout(),
+                ],
                 push_constant_ranges: &[wgpu::PushConstantRange {
                     stages: wgpu::ShaderStages::VERTEX,
-                    range: 0..size_of::<Mat4>() as u32,
+                    range: 0..size_of::<PushConstant>() as u32,
                 }],
             })
         },
@@ -155,7 +164,7 @@ pub fn encode(
                 view: parameters.dst_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -172,6 +181,11 @@ pub fn encode(
         });
         rpass.set_pipeline(&pipeline);
         rpass.set_bind_group(0, &bind_group, &[]);
+        rpass.set_bind_group(
+            1,
+            &parameters.gpu_resources.vertex_pool().bind_group(device),
+            &[],
+        );
 
         let vertex_pool = parameters.gpu_resources.vertex_pool();
         rpass.set_vertex_buffer(0, vertex_pool.vertex_buffer().slice(..));
@@ -188,11 +202,19 @@ pub fn encode(
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
             let vertex_slice = &mesh_component.mesh.vertex_pool_alloc.slice;
             let local_to_world_space = transform_component.transform.get_matrix();
+            let inv_trans_local_to_world_space = transform_component
+                .transform
+                .get_matrix()
+                .inverse()
+                .transpose();
 
             rpass.set_push_constants(
                 wgpu::ShaderStages::VERTEX,
                 0,
-                bytemuck::bytes_of(&local_to_world_space),
+                bytemuck::bytes_of(&PushConstant {
+                    local_to_world_space,
+                    inv_trans_local_to_world_space,
+                }),
             );
             rpass.draw_indexed(
                 vertex_slice.first_index()..vertex_slice.last_index(),

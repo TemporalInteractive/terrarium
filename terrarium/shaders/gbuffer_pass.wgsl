@@ -1,5 +1,6 @@
-@include terrarium/shaders/shared/packing.wgsl
 @include terrarium/shaders/shared/xr.wgsl
+
+@include terrarium/shaders/shared/vertex_pool_bindings.wgsl
 
 struct VertexOutput {
     @location(0) normal_ws: vec3<f32>,
@@ -8,6 +9,7 @@ struct VertexOutput {
 
 struct PushConstant {
     local_to_world_space: mat4x4<f32>,
+    inv_trans_local_to_world_space: mat4x4<f32>,
 }
 
 var<push_constant> pc : PushConstant;
@@ -28,12 +30,17 @@ fn vs_main(
     let packed_normal = PackedNormalizedXyz10(_packed_normal);
     let packed_tangent = PackedNormalizedXyz10(_packed_tangent);
 
+    let normal: vec3<f32> = PackedNormalizedXyz10::unpack(packed_normal, 0);
+    let tangent: vec3<f32> = PackedNormalizedXyz10::unpack(packed_tangent, 0);
+    let bitangent: vec3<f32> = VertexPool::calculate_bitangent(normal, tangent, tangent_handiness);
+
+    let normal_ws: vec3<f32> = (pc.inv_trans_local_to_world_space * vec4<f32>(normal, 0.0)).xyz;
+
     let position_world_space: vec4<f32> = pc.local_to_world_space * vec4<f32>(position, 1.0);
-    //let position_stage_space: vec4<f32> = xr_camera.world_to_stage_space * position_world_space;
     let position_clip_space: vec4<f32> = xr_camera.world_to_clip_space[view_index] * position_world_space;
 
     var result: VertexOutput;
-    result.normal_ws = PackedNormalizedXyz10::unpack(packed_normal, 0);
+    result.normal_ws = normal_ws;
     result.position_cs = position_clip_space;
     return result;
 }
