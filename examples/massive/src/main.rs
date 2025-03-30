@@ -16,12 +16,33 @@ use terrarium::{
     xr::XrCameraState,
     RenderParameters, Renderer,
 };
-use ugm::speedy::Readable;
+use ugm::{speedy::Readable, Model};
 use winit::window::Window;
 use world::World;
 
 mod camera_controller;
 mod world;
+
+pub fn spawn_model(
+    model: &Model,
+    world: &mut World,
+    gpu_resources: &mut GpuResources,
+    ctx: &wgpu_util::Context,
+) {
+    let gpu_meshes: Vec<GpuMesh> = model
+        .meshes
+        .iter()
+        .map(|mesh| GpuMesh::new(mesh, gpu_resources, ctx))
+        .collect();
+
+    model.traverse_nodes(Mat4::IDENTITY, |node, transform| {
+        if let Some(mesh_idx) = node.mesh_idx {
+            world.create_entity(&node.name, Transform::from(transform), |builder| {
+                builder.with(MeshComponent::new(gpu_meshes[mesh_idx as usize].clone()))
+            });
+        }
+    });
+}
 
 pub struct ExampleApp {
     input_handler: InputHandler,
@@ -47,17 +68,10 @@ impl AppLoop for ExampleApp {
         let mut gpu_resources = GpuResources::new(&ctx.device);
 
         let model = ugm::Model::read_from_buffer(
-            &std::fs::read("examples/massive/assets/Sponza.ugm").unwrap(),
+            &std::fs::read("examples/massive/assets/TestScene.ugm").unwrap(),
         )
         .unwrap();
-        world.create_entity(
-            "Sponza",
-            Transform::from(Mat4::from_cols_array(&model.nodes[0].transform)),
-            |builder| {
-                let gpu_mesh = GpuMesh::new(&model.meshes[0], &mut gpu_resources, ctx);
-                builder.with(MeshComponent::new(gpu_mesh))
-            },
-        );
+        spawn_model(&model, &mut world, &mut gpu_resources, ctx);
 
         let aspect_ratio = config.width as f32 / config.height as f32;
 

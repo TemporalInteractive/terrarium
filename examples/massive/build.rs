@@ -33,10 +33,9 @@ fn parse_model(model_path: PathBuf) {
         ParseOptions {
             texture_compression: Some(TextureCompression::Bc),
         },
+        None,
     )
     .expect("Failed to parse glTF model.");
-
-    println!("cargo::warning=parsing \"{:?}\"...", model_path);
 
     let ugm_bytes: Vec<u8> = model.write_to_vec().unwrap();
     std::fs::write(model_path.with_extension("ugm"), ugm_bytes).unwrap();
