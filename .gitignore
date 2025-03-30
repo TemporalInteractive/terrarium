@@ -15,3 +15,6 @@ Cargo.lock
 
 # Universal Game Models
 *.ugm
+
+# Assets too big to upload
+TestScene.glb

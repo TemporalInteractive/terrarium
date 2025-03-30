@@ -68,7 +68,8 @@ impl AppLoop for ExampleApp {
         let mut gpu_resources = GpuResources::new(&ctx.device);
 
         let model = ugm::Model::read_from_buffer(
-            &std::fs::read("examples/massive/assets/TestScene.ugm").unwrap(),
+            &std::fs::read("examples/massive/assets/TestScene.ugm")
+            .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
         )
         .unwrap();
         spawn_model(&model, &mut world, &mut gpu_resources, ctx);
