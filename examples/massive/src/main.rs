@@ -28,6 +28,7 @@ pub struct ExampleApp {
     world: World,
     camera_controller: CameraController,
     renderer: Renderer,
+    aspect_ratio: f32,
     gpu_resources: GpuResources,
     frame_timer: Timer,
     fps_counter: FpsCounter,
@@ -45,9 +46,10 @@ impl AppLoop for ExampleApp {
         let renderer = Renderer::new(config, ctx);
         let mut gpu_resources = GpuResources::new(&ctx.device);
 
-        let model =
-            ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
-                .unwrap();
+        let model = ugm::Model::read_from_buffer(
+            &std::fs::read("examples/massive/assets/Sponza.ugm").unwrap(),
+        )
+        .unwrap();
         world.create_entity(
             "Sponza",
             Transform::from(Mat4::from_cols_array(&model.nodes[0].transform)),
@@ -57,11 +59,14 @@ impl AppLoop for ExampleApp {
             },
         );
 
+        let aspect_ratio = config.width as f32 / config.height as f32;
+
         Self {
             input_handler,
             world,
             camera_controller: CameraController::new(),
             renderer,
+            aspect_ratio,
             gpu_resources,
             frame_timer: Timer::new(),
             fps_counter: FpsCounter::new(),
@@ -82,7 +87,7 @@ impl AppLoop for ExampleApp {
         self.camera_controller
             .update(&self.input_handler, delta_time, xr_camera_state);
         self.camera_controller
-            .update_xr_camera_state(xr_camera_state);
+            .update_xr_camera_state(self.aspect_ratio, xr_camera_state);
 
         let mut command_encoder = ctx
             .device
@@ -109,6 +114,8 @@ impl AppLoop for ExampleApp {
     }
 
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
+        self.aspect_ratio = config.width as f32 / config.height as f32;
+
         self.renderer.resize(config, ctx);
     }
 

@@ -35,7 +35,7 @@ impl CameraController {
         &mut self,
         input: &InputHandler,
         delta_time: f32,
-        xr_camera_state: &XrCameraState,
+        xr_camera_state: &mut XrCameraState,
     ) {
         let (_, rotation, _) = xr_camera_state.stage_to_view_space[0]
             .inverse()
@@ -128,11 +128,11 @@ impl CameraController {
         );
     }
 
-    pub fn update_xr_camera_state(&self, xr_camera_state: &mut XrCameraState) {
+    pub fn update_xr_camera_state(&self, aspect_ratio: f32, xr_camera_state: &mut XrCameraState) {
         for i in 0..2 {
             xr_camera_state.view_to_clip_space[i] = Mat4::perspective_rh(
                 60.0f32.to_radians(),
-                1.0,
+                aspect_ratio,
                 xr_camera_state.z_near,
                 xr_camera_state.z_far,
             );
