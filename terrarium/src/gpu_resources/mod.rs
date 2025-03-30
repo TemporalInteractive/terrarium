@@ -1,5 +1,6 @@
+use material_pool::MaterialPool;
 use specs::Join;
-use ugm::mesh::Mesh;
+use ugm::{material::Material, mesh::Mesh, Model};
 use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
     world::components::{MeshComponent, TransformComponent},
 };
 
+pub mod material_pool;
 pub mod vertex_pool;
 
 #[derive(Debug, Clone)]
@@ -14,15 +16,35 @@ pub struct GpuMesh {
     pub vertex_pool_alloc: VertexPoolAlloc,
 }
 
-impl GpuMesh {
-    pub fn new(mesh: &Mesh, gpu_resources: &mut GpuResources, ctx: &wgpu_util::Context) -> Self {
-        let vertex_pool_alloc = gpu_resources.vertex_pool.alloc(
+#[derive(Debug, Clone)]
+pub struct GpuMaterial {
+    pub material_idx: u32,
+}
+
+pub struct GpuResources {
+    vertex_pool: VertexPool,
+    material_pool: MaterialPool,
+}
+
+impl GpuResources {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let vertex_pool = VertexPool::new(device);
+        let material_pool = MaterialPool::new(device);
+
+        Self {
+            vertex_pool,
+            material_pool,
+        }
+    }
+
+    pub fn create_gpu_mesh(&mut self, mesh: &Mesh, ctx: &wgpu_util::Context) -> GpuMesh {
+        let vertex_pool_alloc = self.vertex_pool.alloc(
             mesh.packed_vertices.len() as u32,
             mesh.indices.len() as u32,
             0,
         );
 
-        gpu_resources.vertex_pool.write_vertex_data(
+        self.vertex_pool.write_vertex_data(
             &VertexPoolWriteData {
                 packed_vertices: &mesh.packed_vertices,
                 indices: &mesh.indices,
@@ -32,23 +54,28 @@ impl GpuMesh {
             &ctx.queue,
         );
 
-        Self { vertex_pool_alloc }
+        GpuMesh { vertex_pool_alloc }
     }
-}
 
-pub struct GpuResources {
-    vertex_pool: VertexPool,
-}
+    pub fn create_gpu_material(
+        &mut self,
+        model: &Model,
+        material: &Material,
+        ctx: &wgpu_util::Context,
+    ) -> GpuMaterial {
+        let material_idx =
+            self.material_pool
+                .alloc_material(model, material, &ctx.device, &ctx.queue);
 
-impl GpuResources {
-    pub fn new(device: &wgpu::Device) -> Self {
-        let vertex_pool = VertexPool::new(device);
-
-        Self { vertex_pool }
+        GpuMaterial { material_idx }
     }
 
     pub fn vertex_pool(&self) -> &VertexPool {
         &self.vertex_pool
+    }
+
+    pub fn material_pool(&self) -> &MaterialPool {
+        &self.material_pool
     }
 
     pub fn submit_instances(&mut self, world: &specs::World, queue: &wgpu::Queue) {

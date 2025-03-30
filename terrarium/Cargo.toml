@@ -16,6 +16,7 @@ glam.workspace = true
 openxr.workspace = true
 specs.workspace = true
 ugm.workspace = true
+uuid.workspace = true
 wgpu.workspace = true
 wgpu-hal.workspace = true
 wgsl-includes.workspace = true

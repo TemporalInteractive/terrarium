@@ -1,9 +1,11 @@
 @include terrarium/shaders/shared/xr.wgsl
 
 @include terrarium/shaders/shared/vertex_pool_bindings.wgsl
+@include terrarium/shaders/shared/material_pool_bindings.wgsl
 
 struct VertexOutput {
     @location(0) normal_ws: vec3<f32>,
+    @location(1) tex_coord: vec2<f32>,
     @builtin(position) position_cs: vec4<f32>,
 };
 
@@ -41,11 +43,14 @@ fn vs_main(
 
     var result: VertexOutput;
     result.normal_ws = normal_ws;
+    result.tex_coord = tex_coord;
     result.position_cs = position_clip_space;
     return result;
 }
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(vertex.normal_ws * 0.5 + 0.5, 1.0);
+    let color: vec3<f32> = srgb_to_linear(_texture(0, vertex.tex_coord)).rgb;
+
+    return vec4<f32>(color, 1.0);
 }

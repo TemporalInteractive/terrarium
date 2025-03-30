@@ -130,6 +130,7 @@ pub fn encode(
                         }],
                     }),
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
+                    parameters.gpu_resources.material_pool().bind_group_layout(),
                 ],
                 push_constant_ranges: &[wgpu::PushConstantRange {
                     stages: wgpu::ShaderStages::VERTEX,
@@ -180,11 +181,19 @@ pub fn encode(
             occlusion_query_set: None,
         });
         rpass.set_pipeline(&pipeline);
+
         rpass.set_bind_group(0, &bind_group, &[]);
         rpass.set_bind_group(
             1,
             &parameters.gpu_resources.vertex_pool().bind_group(device),
             &[],
+        );
+        parameters.gpu_resources.material_pool().bind_group(
+            pipeline.get_bind_group_layout(2),
+            device,
+            |bind_group| {
+                rpass.set_bind_group(2, bind_group, &[]);
+            },
         );
 
         let vertex_pool = parameters.gpu_resources.vertex_pool();

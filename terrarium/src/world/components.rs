@@ -1,4 +1,4 @@
-use crate::gpu_resources::GpuMesh;
+use crate::gpu_resources::{GpuMaterial, GpuMesh};
 
 use super::transform::Transform;
 
@@ -19,11 +19,12 @@ impl specs::Component for TransformComponent {
 #[derive(Debug)]
 pub struct MeshComponent {
     pub(crate) mesh: GpuMesh,
+    pub(crate) materials: Vec<GpuMaterial>,
 }
 
 impl MeshComponent {
-    pub fn new(mesh: GpuMesh) -> Self {
-        Self { mesh }
+    pub fn new(mesh: GpuMesh, materials: Vec<GpuMaterial>) -> Self {
+        Self { mesh, materials }
     }
 }
 

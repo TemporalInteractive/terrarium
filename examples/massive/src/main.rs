@@ -6,7 +6,7 @@ use clap::Parser;
 use glam::Mat4;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
-    gpu_resources::{GpuMesh, GpuResources},
+    gpu_resources::{GpuMaterial, GpuMesh, GpuResources},
     helpers::{
         input_handler::InputHandler,
         timer::{FpsCounter, Timer},
@@ -32,13 +32,22 @@ pub fn spawn_model(
     let gpu_meshes: Vec<GpuMesh> = model
         .meshes
         .iter()
-        .map(|mesh| GpuMesh::new(mesh, gpu_resources, ctx))
+        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, ctx))
+        .collect();
+
+    let gpu_materials: Vec<GpuMaterial> = model
+        .materials
+        .iter()
+        .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
         .collect();
 
     model.traverse_nodes(Mat4::IDENTITY, |node, transform| {
         if let Some(mesh_idx) = node.mesh_idx {
             world.create_entity(&node.name, Transform::from(transform), |builder| {
-                builder.with(MeshComponent::new(gpu_meshes[mesh_idx as usize].clone()))
+                builder.with(MeshComponent::new(
+                    gpu_meshes[mesh_idx as usize].clone(),
+                    vec![],
+                ))
             });
         }
     });
@@ -147,7 +156,11 @@ impl AppLoop for ExampleApp {
     }
 
     fn required_features() -> wgpu::Features {
-        wgpu::Features::MULTIVIEW | wgpu::Features::PUSH_CONSTANTS
+        wgpu::Features::MULTIVIEW
+            | wgpu::Features::PUSH_CONSTANTS
+            | wgpu::Features::TEXTURE_BINDING_ARRAY
+            | wgpu::Features::TEXTURE_COMPRESSION_BC
+            | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
     }
 
     fn required_limits() -> wgpu::Limits {
