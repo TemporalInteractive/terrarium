@@ -6,6 +6,7 @@ use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     render_passes::debug_pass::{self, DebugPassParameters},
     wgpu_util,
+    xr::XrCameraState,
 };
 
 use anyhow::Result;
@@ -88,6 +89,7 @@ impl AppLoop for ExampleApp {
 
     fn render(
         &mut self,
+        _xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         view: &wgpu::TextureView,
         ctx: &wgpu_util::Context,

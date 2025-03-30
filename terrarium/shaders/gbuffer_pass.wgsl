@@ -29,8 +29,8 @@ fn vs_main(
     let packed_tangent = PackedNormalizedXyz10(_packed_tangent);
 
     let position_world_space: vec4<f32> = pc.local_to_world_space * vec4<f32>(position, 1.0);
-    let position_stage_space: vec4<f32> = xr_camera.world_to_stage_space * position_world_space;
-    let position_clip_space: vec4<f32> = xr_camera.stage_to_clip_space[view_index] * position_stage_space;
+    //let position_stage_space: vec4<f32> = xr_camera.world_to_stage_space * position_world_space;
+    let position_clip_space: vec4<f32> = xr_camera.world_to_clip_space[view_index] * position_world_space;
 
     var result: VertexOutput;
     result.normal_ws = PackedNormalizedXyz10::unpack(packed_normal, 0);

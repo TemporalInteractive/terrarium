@@ -5,7 +5,10 @@ use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
-use crate::{wgpu_util, world::transform::UP};
+use crate::{
+    wgpu_util,
+    world::transform::{FORWARD, UP},
+};
 
 pub const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 pub const VK_COLOR_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
@@ -14,15 +17,92 @@ pub const VIEW_TYPE: openxr::ViewConfigurationType = openxr::ViewConfigurationTy
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct XrCameraData {
-    pub stage_to_clip_space: [Mat4; 2],
-    pub world_to_stage_space: Mat4,
+    pub world_to_clip_space: [Mat4; 2],
 }
 
-impl Default for XrCameraData {
-    fn default() -> Self {
+#[derive(Debug, Clone, Copy)]
+pub struct XrCameraState {
+    pub stage_to_view_space: [Mat4; 2],
+    pub view_to_clip_space: [Mat4; 2],
+    pub stage_translation: Vec3,
+    pub stage_rotation: Quat,
+    pub z_near: f32,
+    pub z_far: f32,
+}
+
+impl XrCameraState {
+    pub fn new(z_near: f32, z_far: f32) -> Self {
         Self {
-            stage_to_clip_space: [Mat4::IDENTITY; 2],
-            world_to_stage_space: Mat4::IDENTITY,
+            stage_to_view_space: [Mat4::IDENTITY; 2],
+            view_to_clip_space: [Mat4::IDENTITY; 2],
+            stage_translation: Vec3::ZERO,
+            stage_rotation: Quat::IDENTITY,
+            z_near,
+            z_far,
+        }
+    }
+
+    pub fn stage_to_view_space_from_openxr_views(&mut self, views: &[openxr::View]) {
+        for (i, view) in views.iter().enumerate() {
+            let pose = XrPose::from_openxr(&view.pose);
+
+            self.stage_to_view_space[i] = Mat4::look_at_rh(
+                pose.translation,
+                pose.translation + pose.orientation * FORWARD,
+                pose.orientation * UP,
+            );
+        }
+    }
+
+    pub fn view_to_clip_space_from_openxr_views(&mut self, views: &[openxr::View]) {
+        for (i, view) in views.iter().enumerate() {
+            let tan_left = view.fov.angle_left.tan();
+            let tan_right = view.fov.angle_right.tan();
+            let tan_down = view.fov.angle_down.tan();
+            let tan_up = view.fov.angle_up.tan();
+
+            let tan_width = tan_right - tan_left;
+            let tan_height = tan_up - tan_down;
+
+            let a11 = 2.0 / tan_width;
+            let a22 = 2.0 / tan_height;
+            let a31 = (tan_right + tan_left) / tan_width;
+            let a32 = (tan_up + tan_down) / tan_height;
+            let a33 = -self.z_far / (self.z_far - self.z_near);
+            let a43 = -(self.z_far * self.z_near) / (self.z_far - self.z_near);
+
+            self.view_to_clip_space[i] = glam::Mat4::from_cols_array(&[
+                a11, 0.0, 0.0, 0.0, 0.0, a22, 0.0, 0.0, a31, a32, a33, -1.0, 0.0, 0.0, a43, 0.0,
+            ]);
+        }
+    }
+
+    pub fn calculate_camera_data(&self) -> XrCameraData {
+        let world_to_view_space: [Mat4; 2] = std::array::from_fn(|i| {
+            let (_, view_rotation, view_translation) = self.stage_to_view_space[i]
+                .inverse()
+                .to_scale_rotation_translation();
+
+            let head_position = Vec3::new(0.0, view_translation.y, 0.0);
+
+            let rotated_view_translation =
+                self.stage_rotation * (view_translation - head_position) + head_position;
+            let rotated_view_rotation = self.stage_rotation * view_rotation;
+
+            let center = rotated_view_translation + self.stage_translation;
+            let forward = rotated_view_rotation * FORWARD;
+            let up = rotated_view_rotation * UP;
+
+            Mat4::look_at_rh(center, center + forward, up)
+        });
+
+        let world_to_clip_space = [
+            self.view_to_clip_space[0] * world_to_view_space[0],
+            self.view_to_clip_space[1] * world_to_view_space[1],
+        ];
+
+        XrCameraData {
+            world_to_clip_space,
         }
     }
 }
@@ -35,56 +115,19 @@ pub struct XrPose {
 
 impl XrPose {
     pub fn from_openxr(pose: &openxr::Posef) -> Self {
-        // with enough sign errors anything is possible
-        let orientation = {
-            let o = pose.orientation;
-            Quat::from_rotation_x(180.0f32.to_radians()) * glam::quat(o.w, o.z, o.y, o.x)
-        };
-        let translation = glam::vec3(-pose.position.x, pose.position.y, -pose.position.z);
+        let orientation = glam::quat(
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        );
+        let translation = glam::vec3(pose.position.x, pose.position.y, pose.position.z);
 
         Self {
             orientation,
             translation,
         }
     }
-}
-
-pub fn openxr_view_to_view_proj(v: &openxr::View, z_near: f32, z_far: f32) -> Mat4 {
-    let pose = XrPose::from_openxr(&v.pose);
-
-    let view = Mat4::look_at_rh(
-        pose.translation,
-        pose.translation + pose.orientation * Vec3::Z, // FORWARD?
-        pose.orientation * UP,
-    );
-
-    let [tan_left, tan_right, tan_down, tan_up] = [
-        v.fov.angle_left,
-        v.fov.angle_right,
-        v.fov.angle_down,
-        v.fov.angle_up,
-    ]
-    .map(f32::tan);
-    let tan_width = tan_right - tan_left;
-    let tan_height = tan_up - tan_down;
-
-    let a11 = 2.0 / tan_width;
-    let a22 = 2.0 / tan_height;
-
-    let a31 = (tan_right + tan_left) / tan_width;
-    let a32 = (tan_up + tan_down) / tan_height;
-    let a33 = -z_far / (z_far - z_near);
-
-    let a43 = -(z_far * z_near) / (z_far - z_near);
-
-    let proj = glam::Mat4::from_cols_array(&[
-        a11, 0.0, 0.0, 0.0, //
-        0.0, a22, 0.0, 0.0, //
-        a31, a32, a33, -1.0, //
-        0.0, 0.0, a43, 0.0, //
-    ]);
-
-    proj * view
 }
 
 #[derive(Debug, Clone, Copy)]

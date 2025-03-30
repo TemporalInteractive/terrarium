@@ -57,7 +57,7 @@ impl XrHandState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InputState {
     keyboard_keys: [bool; 512],
     mouse_buttons: [bool; 32],
@@ -111,9 +111,9 @@ impl InputState {
 }
 
 pub struct InputHandler {
-    state: [InputState; 2],
+    state: InputState,
+    prev_state: InputState,
     xr_input_actions: Option<XrInputActions>,
-    frame_idx: u32,
 }
 
 impl InputHandler {
@@ -121,22 +121,22 @@ impl InputHandler {
         let xr_input_actions = xr.as_ref().map(|xr| XrInputActions::new(xr).unwrap());
 
         Self {
-            state: std::array::from_fn(|_| Default::default()),
+            state: InputState::default(),
+            prev_state: InputState::default(),
             xr_input_actions,
-            frame_idx: 0,
         }
     }
 
     pub fn current(&self) -> &InputState {
-        &self.state[(self.frame_idx as usize) % 2]
+        &self.state
     }
 
     fn current_mut(&mut self) -> &mut InputState {
-        &mut self.state[(self.frame_idx as usize) % 2]
+        &mut self.state
     }
 
     pub fn prev(&self) -> &InputState {
-        &self.state[(self.frame_idx as usize + 1) % 2]
+        &self.prev_state
     }
 
     pub fn handle_window_input(&mut self, event: &WindowEvent) {
@@ -242,7 +242,7 @@ impl InputHandler {
     }
 
     pub fn update(&mut self) {
-        self.frame_idx += 1;
+        self.prev_state = self.state.clone();
         self.current_mut().mouse_motion = Vec2::ZERO;
     }
 }

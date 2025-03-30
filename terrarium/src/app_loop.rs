@@ -1,5 +1,4 @@
 use futures::executor::block_on;
-use glam::Mat4;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -13,7 +12,7 @@ use winit::{
 use crate::{
     render_passes::blit_pass::{self, BlitPassParameters},
     wgpu_util::{self},
-    xr::{openxr_view_to_view_proj, XrCameraData},
+    xr::{XrCameraData, XrCameraState},
 };
 
 pub trait AppLoop: 'static + Sized {
@@ -25,6 +24,7 @@ pub trait AppLoop: 'static + Sized {
 
     fn render(
         &mut self,
+        xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         view: &wgpu::TextureView,
         ctx: &wgpu_util::Context,
@@ -148,6 +148,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     };
 
                     let mut command_encoder = state.app_loop.render(
+                        &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
                         &state.rt_texture_view,
                         &state.context,
@@ -193,22 +194,18 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         None
                     };
 
-                    let mut xr_camera_data = XrCameraData::default();
                     if let Some(xr_views) = &xr_views {
-                        for (i, xr_view) in xr_views.iter().enumerate() {
-                            xr_camera_data.stage_to_clip_space[i] =
-                                openxr_view_to_view_proj(xr_view, 0.01, 1000.0);
-                        }
-                    } else {
-                        for i in 0..2 {
-                            xr_camera_data.stage_to_clip_space[i] =
-                                Mat4::perspective_rh(60.0f32.to_radians(), 1.0, 0.01, 1000.0);
-                        }
+                        state
+                            .xr_camera_state
+                            .stage_to_view_space_from_openxr_views(xr_views);
+                        state
+                            .xr_camera_state
+                            .view_to_clip_space_from_openxr_views(xr_views);
                     }
                     state.context.queue.write_buffer(
                         &state.xr_camera_buffer,
                         0,
-                        bytemuck::bytes_of(&xr_camera_data),
+                        bytemuck::bytes_of(&state.xr_camera_state.calculate_camera_data()),
                     );
 
                     state.context.queue.submit(Some(command_encoder.finish()));
@@ -262,6 +259,7 @@ struct State<R: AppLoop> {
     surface: wgpu_util::Surface,
     context: wgpu_util::Context,
     pipeline_database: wgpu_util::PipelineDatabase,
+    xr_camera_state: XrCameraState,
     xr_camera_buffer: wgpu::Buffer,
     rt_texture_view: wgpu::TextureView,
     app_loop: R,
@@ -308,6 +306,7 @@ impl<R: AppLoop> State<R> {
             surface,
             context,
             pipeline_database: wgpu_util::PipelineDatabase::new(),
+            xr_camera_state: XrCameraState::new(0.01, 1000.0),
             xr_camera_buffer,
             rt_texture_view,
             app_loop,

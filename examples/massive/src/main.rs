@@ -1,27 +1,36 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use camera_controller::CameraController;
 use clap::Parser;
+use glam::Mat4;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     gpu_resources::{GpuMesh, GpuResources},
-    helpers::input_handler::InputHandler,
+    helpers::{
+        input_handler::InputHandler,
+        timer::{FpsCounter, Timer},
+    },
     wgpu_util,
     world::{components::MeshComponent, transform::Transform},
-    xr::XrHand,
+    xr::XrCameraState,
     RenderParameters, Renderer,
 };
 use ugm::speedy::Readable;
 use winit::window::Window;
 use world::World;
 
+mod camera_controller;
 mod world;
 
 pub struct ExampleApp {
     input_handler: InputHandler,
     world: World,
+    camera_controller: CameraController,
     renderer: Renderer,
     gpu_resources: GpuResources,
+    frame_timer: Timer,
+    fps_counter: FpsCounter,
 }
 
 impl AppLoop for ExampleApp {
@@ -39,26 +48,42 @@ impl AppLoop for ExampleApp {
         let model =
             ugm::Model::read_from_buffer(&std::fs::read("examples/assets/Sponza.ugm").unwrap())
                 .unwrap();
-        world.create_entity("Sponza", Transform::default(), |builder| {
-            let gpu_mesh = GpuMesh::new(&model.meshes[0], &mut gpu_resources, ctx);
-            builder.with(MeshComponent::new(gpu_mesh))
-        });
+        world.create_entity(
+            "Sponza",
+            Transform::from(Mat4::from_cols_array(&model.nodes[0].transform)),
+            |builder| {
+                let gpu_mesh = GpuMesh::new(&model.meshes[0], &mut gpu_resources, ctx);
+                builder.with(MeshComponent::new(gpu_mesh))
+            },
+        );
 
         Self {
             input_handler,
             world,
+            camera_controller: CameraController::new(),
             renderer,
             gpu_resources,
+            frame_timer: Timer::new(),
+            fps_counter: FpsCounter::new(),
         }
     }
 
     fn render(
         &mut self,
+        xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         view: &wgpu::TextureView,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> wgpu::CommandEncoder {
+        let delta_time = self.frame_timer.elapsed();
+        self.frame_timer.reset();
+
+        self.camera_controller
+            .update(&self.input_handler, delta_time, xr_camera_state);
+        self.camera_controller
+            .update_xr_camera_state(xr_camera_state);
+
         let mut command_encoder = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -75,16 +100,10 @@ impl AppLoop for ExampleApp {
             pipeline_database,
         );
 
-        if let Some(thumbstick) = self
-            .input_handler
-            .current()
-            .xr_hand(XrHand::Right)
-            .analog_2d("/input/thumbstick")
-        {
-            println!("value: {}", thumbstick);
-        }
-
         self.input_handler.update();
+        self.fps_counter.end_frame();
+
+        println!("FPS {}", self.fps_counter.fps());
 
         command_encoder
     }
