@@ -27,12 +27,13 @@ pub fn spawn_model(
     model: &Model,
     world: &mut World,
     gpu_resources: &mut GpuResources,
+    command_encoder: &mut wgpu::CommandEncoder,
     ctx: &wgpu_util::Context,
 ) {
     let gpu_meshes: Vec<GpuMesh> = model
         .meshes
         .iter()
-        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, ctx))
+        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
         .collect();
 
     let gpu_materials: Vec<GpuMaterial> = model
@@ -62,6 +63,7 @@ pub struct ExampleApp {
     gpu_resources: GpuResources,
     frame_timer: Timer,
     fps_counter: FpsCounter,
+    first_frame: bool,
 }
 
 impl AppLoop for ExampleApp {
@@ -71,17 +73,10 @@ impl AppLoop for ExampleApp {
         _window: Arc<Window>,
     ) -> Self {
         let input_handler = InputHandler::new(&ctx.xr);
-        let mut world = World::new();
+        let world = World::new();
 
         let renderer = Renderer::new(config, ctx);
-        let mut gpu_resources = GpuResources::new(&ctx.device);
-
-        let model = ugm::Model::read_from_buffer(
-            &std::fs::read("examples/massive/assets/TestScene.ugm")
-            .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
-        )
-        .unwrap();
-        spawn_model(&model, &mut world, &mut gpu_resources, ctx);
+        let gpu_resources = GpuResources::new(&ctx.device);
 
         let aspect_ratio = config.width as f32 / config.height as f32;
 
@@ -94,6 +89,7 @@ impl AppLoop for ExampleApp {
             gpu_resources,
             frame_timer: Timer::new(),
             fps_counter: FpsCounter::new(),
+            first_frame: true,
         }
     }
 
@@ -116,6 +112,23 @@ impl AppLoop for ExampleApp {
         let mut command_encoder = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        if self.first_frame {
+            self.first_frame = false;
+
+            let model = ugm::Model::read_from_buffer(
+                &std::fs::read("examples/massive/assets/TestSceneBig.ugm")
+                .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
+            )
+            .unwrap();
+            spawn_model(
+                &model,
+                &mut self.world,
+                &mut self.gpu_resources,
+                &mut command_encoder,
+                ctx,
+            );
+        }
 
         self.renderer.render(
             &mut RenderParameters {
@@ -161,6 +174,8 @@ impl AppLoop for ExampleApp {
             | wgpu::Features::TEXTURE_BINDING_ARRAY
             | wgpu::Features::TEXTURE_COMPRESSION_BC
             | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
+            | wgpu::Features::EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE
+            | wgpu::Features::EXPERIMENTAL_RAY_QUERY
     }
 
     fn required_limits() -> wgpu::Limits {

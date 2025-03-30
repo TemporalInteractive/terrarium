@@ -50,12 +50,15 @@ fn vs_main(
 
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
-    let tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(0, vertex.tex_coord);
-    let color: vec4<f32> = srgb_to_linear(_texture(0, tex_coord));
+    // let tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(0, vertex.tex_coord);
+    // let color: vec4<f32> = srgb_to_linear(_texture(0, tex_coord));
+
+    let l: vec3<f32> = -normalize(vec3<f32>(0.1, -1.0, 0.2));
+    let color: vec3<f32> = vec3<f32>(1.0, 0.8, 0.7) * max(dot(vertex.normal_ws, l), 0.2);
 
     // if (color.a < 0.5) {
     //     discard;
     // }
 
-    return vec4<f32>(color.rgb, 1.0);
+    return vec4<f32>(color, 1.0);
 }

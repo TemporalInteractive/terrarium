@@ -62,7 +62,7 @@ impl Renderer {
     ) {
         parameters
             .gpu_resources
-            .submit_instances(parameters.world, &ctx.queue);
+            .update(parameters.world, command_encoder, &ctx.queue);
 
         gbuffer_pass::encode(
             &GbufferPassParameters {
