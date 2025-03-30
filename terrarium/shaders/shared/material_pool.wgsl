@@ -3,6 +3,11 @@
 const INVALID_TEXTURE: u32 = U32_MAX;
 const MAX_MATERIAL_POOL_TEXTURES: u32 = 1024u;
 
+struct TextureTransform {
+    uv_offset: vec2<f32>,
+    uv_scale: vec2<f32>,
+}
+
 struct MaterialDescriptor {
     color: vec3<f32>,
     color_texture: u32,

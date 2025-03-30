@@ -93,6 +93,7 @@ impl GpuResources {
         }
 
         self.vertex_pool.write_slices(queue);
+        self.material_pool.write_materials(queue);
     }
 
     pub fn end_frame(&mut self) {

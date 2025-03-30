@@ -11,10 +11,19 @@ var material_textures: binding_array<texture_2d<f32>, MAX_MATERIAL_POOL_TEXTURES
 
 @group(2)
 @binding(2)
+var<storage, read> material_texture_transforms: array<TextureTransform>;
+
+@group(2)
+@binding(3)
 var material_texture_sampler: sampler;
 
 fn _texture(id: u32, tex_coord: vec2<f32>) -> vec4<f32> {
     return textureSampleLevel(material_textures[id], material_texture_sampler, tex_coord, 0.0);
+}
+
+fn MaterialPoolBindings::transform_uv(id: u32, uv: vec2<f32>) -> vec2<f32> {
+    let texture_transform: TextureTransform = material_texture_transforms[id];
+    return uv * texture_transform.uv_scale + texture_transform.uv_offset;
 }
 
 fn MaterialDescriptor::color(_self: MaterialDescriptor, tex_coord: vec2<f32>) -> vec4<f32> {

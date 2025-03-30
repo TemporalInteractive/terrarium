@@ -1,7 +1,7 @@
 use std::{collections::HashMap, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use ugm::{material::Material, texture::Texture, Model};
 use uuid::Uuid;
 
@@ -9,6 +9,13 @@ use crate::wgpu_util::empty_texture_view;
 
 pub const MAX_MATERIAL_POOL_MATERIALS: usize = 1024 * 8;
 pub const MAX_MATERIAL_POOL_TEXTURES: usize = 1024;
+
+#[derive(Pod, Clone, Copy, Zeroable)]
+#[repr(C)]
+struct TextureTransform {
+    uv_offset: Vec2,
+    uv_scale: Vec2,
+}
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
@@ -47,11 +54,13 @@ pub struct MaterialDescriptor {
 
 pub struct MaterialPool {
     material_descriptor_buffer: wgpu::Buffer,
+    texture_transform_buffer: wgpu::Buffer,
     sampler: wgpu::Sampler,
     texture_views: Vec<wgpu::TextureView>,
     texture_indices: HashMap<Uuid, usize>,
 
     material_descriptors: Vec<MaterialDescriptor>,
+    texture_transforms: Vec<TextureTransform>,
 
     bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -59,9 +68,16 @@ pub struct MaterialPool {
 impl MaterialPool {
     pub fn new(device: &wgpu::Device) -> Self {
         let material_descriptor_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("appearance-path-tracer-gpu::material_pool material_descriptors"),
+            label: Some("terrarium::material_pool material_descriptors"),
             mapped_at_creation: false,
             size: (std::mem::size_of::<MaterialDescriptor>() * MAX_MATERIAL_POOL_MATERIALS) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let texture_transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::material_pool texture_transforms"),
+            mapped_at_creation: false,
+            size: (std::mem::size_of::<TextureTransform>() * MAX_MATERIAL_POOL_MATERIALS) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -99,6 +115,16 @@ impl MaterialPool {
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::all(),
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
@@ -107,11 +133,13 @@ impl MaterialPool {
 
         Self {
             material_descriptor_buffer,
+            texture_transform_buffer,
             sampler,
             texture_views: Vec::new(),
             texture_indices: HashMap::new(),
 
             material_descriptors: Vec::new(),
+            texture_transforms: Vec::new(),
             bind_group_layout,
         }
     }
@@ -130,6 +158,11 @@ impl MaterialPool {
 
         self.texture_views.push(texture_view);
         let texture_idx = self.texture_views.len() - 1;
+
+        self.texture_transforms.push(TextureTransform {
+            uv_offset: model_texture.uv_offset().into(),
+            uv_scale: model_texture.uv_scale().into(),
+        });
 
         self.texture_indices
             .insert(model_texture.uuid(), texture_idx);
@@ -202,6 +235,11 @@ impl MaterialPool {
             0,
             bytemuck::cast_slice(self.material_descriptors.as_slice()),
         );
+        queue.write_buffer(
+            &self.texture_transform_buffer,
+            0,
+            bytemuck::cast_slice(self.texture_transforms.as_slice()),
+        );
     }
 
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
@@ -237,6 +275,11 @@ impl MaterialPool {
 
         entries.push(wgpu::BindGroupEntry {
             binding: 2,
+            resource: self.texture_transform_buffer.as_entire_binding(),
+        });
+
+        entries.push(wgpu::BindGroupEntry {
+            binding: 3,
             resource: wgpu::BindingResource::Sampler(&self.sampler),
         });
 
