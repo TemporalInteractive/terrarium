@@ -58,13 +58,14 @@ impl GpuResources {
     pub fn create_gpu_mesh(
         &mut self,
         mesh: &Mesh,
+        material_base_idx: u32,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
     ) -> GpuMesh {
         let vertex_pool_alloc = self.vertex_pool.alloc(
             mesh.packed_vertices.len() as u32,
             mesh.indices.len() as u32,
-            0,
+            material_base_idx,
         );
 
         self.vertex_pool.write_vertex_data(
@@ -139,6 +140,10 @@ impl GpuResources {
 
     pub fn material_pool(&self) -> &MaterialPool {
         &self.material_pool
+    }
+
+    pub fn tlas(&self) -> &wgpu::Tlas {
+        self.tlas_package.tlas()
     }
 
     pub fn update(

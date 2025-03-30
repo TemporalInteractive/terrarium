@@ -39,7 +39,7 @@ fn vs_main(
     let normal_ws: vec3<f32> = (pc.inv_trans_local_to_world_space * vec4<f32>(normal, 0.0)).xyz;
 
     let position_world_space: vec4<f32> = pc.local_to_world_space * vec4<f32>(position, 1.0);
-    let position_clip_space: vec4<f32> = xr_camera.world_to_clip_space[view_index] * position_world_space;
+    let position_clip_space: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * position_world_space;
 
     var result: VertexOutput;
     result.normal_ws = normal_ws;

@@ -30,10 +30,12 @@ pub fn spawn_model(
     command_encoder: &mut wgpu::CommandEncoder,
     ctx: &wgpu_util::Context,
 ) {
+    let material_base_idx = gpu_resources.material_pool().material_base_idx();
+
     let gpu_meshes: Vec<GpuMesh> = model
         .meshes
         .iter()
-        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
+        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, material_base_idx, command_encoder, ctx))
         .collect();
 
     let gpu_materials: Vec<GpuMaterial> = model
@@ -176,6 +178,7 @@ impl AppLoop for ExampleApp {
             | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
             | wgpu::Features::EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE
             | wgpu::Features::EXPERIMENTAL_RAY_QUERY
+            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
     }
 
     fn required_limits() -> wgpu::Limits {
@@ -207,8 +210,8 @@ fn main() -> Result<()> {
 
     AppLoopHandler::<ExampleApp>::new(&AppLoopHandlerCreateDesc {
         title: "Terrarium".to_owned(),
-        width: 1920,
-        height: 1080,
+        width: 1832,
+        height: 1920,
         resizeable: false,
         maximized: false,
         no_gpu_validation: args.no_gpu_validation,

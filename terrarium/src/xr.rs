@@ -17,7 +17,10 @@ pub const VIEW_TYPE: openxr::ViewConfigurationType = openxr::ViewConfigurationTy
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct XrCameraData {
-    pub world_to_clip_space: [Mat4; 2],
+    pub view_to_clip_space: [Mat4; 2],
+    pub world_to_view_space: [Mat4; 2],
+    pub clip_to_view_space: [Mat4; 2],
+    pub view_to_world_space: [Mat4; 2],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -96,13 +99,17 @@ impl XrCameraState {
             Mat4::look_at_rh(center, center + forward, up)
         });
 
-        let world_to_clip_space = [
-            self.view_to_clip_space[0] * world_to_view_space[0],
-            self.view_to_clip_space[1] * world_to_view_space[1],
-        ];
-
         XrCameraData {
-            world_to_clip_space,
+            view_to_clip_space: self.view_to_clip_space,
+            world_to_view_space,
+            clip_to_view_space: [
+                self.view_to_clip_space[0].inverse(),
+                self.view_to_clip_space[1].inverse(),
+            ],
+            view_to_world_space: [
+                world_to_view_space[0].inverse(),
+                world_to_view_space[1].inverse(),
+            ],
         }
     }
 }

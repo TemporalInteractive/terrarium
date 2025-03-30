@@ -173,6 +173,10 @@ impl MaterialPool {
         self.material_descriptors.len()
     }
 
+    pub fn material_base_idx(&self) -> u32 {
+        self.material_descriptors.len() as u32
+    }
+
     pub fn alloc_material(
         &mut self,
         model: &Model,

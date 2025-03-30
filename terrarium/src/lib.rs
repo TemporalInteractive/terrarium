@@ -1,4 +1,6 @@
+use glam::UVec2;
 use gpu_resources::GpuResources;
+use render_passes::rt_gbuffer_pass::{self, RtGbufferPassParameters};
 
 use crate::render_passes::gbuffer_pass::{self, GbufferPassParameters};
 
@@ -11,11 +13,14 @@ pub mod world;
 pub mod xr;
 
 struct SizedResources {
+    resolution: UVec2,
     depth_texture: wgpu::Texture,
 }
 
 impl SizedResources {
     pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
+        let resolution = UVec2::new(config.width, config.height);
+
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("terrarium::depth"),
             size: wgpu::Extent3d {
@@ -31,7 +36,10 @@ impl SizedResources {
             view_formats: &[],
         });
 
-        Self { depth_texture }
+        Self {
+            resolution,
+            depth_texture,
+        }
     }
 }
 
@@ -64,14 +72,26 @@ impl Renderer {
             .gpu_resources
             .update(parameters.world, command_encoder, &ctx.queue);
 
-        gbuffer_pass::encode(
-            &GbufferPassParameters {
-                world: parameters.world,
+        // gbuffer_pass::encode(
+        //     &GbufferPassParameters {
+        //         world: parameters.world,
+        //         gpu_resources: parameters.gpu_resources,
+        //         xr_camera_buffer: parameters.xr_camera_buffer,
+        //         dst_view: parameters.view,
+        //         target_format: wgpu::TextureFormat::Rgba8Unorm,
+        //         depth_texture: &self.sized_resources.depth_texture,
+        //     },
+        //     &ctx.device,
+        //     command_encoder,
+        //     pipeline_database,
+        // );
+
+        rt_gbuffer_pass::encode(
+            &RtGbufferPassParameters {
+                resolution: self.sized_resources.resolution,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 dst_view: parameters.view,
-                target_format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                depth_texture: &self.sized_resources.depth_texture,
             },
             &ctx.device,
             command_encoder,
