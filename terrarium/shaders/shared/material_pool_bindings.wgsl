@@ -29,7 +29,8 @@ fn MaterialPoolBindings::transform_uv(id: u32, uv: vec2<f32>) -> vec2<f32> {
 fn MaterialDescriptor::color(_self: MaterialDescriptor, tex_coord: vec2<f32>) -> vec4<f32> {
     var color = vec4<f32>(_self.color, 1.0);
     if (_self.color_texture != INVALID_TEXTURE && dot(color, color) > 0.0) {
-        color *= srgb_to_linear(_texture(_self.color_texture, tex_coord));
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.color_texture, tex_coord);
+        color *= srgb_to_linear(_texture(_self.color_texture, transformed_tex_coord));
     }
     return color;
 }
