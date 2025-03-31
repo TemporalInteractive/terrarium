@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use ash::vk::{self, Handle};
-use std::ffi::{c_void, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use wgpu::{DownlevelCapabilities, Features, Instance, Limits, PowerPreference};
@@ -222,12 +222,8 @@ impl Context {
         let vk_entry = unsafe { ash::Entry::load() }?;
 
         let flags = wgpu::InstanceFlags::empty();
-        let mut extensions = V::Instance::desired_extensions(&vk_entry, vk_target_version, flags)?;
-        extensions.push(ash::khr::swapchain::NAME);
-        println!(
-            "creating vulkan instance with these extensions: {:#?}",
-            extensions
-        );
+        let extensions = V::Instance::desired_extensions(&vk_entry, vk_target_version, flags)?;
+        let extensions_cchar: Vec<_> = extensions.iter().map(|s| s.as_ptr()).collect();
 
         let vk_instance = unsafe {
             let app_name = CString::new("wgpu-openxr-example")?;
@@ -242,7 +238,9 @@ impl Context {
                 .create_vulkan_instance(
                     xr_system_id,
                     std::mem::transmute(vk_entry.static_fn().get_instance_proc_addr),
-                    &vk::InstanceCreateInfo::default().application_info(&vk_app_info) as *const _
+                    &vk::InstanceCreateInfo::default()
+                        .application_info(&vk_app_info)
+                        .enabled_extension_names(&extensions_cchar) as *const _
                         as *const _,
                 )
                 .expect("XR error creating Vulkan instance")
@@ -305,11 +303,24 @@ impl Context {
                 multiview: vk::TRUE,
                 ..Default::default()
             };
+
+            // TODO: derive from gpu features
+            let device_extensions = [
+                c"VK_KHR_swapchain",
+                c"VK_KHR_acceleration_structure",
+                c"VK_KHR_ray_query",
+                c"VK_KHR_buffer_device_address",
+            ];
+            let device_extensions_cchar: Vec<_> =
+                device_extensions.iter().map(|s| s.as_ptr()).collect();
+
             let info = enabled_phd_features.add_to_device_create(
                 vk::DeviceCreateInfo::default()
                     .queue_create_infos(&family_infos)
+                    .enabled_extension_names(&device_extensions_cchar)
                     .push_next(&mut multi_view_features),
             );
+
             let vk_device = unsafe {
                 let vk_device = xr_instance
                     .create_vulkan_device(
@@ -470,9 +481,6 @@ impl XrContext {
             )?;
             return Ok(vec![]);
         }
-
-        // TODO:
-        // self.session.sync_actions(&[(&self.action_set).into()])?;
 
         let (_, views) = self.session.locate_views(
             xr::VIEW_TYPE,

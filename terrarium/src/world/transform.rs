@@ -14,7 +14,7 @@ pub struct Transform {
     translation: Vec3,
     rotation: Quat,
     scale: Vec3,
-    matrix: Mutex<(Mat4, bool)>, // TODO: use Cell<T>
+    matrix: Mutex<(Mat4, bool)>, // TODO: use Cell<T>?
 
     has_changed_this_frame: AtomicBool,
 }
