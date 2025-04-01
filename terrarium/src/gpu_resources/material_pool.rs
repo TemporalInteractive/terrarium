@@ -196,16 +196,53 @@ impl MaterialPool {
             u32::MAX
         };
 
+        let metallic_roughness_texture =
+            if let Some(texture_idx) = &material.metallic_roughness_texture {
+                let texture = &model.textures[*texture_idx as usize];
+
+                if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
+                    *texture_idx as u32
+                } else {
+                    self.alloc_texture(texture, device, queue)
+                }
+            } else {
+                u32::MAX
+            };
+
+        let normal_texture = if let Some(texture_idx) = &material.normal_texture {
+            let texture = &model.textures[*texture_idx as usize];
+
+            if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
+                *texture_idx as u32
+            } else {
+                self.alloc_texture(texture, device, queue)
+            }
+        } else {
+            u32::MAX
+        };
+
+        let emission_texture = if let Some(texture_idx) = &material.normal_texture {
+            let texture = &model.textures[*texture_idx as usize];
+
+            if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
+                *texture_idx as u32
+            } else {
+                self.alloc_texture(texture, device, queue)
+            }
+        } else {
+            u32::MAX
+        };
+
         let material_descriptor = MaterialDescriptor {
             color: material.color.into(),
             color_texture,
             metallic: material.metallic,
             roughness: material.roughness,
-            metallic_roughness_texture: u32::MAX,
+            metallic_roughness_texture,
             normal_scale: material.normal_scale,
             emission: material.emission.into(),
-            normal_texture: u32::MAX,
-            emission_texture: u32::MAX,
+            normal_texture,
+            emission_texture,
             transmission: material.transmission,
             transmission_texture: u32::MAX,
             eta: material.eta,

@@ -49,7 +49,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
         }
 
-        let color: vec3<f32> = gbuffer_texel.normal_ws * 0.5 + 0.5;
+        let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
+        let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord);
+
+        let color: vec3<f32> = material.color;
+        //let color: vec3<f32> = gbuffer_texel.normal_ws * 0.5 + 0.5;
 
         textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
     }
