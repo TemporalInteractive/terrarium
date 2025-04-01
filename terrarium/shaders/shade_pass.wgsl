@@ -1,0 +1,56 @@
+@include terrarium/shaders/shared/xr.wgsl
+@include terrarium/shaders/shared/gbuffer.wgsl
+
+@include terrarium/shaders/shared/vertex_pool_bindings.wgsl
+@include terrarium/shaders/shared/material_pool_bindings.wgsl
+
+struct Constants {
+    resolution: vec2<u32>,
+    _padding0: u32,
+    _padding1: u32,
+}
+
+@group(0)
+@binding(0)
+var<uniform> constants: Constants;
+
+@group(0)
+@binding(1)
+var<uniform> xr_camera: XrCamera;
+
+@group(0)
+@binding(2)
+var scene: acceleration_structure;
+
+@group(0)
+@binding(3)
+var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
+@group(0)
+@binding(4)
+var<storage, read_write> gbuffer_right: array<PackedGBufferTexel>;
+
+@group(0)
+@binding(5)
+var color_out: texture_storage_2d_array<rgba8unorm, read_write>;
+
+@compute
+@workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(num_workgroups) dispatch_size: vec3<u32>) {
+    var id: vec2<u32> = global_id.xy;
+    if (any(id >= constants.resolution)) { return; }
+    var i: u32 = id.y * constants.resolution.x + id.x;
+
+    for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
+        var gbuffer_texel: GBufferTexel;
+        if (view_index == 0) {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
+        } else {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
+        }
+
+        let color: vec3<f32> = gbuffer_texel.normal_ws * 0.5 + 0.5;
+
+        textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
+    }
+}

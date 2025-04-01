@@ -1,8 +1,9 @@
 use glam::UVec2;
 use gpu_resources::GpuResources;
-use render_passes::rt_gbuffer_pass::{self, RtGbufferPassParameters};
-
-use crate::render_passes::gbuffer_pass::{self, GbufferPassParameters};
+use render_passes::{
+    rt_gbuffer_pass::{self, RtGbufferPassParameters},
+    shade_pass::{self, ShadePassParameters},
+};
 
 pub mod app_loop;
 pub mod gpu_resources;
@@ -12,33 +13,35 @@ pub mod wgpu_util;
 pub mod world;
 pub mod xr;
 
+#[repr(C)]
+struct PackedGBufferTexel {
+    depth_ws: f32,
+    normal_ws: u32,
+    material_descriptor_idx: u32,
+    tex_coord: u32,
+}
+
 struct SizedResources {
     resolution: UVec2,
-    depth_texture: wgpu::Texture,
+    gbuffer: [wgpu::Buffer; 2],
 }
 
 impl SizedResources {
     pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
         let resolution = UVec2::new(config.width, config.height);
 
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("terrarium::depth"),
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 2,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
+        let gbuffer = std::array::from_fn(|i| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("terrarium::gbuffer {}", i)),
+                size: size_of::<PackedGBufferTexel>() as u64 * (resolution.x * resolution.y) as u64,
+                usage: wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            })
         });
 
         Self {
             resolution,
-            depth_texture,
+            gbuffer,
         }
     }
 }
@@ -72,25 +75,24 @@ impl Renderer {
             .gpu_resources
             .update(parameters.world, command_encoder, &ctx.queue);
 
-        // gbuffer_pass::encode(
-        //     &GbufferPassParameters {
-        //         world: parameters.world,
-        //         gpu_resources: parameters.gpu_resources,
-        //         xr_camera_buffer: parameters.xr_camera_buffer,
-        //         dst_view: parameters.view,
-        //         target_format: wgpu::TextureFormat::Rgba8Unorm,
-        //         depth_texture: &self.sized_resources.depth_texture,
-        //     },
-        //     &ctx.device,
-        //     command_encoder,
-        //     pipeline_database,
-        // );
-
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {
                 resolution: self.sized_resources.resolution,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
+                gbuffer: &self.sized_resources.gbuffer,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        shade_pass::encode(
+            &ShadePassParameters {
+                resolution: self.sized_resources.resolution,
+                gpu_resources: parameters.gpu_resources,
+                xr_camera_buffer: parameters.xr_camera_buffer,
+                gbuffer: &self.sized_resources.gbuffer,
                 dst_view: parameters.view,
             },
             &ctx.device,

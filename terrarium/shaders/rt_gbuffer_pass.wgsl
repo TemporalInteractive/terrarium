@@ -1,4 +1,5 @@
 @include terrarium/shaders/shared/xr.wgsl
+@include terrarium/shaders/shared/gbuffer.wgsl
 
 @include terrarium/shaders/shared/vertex_pool_bindings.wgsl
 @include terrarium/shaders/shared/material_pool_bindings.wgsl
@@ -23,7 +24,10 @@ var scene: acceleration_structure;
 
 @group(0)
 @binding(3)
-var gbuffer: texture_storage_2d_array<rgba8unorm, read_write>;
+var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
+@group(0)
+@binding(4)
+var<storage, read_write> gbuffer_right: array<PackedGBufferTexel>;
 
 @compute
 @workgroup_size(16, 16)
@@ -41,7 +45,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let targt: vec4<f32> = xr_camera.clip_to_view_space[view_index] * vec4<f32>(uv, 1.0, 1.0);
         let direction: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(normalize(targt.xyz), 0.0)).xyz;
 
-        var color = vec3<f32>(0.0);
+        var depth_ws: f32 = 0.0;
+        var normal_ws = vec3<f32>(0.0);
+        var material_descriptor_idx: u32 = 0;
+        var tex_coord = vec2<f32>(0.0);
 
         var rq: ray_query;
         rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
@@ -60,11 +67,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let v1: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i1]);
             let v2: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i2]);
 
-            let tex_coord: vec2<f32> = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
+            tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
 
-            let material_idx: u32 = vertex_pool_slice.material_idx + triangle_material_indices[vertex_pool_slice.first_index / 3 + intersection.primitive_index];
-            let material_descriptor: MaterialDescriptor = material_descriptors[material_idx];
-            let material: Material = Material::from_material_descriptor(material_descriptor, tex_coord);
+            material_descriptor_idx = vertex_pool_slice.material_idx + triangle_material_indices[vertex_pool_slice.first_index / 3 + intersection.primitive_index];
+            let material_descriptor: MaterialDescriptor = material_descriptors[material_descriptor_idx];
 
             // Load tangent, bitangent and normal in local space
             let tbn: mat3x3<f32> = VertexPoolBindings::load_tbn(v0, v1, v2, barycentrics);
@@ -103,10 +109,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 front_facing_shading_normal_ws *= -1.0;
             }
 
-            let l: vec3<f32> = -normalize(vec3<f32>(0.1, -1.0, 0.2));
-            color = material.color * max(dot(front_facing_shading_normal_ws, l), 0.2);
+            depth_ws = intersection.t;
+            normal_ws = front_facing_shading_normal_ws;
         }
 
-        textureStore(gbuffer, id, view_index, vec4<f32>(color, 1.0));
+        if (view_index == 0) {
+            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord);
+        } else {
+            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord);
+        }
     }
 }
