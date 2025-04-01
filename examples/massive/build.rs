@@ -33,7 +33,6 @@ fn parse_model(model_path: PathBuf) {
         ParseOptions {
             texture_compression: Some(TextureCompression::Bc),
         },
-        None,
     )
     .expect("Failed to parse glTF model.");
 
