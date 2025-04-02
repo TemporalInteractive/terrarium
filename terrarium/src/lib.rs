@@ -92,6 +92,7 @@ pub struct RenderParameters<'a> {
 pub struct Renderer {
     sized_resources: SizedResources,
     shadow_resolution_scale: f32,
+    frame_idx: u32,
 }
 
 impl Renderer {
@@ -103,6 +104,7 @@ impl Renderer {
         Self {
             sized_resources,
             shadow_resolution_scale,
+            frame_idx: 0,
         }
     }
 
@@ -133,6 +135,7 @@ impl Renderer {
             &ShadowPassParameters {
                 resolution: self.sized_resources.resolution,
                 shadow_resolution: self.sized_resources.shadow_resolution,
+                seed: self.frame_idx,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
@@ -170,6 +173,7 @@ impl Renderer {
         );
 
         parameters.gpu_resources.end_frame();
+        self.frame_idx += 1;
     }
 
     pub fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {

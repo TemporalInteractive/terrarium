@@ -3,6 +3,7 @@
 
 @include terrarium/shaders/shared/vertex_pool_bindings.wgsl
 @include terrarium/shaders/shared/material_pool_bindings.wgsl
+@include terrarium/shaders/shared/sky_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,
@@ -56,12 +57,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
         }
 
-        let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
-        let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord);
+        let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
 
-        let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), 0.0).r;
+        var color: vec3<f32>;
+        if (!GBufferTexel::is_sky(gbuffer_texel)) {
+            let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
+            let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord);
 
-        let color: vec3<f32> = material.color * max(1.0 - shadow, 0.2);
+            let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), 0.0).r;
+
+            color = material.color * max(1.0 - shadow, 0.2);
+        } else {
+            color = Sky::sky(ray.direction, false);
+        }
 
         textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
     }

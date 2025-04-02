@@ -13,11 +13,16 @@ use crate::{
 struct Constants {
     resolution: UVec2,
     shadow_resolution: UVec2,
+    seed: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 pub struct ShadowPassParameters<'a> {
     pub resolution: UVec2,
     pub shadow_resolution: UVec2,
+    pub seed: u32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a [wgpu::Buffer; 2],
@@ -105,6 +110,7 @@ pub fn encode(
                     }),
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
                     parameters.gpu_resources.material_pool().bind_group_layout(),
+                    parameters.gpu_resources.sky().bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
@@ -116,6 +122,10 @@ pub fn encode(
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             shadow_resolution: parameters.shadow_resolution,
+            seed: parameters.seed,
+            _padding0: 0,
+            _padding1: 0,
+            _padding2: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -173,6 +183,7 @@ pub fn encode(
                 cpass.set_bind_group(2, bind_group, &[]);
             },
         );
+        cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
         cpass.insert_debug_marker("terrarium::shadow");
         cpass.dispatch_workgroups(
             parameters.shadow_resolution.x.div_ceil(16),

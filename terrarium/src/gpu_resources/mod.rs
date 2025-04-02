@@ -1,6 +1,7 @@
 use std::iter;
 
 use material_pool::MaterialPool;
+use sky::Sky;
 use specs::Join;
 use ugm::{
     material::Material,
@@ -17,6 +18,7 @@ use crate::{
 const MAX_TLAS_INSTANCES: usize = 1024 * 8;
 
 pub mod material_pool;
+pub mod sky;
 pub mod vertex_pool;
 
 #[derive(Debug, Clone)]
@@ -34,6 +36,7 @@ pub struct GpuResources {
     vertex_pool: VertexPool,
     material_pool: MaterialPool,
     tlas_package: wgpu::TlasPackage,
+    sky: Sky,
 }
 
 impl GpuResources {
@@ -48,10 +51,13 @@ impl GpuResources {
             update_mode: wgpu::AccelerationStructureUpdateMode::Build,
         });
 
+        let sky = Sky::new(device);
+
         Self {
             vertex_pool,
             material_pool,
             tlas_package: wgpu::TlasPackage::new(tlas),
+            sky,
         }
     }
 
@@ -144,6 +150,10 @@ impl GpuResources {
 
     pub fn tlas(&self) -> &wgpu::Tlas {
         self.tlas_package.tlas()
+    }
+
+    pub fn sky(&self) -> &Sky {
+        &self.sky
     }
 
     pub fn update(

@@ -124,6 +124,7 @@ pub fn encode(
                     }),
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
                     parameters.gpu_resources.material_pool().bind_group_layout(),
+                    parameters.gpu_resources.sky().bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
@@ -207,6 +208,7 @@ pub fn encode(
                 cpass.set_bind_group(2, bind_group, &[]);
             },
         );
+        cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
         cpass.insert_debug_marker("terrarium::shade");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(16),

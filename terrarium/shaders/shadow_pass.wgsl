@@ -1,10 +1,17 @@
 @include terrarium/shaders/shared/gbuffer.wgsl
+@include terrarium/shaders/shared/random.wgsl
 @include terrarium/shaders/shared/trace.wgsl
 @include terrarium/shaders/shared/xr.wgsl
+
+@include terrarium/shaders/shared/sky_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,
     shadow_resolution: vec2<u32>,
+    seed: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 @group(0)
@@ -43,6 +50,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     );
     let i: u32 = id.y * constants.resolution.x + id.x;
 
+    var rng: u32 = pcg_hash(i ^ xor_shift_u32(constants.seed));
+
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         var gbuffer_texel: GBufferTexel;
         if (view_index == 0) {
@@ -51,11 +60,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
         }
 
-        // TODO: sample
-        let l: vec3<f32> = normalize(-vec3<f32>(0.3, -1.0, 0.1));
+        let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
 
-        let shadow_origin: vec3<f32> = GBufferTexel::position_ws(gbuffer_texel, id, constants.resolution, view_index, xr_camera);
-        let shadow_direction: vec3<f32> = l;
+        let shadow_origin: vec3<f32> = ray.origin + ray.direction * gbuffer_texel.depth_ws;
+        let shadow_direction: vec3<f32> = Sky::direction_to_sun(random_uniform_float2(&rng));
 
         var shadow: f32 = 1.0;
         if (trace_shadow_ray_opaque(shadow_origin, shadow_direction, 1000.0, scene)) {
