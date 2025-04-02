@@ -12,36 +12,35 @@ use crate::{
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
-    _padding0: u32,
-    _padding1: u32,
+    shadow_resolution: UVec2,
 }
 
-pub struct ShadePassParameters<'a> {
+pub struct ShadowPassParameters<'a> {
     pub resolution: UVec2,
+    pub shadow_resolution: UVec2,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a [wgpu::Buffer; 2],
     pub shadow_texture_view: &'a wgpu::TextureView,
-    pub dst_view: &'a wgpu::TextureView,
 }
 
 pub fn encode(
-    parameters: &ShadePassParameters,
+    parameters: &ShadowPassParameters,
     device: &wgpu::Device,
     command_encoder: &mut wgpu::CommandEncoder,
     pipeline_database: &mut PipelineDatabase,
 ) {
     let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("terrarium/shaders/shade_pass.wgsl"));
+        .shader_from_src(device, include_wgsl!("terrarium/shaders/shadow_pass.wgsl"));
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {
-            label: Some("terrarium::shade"),
+            label: Some("terrarium::shadow"),
             ..wgpu::ComputePipelineDescriptor::partial_default(&shader)
         },
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("terrarium::shade"),
+                label: Some("terrarium::shadow"),
                 bind_group_layouts: &[
                     &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
@@ -95,28 +94,10 @@ pub fn encode(
                             wgpu::BindGroupLayoutEntry {
                                 binding: 5,
                                 visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 6,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 7,
-                                visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
-                                    format: wgpu::TextureFormat::Rgba8Unorm,
-                                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                                    format: wgpu::TextureFormat::R16Float,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
                                 },
                                 count: None,
                             },
@@ -131,19 +112,12 @@ pub fn encode(
     );
 
     let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("terrarium::shade constants"),
+        label: Some("terrarium::shadow constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
-            _padding0: 0,
-            _padding1: 0,
+            shadow_resolution: parameters.shadow_resolution,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
-    });
-
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
     });
 
     let bind_group_layout = pipeline.get_bind_group_layout(0);
@@ -177,20 +151,12 @@ pub fn encode(
                 binding: 5,
                 resource: wgpu::BindingResource::TextureView(parameters.shadow_texture_view),
             },
-            wgpu::BindGroupEntry {
-                binding: 6,
-                resource: wgpu::BindingResource::Sampler(&sampler),
-            },
-            wgpu::BindGroupEntry {
-                binding: 7,
-                resource: wgpu::BindingResource::TextureView(parameters.dst_view),
-            },
         ],
     });
 
     {
         let mut cpass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("terrarium::shade"),
+            label: Some("terrarium::shadow"),
             timestamp_writes: None,
         });
         cpass.set_pipeline(&pipeline);
@@ -207,10 +173,10 @@ pub fn encode(
                 cpass.set_bind_group(2, bind_group, &[]);
             },
         );
-        cpass.insert_debug_marker("terrarium::shade");
+        cpass.insert_debug_marker("terrarium::shadow");
         cpass.dispatch_workgroups(
-            parameters.resolution.x.div_ceil(16),
-            parameters.resolution.y.div_ceil(16),
+            parameters.shadow_resolution.x.div_ceil(16),
+            parameters.shadow_resolution.y.div_ceil(16),
             1,
         );
     }

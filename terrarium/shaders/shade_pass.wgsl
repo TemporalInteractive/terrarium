@@ -1,5 +1,5 @@
-@include terrarium/shaders/shared/xr.wgsl
 @include terrarium/shaders/shared/gbuffer.wgsl
+@include terrarium/shaders/shared/xr.wgsl
 
 @include terrarium/shaders/shared/vertex_pool_bindings.wgsl
 @include terrarium/shaders/shared/material_pool_bindings.wgsl
@@ -24,13 +24,20 @@ var scene: acceleration_structure;
 
 @group(0)
 @binding(3)
-var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
+var<storage, read> gbuffer_left: array<PackedGBufferTexel>;
 @group(0)
 @binding(4)
-var<storage, read_write> gbuffer_right: array<PackedGBufferTexel>;
+var<storage, read> gbuffer_right: array<PackedGBufferTexel>;
 
 @group(0)
 @binding(5)
+var shadow: texture_2d<f32>;
+@group(0)
+@binding(6)
+var shadow_sampler: sampler;
+
+@group(0)
+@binding(7)
 var color_out: texture_storage_2d_array<rgba8unorm, read_write>;
 
 @compute
@@ -52,8 +59,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
         let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord);
 
-        let color: vec3<f32> = material.color;
-        //let color: vec3<f32> = gbuffer_texel.normal_ws * 0.5 + 0.5;
+        let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), 0.0).r;
+
+        let color: vec3<f32> = material.color * max(1.0 - shadow, 0.2);
 
         textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
     }

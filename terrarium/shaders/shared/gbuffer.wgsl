@@ -17,6 +17,17 @@ struct GBufferTexel {
 fn GBufferTexel::is_sky(_self: GBufferTexel) -> bool {
     return _self.depth_ws == 0.0;
 }
+
+fn GBufferTexel::position_ws(_self: GBufferTexel, id: vec2<u32>, resolution: vec2<u32>, view_index: u32, xr_camera: XrCamera) -> vec3<f32> {
+    let pixel_center = vec2<f32>(f32(id.x) + 0.5, f32(id.y) + 0.5);
+    var uv: vec2<f32> = (pixel_center / vec2<f32>(constants.resolution)) * 2.0 - 1.0;
+    uv.y = -uv.y;
+    let origin: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+    let targt: vec4<f32> = xr_camera.clip_to_view_space[view_index] * vec4<f32>(uv, 1.0, 1.0);
+    let direction: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(normalize(targt.xyz), 0.0)).xyz;
+
+    return origin + direction * _self.depth_ws;
+}
  
 fn PackedGBufferTexel::new(depth_ws: f32, normal_ws: vec3<f32>, material_descriptor_idx: u32, tex_coord: vec2<f32>) -> PackedGBufferTexel {
     let fract_tex_coord: vec2<f32> = fract(tex_coord);

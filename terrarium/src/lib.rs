@@ -3,6 +3,7 @@ use gpu_resources::GpuResources;
 use render_passes::{
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters},
+    shadow_pass::{self, ShadowPassParameters},
 };
 
 pub mod app_loop;
@@ -24,10 +25,16 @@ struct PackedGBufferTexel {
 struct SizedResources {
     resolution: UVec2,
     gbuffer: [wgpu::Buffer; 2],
+    shadow_resolution: UVec2,
+    shadow_texture_view: wgpu::TextureView,
 }
 
 impl SizedResources {
-    pub fn new(config: &wgpu::SurfaceConfiguration, device: &wgpu::Device) -> Self {
+    pub fn new(
+        config: &wgpu::SurfaceConfiguration,
+        shadow_resolution_scale: f32,
+        device: &wgpu::Device,
+    ) -> Self {
         let resolution = UVec2::new(config.width, config.height);
 
         let gbuffer = std::array::from_fn(|i| {
@@ -39,9 +46,36 @@ impl SizedResources {
             })
         });
 
+        let shadow_resolution = UVec2::new(
+            (config.width as f32 * shadow_resolution_scale).ceil() as u32,
+            (config.height as f32 * shadow_resolution_scale).ceil() as u32,
+        );
+
+        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("terrarium::shadow"),
+            size: wgpu::Extent3d {
+                width: shadow_resolution.x,
+                height: shadow_resolution.y,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R16Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let shadow_texture_view =
+            shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         Self {
             resolution,
             gbuffer,
+            shadow_resolution,
+            shadow_texture_view,
         }
     }
 }
@@ -55,13 +89,19 @@ pub struct RenderParameters<'a> {
 
 pub struct Renderer {
     sized_resources: SizedResources,
+    shadow_resolution_scale: f32,
 }
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let sized_resources = SizedResources::new(config, &ctx.device);
+        let shadow_resolution_scale = 0.7;
 
-        Self { sized_resources }
+        let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
+
+        Self {
+            sized_resources,
+            shadow_resolution_scale,
+        }
     }
 
     pub fn render(
@@ -87,12 +127,27 @@ impl Renderer {
             pipeline_database,
         );
 
+        shadow_pass::encode(
+            &ShadowPassParameters {
+                resolution: self.sized_resources.resolution,
+                shadow_resolution: self.sized_resources.shadow_resolution,
+                gpu_resources: parameters.gpu_resources,
+                xr_camera_buffer: parameters.xr_camera_buffer,
+                gbuffer: &self.sized_resources.gbuffer,
+                shadow_texture_view: &self.sized_resources.shadow_texture_view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
         shade_pass::encode(
             &ShadePassParameters {
                 resolution: self.sized_resources.resolution,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
+                shadow_texture_view: &self.sized_resources.shadow_texture_view,
                 dst_view: parameters.view,
             },
             &ctx.device,
@@ -104,6 +159,7 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
-        self.sized_resources = SizedResources::new(config, &ctx.device);
+        self.sized_resources =
+            SizedResources::new(config, self.shadow_resolution_scale, &ctx.device);
     }
 }
