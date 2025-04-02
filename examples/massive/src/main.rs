@@ -100,6 +100,7 @@ impl AppLoop for ExampleApp {
         xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         view: &wgpu::TextureView,
+        prev_view: &wgpu::TextureView,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> wgpu::CommandEncoder {
@@ -137,6 +138,7 @@ impl AppLoop for ExampleApp {
                 world: self.world.specs(),
                 xr_camera_buffer,
                 view,
+                prev_view,
                 gpu_resources: &mut self.gpu_resources,
             },
             &mut command_encoder,
