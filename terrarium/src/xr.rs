@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 
 use crate::{
     wgpu_util,
@@ -21,6 +21,9 @@ pub struct XrCameraData {
     pub world_to_view_space: [Mat4; 2],
     pub clip_to_view_space: [Mat4; 2],
     pub view_to_world_space: [Mat4; 2],
+    pub jitter: Vec2,
+    _padding0: u32,
+    _padding1: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +34,7 @@ pub struct XrCameraState {
     pub stage_rotation: Quat,
     pub z_near: f32,
     pub z_far: f32,
+    pub jitter: Vec2,
 }
 
 impl XrCameraState {
@@ -42,6 +46,7 @@ impl XrCameraState {
             stage_rotation: Quat::IDENTITY,
             z_near,
             z_far,
+            jitter: Vec2::ZERO,
         }
     }
 
@@ -110,6 +115,9 @@ impl XrCameraState {
                 world_to_view_space[0].inverse(),
                 world_to_view_space[1].inverse(),
             ],
+            jitter: self.jitter,
+            _padding0: 0,
+            _padding1: 1,
         }
     }
 }

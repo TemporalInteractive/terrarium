@@ -38,7 +38,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     var i: u32 = id.y * constants.resolution.x + id.x;
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
-        let pixel_center = vec2<f32>(f32(id.x) + 0.5, f32(id.y) + 0.5);
+        let pixel_center = vec2<f32>(id) + xr_camera.jitter;
         var uv: vec2<f32> = (pixel_center / vec2<f32>(constants.resolution)) * 2.0 - 1.0;
         uv.y = -uv.y;
         let origin: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;

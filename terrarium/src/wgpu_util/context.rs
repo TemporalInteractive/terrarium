@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use ash::vk::{self, Handle};
-use std::ffi::{c_void, CStr, CString};
+use std::ffi::{c_void, CString};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use wgpu::{DownlevelCapabilities, Features, Instance, Limits, PowerPreference};

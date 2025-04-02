@@ -16,3 +16,7 @@ const GOLDEN_ANGLE: f32 = 2.39996322972865332;
 const RIGHT: vec3<f32> = vec3<f32>(1.0, 0.0, 0.0);
 const UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const FORWARD: vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
+
+fn sqr(x: f32) -> f32 {
+    return x * x;
+}

@@ -27,6 +27,7 @@ pub trait AppLoop: 'static + Sized {
         xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         view: &wgpu::TextureView,
+        prev_view: &wgpu::TextureView,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> wgpu::CommandEncoder;
@@ -150,7 +151,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     let mut command_encoder = state.app_loop.render(
                         &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
-                        &state.rt_texture_view,
+                        &state.rt_texture_view[self.frame_idx as usize % 2],
+                        &state.rt_texture_view[(self.frame_idx as usize + 1) % 2],
                         &state.context,
                         &mut state.pipeline_database,
                     );
@@ -162,7 +164,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     });
                     blit_pass::encode(
                         &BlitPassParameters {
-                            src_view: &state.rt_texture_view,
+                            src_view: &state.rt_texture_view[self.frame_idx as usize % 2],
                             dst_view: &view,
                             multiview: None,
                             target_format: state.surface.config().view_formats[0],
@@ -178,7 +180,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                             let xr_views = xr
                                 .post_frame(
-                                    &state.rt_texture_view,
+                                    &state.rt_texture_view[self.frame_idx as usize % 2],
                                     xr_frame_state,
                                     &state.context.device,
                                     &mut command_encoder,
@@ -226,10 +228,12 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             WindowEvent::Resized(size) => {
                 if let Some(state) = &mut self.state {
                     state.surface.resize(&state.context, size);
-                    state.rt_texture_view = State::<R>::create_rt_texture_view(
-                        state.surface.config(),
-                        &state.context.device,
-                    );
+                    state.rt_texture_view = std::array::from_fn(|_| {
+                        State::<R>::create_rt_texture_view(
+                            state.surface.config(),
+                            &state.context.device,
+                        )
+                    });
 
                     state
                         .app_loop
@@ -261,7 +265,7 @@ struct State<R: AppLoop> {
     pipeline_database: wgpu_util::PipelineDatabase,
     xr_camera_state: XrCameraState,
     xr_camera_buffer: wgpu::Buffer,
-    rt_texture_view: wgpu::TextureView,
+    rt_texture_view: [wgpu::TextureView; 2],
     app_loop: R,
 }
 
@@ -292,7 +296,9 @@ impl<R: AppLoop> State<R> {
 
         let app_loop = R::new(surface.config(), &context, window.clone());
 
-        let rt_texture_view = Self::create_rt_texture_view(surface.config(), &context.device);
+        let rt_texture_view = std::array::from_fn(|_| {
+            Self::create_rt_texture_view(surface.config(), &context.device)
+        });
 
         let xr_camera_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::xr_camera"),

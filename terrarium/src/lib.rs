@@ -4,6 +4,7 @@ use render_passes::{
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters},
     shadow_pass::{self, ShadowPassParameters},
+    taa_pass::{self, TaaPassParameters},
 };
 
 pub mod app_loop;
@@ -83,6 +84,7 @@ impl SizedResources {
 pub struct RenderParameters<'a> {
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub view: &'a wgpu::TextureView,
+    pub prev_view: &'a wgpu::TextureView,
     pub world: &'a specs::World,
     pub gpu_resources: &'a mut GpuResources,
 }
@@ -94,7 +96,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 0.7;
+        let shadow_resolution_scale = 1.0;
 
         let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
 
@@ -149,6 +151,18 @@ impl Renderer {
                 gbuffer: &self.sized_resources.gbuffer,
                 shadow_texture_view: &self.sized_resources.shadow_texture_view,
                 dst_view: parameters.view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        taa_pass::encode(
+            &TaaPassParameters {
+                resolution: self.sized_resources.resolution,
+                history_influence: 0.8,
+                color_texture_view: parameters.view,
+                prev_color_texture_view: parameters.prev_view,
             },
             &ctx.device,
             command_encoder,
