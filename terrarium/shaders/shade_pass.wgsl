@@ -66,7 +66,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), 0.0).r;
 
-            color = material.color * max(1.0 - shadow, 0.2);
+            let l: vec3<f32> = Sky::direction_to_sun(vec2<f32>(0.5));
+            let g: f32 = max(dot(gbuffer_texel.normal_ws, l), 0.0);
+
+            color = material.color * max((1.0 - shadow) * g, 0.2);
         } else {
             color = Sky::sky(ray.direction, false);
         }
