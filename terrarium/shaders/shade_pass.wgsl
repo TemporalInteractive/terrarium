@@ -70,7 +70,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let l: vec3<f32> = Sky::direction_to_sun(vec2<f32>(0.5));
             let n_dot_l: f32 = max(dot(gbuffer_texel.normal_ws, l), 0.0);
 
-            let light_intensity: f32 = (1.0 - shadow) * Sky::sun_intensity(l);
+            let light_intensity: f32 = shadow * Sky::sun_intensity(l);
             let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, gbuffer_texel.normal_ws);
 
             color = reflectance * (light_intensity * n_dot_l + 0.2);

@@ -65,9 +65,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let shadow_origin: vec3<f32> = ray.origin + ray.direction * gbuffer_texel.depth_ws;
         let shadow_direction: vec3<f32> = Sky::direction_to_sun(random_uniform_float2(&rng));
 
-        var shadow: f32 = 1.0;
+        var shadow: f32 = 0.2;
         if (trace_shadow_ray_opaque(shadow_origin, shadow_direction, 1000.0, scene)) {
-            shadow = 0.0;
+            shadow = 1.0;
         }
 
         textureStore(shadow_out, shadow_id, view_index, vec4<f32>(vec3<f32>(shadow), 1.0));

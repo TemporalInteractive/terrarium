@@ -5,6 +5,7 @@ use render_passes::{
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters},
     shadow_pass::{self, ShadowPassParameters},
+    ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
 };
 
@@ -20,11 +21,11 @@ pub mod xr;
 struct PackedGBufferTexel {
     depth_ws: f32,
     normal_ws: u32,
+    tangent_ws: u32,
     material_descriptor_idx: u32,
-    tex_coord: u32,
     velocity: Vec2,
+    tex_coord: u32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 struct SizedResources {
@@ -104,7 +105,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 0.5;
+        let shadow_resolution_scale = 1.0;
 
         let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
 
@@ -147,6 +148,23 @@ impl Renderer {
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
                 shadow_texture_view: &self.sized_resources.shadow_texture_view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        ssao_pass::encode(
+            &SsaoPassParameters {
+                resolution: self.sized_resources.resolution,
+                seed: self.frame_idx,
+                sample_count: 8,
+                radius: 1.0,
+                intensity: 1.0,
+                bias: 0.01,
+                shadow_texture_view: &self.sized_resources.shadow_texture_view,
+                xr_camera_buffer: parameters.xr_camera_buffer,
+                gbuffer: &self.sized_resources.gbuffer,
             },
             &ctx.device,
             command_encoder,

@@ -47,6 +47,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
         var depth_ws: f32 = 0.0;
         var normal_ws = vec3<f32>(0.0);
+        var tangent_ws = vec3<f32>(0.0);
         var material_descriptor_idx: u32 = 0;
         var tex_coord = vec2<f32>(0.0);
         var velocity = vec2<f32>(0.0);
@@ -112,6 +113,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             depth_ws = intersection.t;
             normal_ws = front_facing_shading_normal_ws;
+            tangent_ws = hit_tangent_ws;
 
             let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
             let prev_position_cs: vec4<f32> = xr_camera.prev_view_to_clip_space[view_index] * xr_camera.prev_world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
@@ -123,9 +125,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
         }
     }
 }
