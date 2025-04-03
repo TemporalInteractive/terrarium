@@ -1,4 +1,4 @@
-@include shared/color.wgsll
+@include shared/color.wgsl
 
 struct Constants {
     resolution: vec2<u32>,
