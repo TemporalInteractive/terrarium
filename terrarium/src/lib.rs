@@ -105,7 +105,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 1.0;
+        let shadow_resolution_scale = 0.5;
 
         let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
 
@@ -157,6 +157,7 @@ impl Renderer {
         ssao_pass::encode(
             &SsaoPassParameters {
                 resolution: self.sized_resources.resolution,
+                shadow_resolution: self.sized_resources.shadow_resolution,
                 seed: self.frame_idx,
                 sample_count: 8,
                 radius: 1.0,

@@ -9,16 +9,20 @@ use crate::wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase};
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
+    shadow_resolution: UVec2,
     seed: u32,
     sample_count: u32,
     radius: f32,
     intensity: f32,
     bias: f32,
     _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 pub struct SsaoPassParameters<'a> {
     pub resolution: UVec2,
+    pub shadow_resolution: UVec2,
     pub seed: u32,
     pub sample_count: u32,
     pub radius: f32,
@@ -112,12 +116,15 @@ pub fn encode(
         label: Some("terrarium::ssao constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
+            shadow_resolution: parameters.shadow_resolution,
             seed: parameters.seed,
             sample_count: parameters.sample_count,
             radius: parameters.radius,
             intensity: parameters.intensity,
             bias: parameters.bias,
             _padding0: 0,
+            _padding1: 0,
+            _padding2: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -159,8 +166,8 @@ pub fn encode(
         cpass.set_bind_group(0, &bind_group, &[]);
         cpass.insert_debug_marker("terrarium::ssao");
         cpass.dispatch_workgroups(
-            parameters.resolution.x.div_ceil(16),
-            parameters.resolution.y.div_ceil(16),
+            parameters.shadow_resolution.x.div_ceil(16),
+            parameters.shadow_resolution.y.div_ceil(16),
             1,
         );
     }

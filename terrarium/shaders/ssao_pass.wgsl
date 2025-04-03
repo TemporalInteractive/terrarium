@@ -6,12 +6,15 @@
 
 struct Constants {
     resolution: vec2<u32>,
+    shadow_resolution: vec2<u32>,
     seed: u32,
     sample_count: u32,
     radius: f32,
     intensity: f32,
     bias: f32,
     _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 @group(0)
@@ -37,10 +40,14 @@ var shadow: texture_storage_2d_array<r16float, read_write>;
 @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) dispatch_size: vec3<u32>) {
-    let id: vec2<u32> = global_id.xy;
-    if (any(id >= constants.resolution)) { return; }
+    let shadow_id: vec2<u32> = global_id.xy;
+    if (any(shadow_id >= constants.shadow_resolution)) { return; }
+    
+    let id = vec2<u32>(
+        u32(f32(constants.resolution.x) / f32(constants.shadow_resolution.x) * f32(shadow_id.x)),
+        u32(f32(constants.resolution.y) / f32(constants.shadow_resolution.y) * f32(shadow_id.y))
+    );
     let i: u32 = id.y * constants.resolution.x + id.x;
-    let uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution);
 
     var rng: u32 = pcg_hash(i ^ xor_shift_u32(constants.seed));
 
@@ -63,8 +70,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             var occlusion: f32 = 0.0;
 
-            for (var i: u32 = 0; i < constants.sample_count; i += 1) {
-                var scale: f32 = f32(i) / f32(constants.sample_count);
+            for (var j: u32 = 0; j < constants.sample_count; j += 1) {
+                var scale: f32 = f32(j) / f32(constants.sample_count);
                 scale = mix(0.1, 1.0, sqr(scale));
                 let sample_point_ts: vec3<f32> = get_uniform_hemisphere_sample(random_uniform_float2(&rng)) * scale * constants.radius;
                 let sample_point_ws: vec3<f32> = center_point_ws + tangent_to_world * sample_point_ts;
@@ -95,9 +102,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             let occlusion_factor: f32 = mix(1.0, 1.0 - (occlusion / f32(constants.sample_count)), constants.intensity);
 
-            var shadow_factor: f32 = textureLoad(shadow, id, view_index).r;
+            var shadow_factor: f32 = textureLoad(shadow, shadow_id, view_index).r;
             shadow_factor *= occlusion_factor;
-            textureStore(shadow, id, view_index, vec4<f32>(vec3<f32>(shadow_factor), 1.0));
+            textureStore(shadow, shadow_id, view_index, vec4<f32>(vec3<f32>(shadow_factor), 1.0));
         }
     }
 }
