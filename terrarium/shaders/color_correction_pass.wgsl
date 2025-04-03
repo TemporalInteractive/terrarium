@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/color.wgsl
+@include shared/color.wgsl
 
 struct Constants {
     resolution: vec2<u32>,

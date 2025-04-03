@@ -1,5 +1,5 @@
-@include terrarium/shaders/shared/packing.wgsl
-@include terrarium/shaders/shared/xr.wgsl
+@include packing.wgsl
+@include xr.wgsl
 
 struct PackedGBufferTexel {
     depth_ws: f32,

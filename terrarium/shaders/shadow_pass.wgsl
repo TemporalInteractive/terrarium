@@ -1,9 +1,9 @@
-@include terrarium/shaders/shared/gbuffer.wgsl
-@include terrarium/shaders/shared/random.wgsl
-@include terrarium/shaders/shared/trace.wgsl
-@include terrarium/shaders/shared/xr.wgsl
+@include shared/gbuffer.wgsl
+@include shared/random.wgsl
+@include shared/trace.wgsl
+@include shared/xr.wgsl
 
-@include terrarium/shaders/shared/sky_bindings.wgsl
+@include shared/sky_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,

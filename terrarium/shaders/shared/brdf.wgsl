@@ -1,5 +1,5 @@
-@include terrarium/shaders/shared/material_pool.wgsl
-@include terrarium/shaders/shared/math.wgsl
+@include material_pool.wgsl
+@include math.wgsl
 
 fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
     return f0 + (1.0 - f0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);

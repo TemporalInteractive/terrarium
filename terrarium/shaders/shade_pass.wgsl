@@ -1,10 +1,10 @@
-@include terrarium/shaders/shared/brdf.wgsl
-@include terrarium/shaders/shared/gbuffer.wgsl
-@include terrarium/shaders/shared/xr.wgsl
+@include shared/brdf.wgsl
+@include shared/gbuffer.wgsl
+@include shared/xr.wgsl
 
-@include terrarium/shaders/shared/vertex_pool_bindings.wgsl
-@include terrarium/shaders/shared/material_pool_bindings.wgsl
-@include terrarium/shaders/shared/sky_bindings.wgsl
+@include shared/vertex_pool_bindings.wgsl
+@include shared/material_pool_bindings.wgsl
+@include shared/sky_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,

@@ -1,5 +1,5 @@
-@include terrarium/shaders/shared/packing.wgsl
-@include terrarium/shaders/shared/xr.wgsl
+@include shared/packing.wgsl
+@include shared/xr.wgsl
 
 struct VertexOutput {
     @location(0) normal_ws: vec3<f32>,

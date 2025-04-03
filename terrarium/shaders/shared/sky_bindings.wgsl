@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/sampling.wgsl
+@include sampling.wgsl
 
 const SUN_DISTANCE: f32 = 1e+6;
 

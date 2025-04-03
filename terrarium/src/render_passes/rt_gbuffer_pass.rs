@@ -31,7 +31,7 @@ pub fn encode(
 ) {
     let shader = pipeline_database.shader_from_src(
         device,
-        include_wgsl!("terrarium/shaders/rt_gbuffer_pass.wgsl"),
+        include_wgsl!("../../shaders/rt_gbuffer_pass.wgsl"),
     );
     let pipeline = pipeline_database.compute_pipeline(
         device,

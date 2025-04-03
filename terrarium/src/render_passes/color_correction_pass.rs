@@ -26,7 +26,7 @@ pub fn encode(
 ) {
     let shader = pipeline_database.shader_from_src(
         device,
-        include_wgsl!("terrarium/shaders/color_correction_pass.wgsl"),
+        include_wgsl!("../../shaders/color_correction_pass.wgsl"),
     );
     let pipeline = pipeline_database.compute_pipeline(
         device,

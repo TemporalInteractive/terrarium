@@ -80,7 +80,7 @@ pub fn encode(
     });
 
     let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("terrarium/shaders/gbuffer_pass.wgsl"));
+        .shader_from_src(device, include_wgsl!("../../shaders/gbuffer_pass.wgsl"));
     let pipeline = pipeline_database.render_pipeline(
         device,
         wgpu::RenderPipelineDescriptor {

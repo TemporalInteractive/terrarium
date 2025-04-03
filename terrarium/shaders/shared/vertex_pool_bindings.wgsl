@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/vertex_pool.wgsl
+@include vertex_pool.wgsl
 
 struct VertexPoolConstants {
     num_emissive_triangle_instances: u32,

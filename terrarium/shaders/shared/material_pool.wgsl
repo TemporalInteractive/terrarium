@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/math.wgsl
+@include math.wgsl
 
 const INVALID_TEXTURE: u32 = U32_MAX;
 const MAX_MATERIAL_POOL_TEXTURES: u32 = 1024u;

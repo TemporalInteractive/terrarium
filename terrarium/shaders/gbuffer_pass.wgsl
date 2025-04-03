@@ -1,7 +1,7 @@
-@include terrarium/shaders/shared/xr.wgsl
+@include shared/xr.wgsl
 
-@include terrarium/shaders/shared/vertex_pool_bindings.wgsl
-@include terrarium/shaders/shared/material_pool_bindings.wgsl
+@include shared/vertex_pool_bindings.wgsl
+@include shared/material_pool_bindings.wgsl
 
 struct VertexOutput {
     @location(0) normal_ws: vec3<f32>,

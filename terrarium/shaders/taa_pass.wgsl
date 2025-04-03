@@ -1,6 +1,6 @@
-@include terrarium/shaders/shared/color.wgsl
-@include terrarium/shaders/shared/gbuffer.wgsl
-@include terrarium/shaders/shared/math.wgsl
+@include shared/color.wgsl
+@include shared/gbuffer.wgsl
+@include shared/math.wgsl
 
 struct Constants {
     resolution: vec2<u32>,

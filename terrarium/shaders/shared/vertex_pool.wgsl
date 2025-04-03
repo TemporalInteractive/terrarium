@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/packing.wgsl
+@include packing.wgsl
 
 struct VertexPoolSlice {
     first_vertex: u32,

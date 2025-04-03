@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/math.wgsl
+@include math.wgsl
 
 struct PackedRgb9e5 {
     data: u32,

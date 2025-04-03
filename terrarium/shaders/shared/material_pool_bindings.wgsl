@@ -1,5 +1,5 @@
-@include terrarium/shaders/shared/color.wgsl
-@include terrarium/shaders/shared/material_pool.wgsl
+@include color.wgsl
+@include material_pool.wgsl
 
 @group(2)
 @binding(0)

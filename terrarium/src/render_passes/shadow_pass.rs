@@ -36,7 +36,7 @@ pub fn encode(
     pipeline_database: &mut PipelineDatabase,
 ) {
     let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("terrarium/shaders/shadow_pass.wgsl"));
+        .shader_from_src(device, include_wgsl!("../../shaders/shadow_pass.wgsl"));
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {

@@ -1,4 +1,4 @@
-@include terrarium/shaders/shared/math.wgsl
+@include math.wgsl
 
 fn get_cosine_hemisphere_sample(uv: vec2<f32>) -> vec3<f32> {
     var phi: f32 = TWO_PI * uv.x;
