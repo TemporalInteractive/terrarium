@@ -32,7 +32,7 @@ var<storage, read> gbuffer_right: array<PackedGBufferTexel>;
 
 @group(0)
 @binding(5)
-var shadow: texture_2d<f32>;
+var shadow: texture_2d_array<f32>;
 @group(0)
 @binding(6)
 var shadow_sampler: sampler;
@@ -64,7 +64,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
             let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord);
 
-            let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), 0.0).r;
+            let shadow: f32 = textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), view_index, 0.0).r;
 
             let l: vec3<f32> = Sky::direction_to_sun(vec2<f32>(0.5));
             let g: f32 = max(dot(gbuffer_texel.normal_ws, l), 0.0);

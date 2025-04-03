@@ -35,7 +35,7 @@ var<storage, read> gbuffer_right: array<PackedGBufferTexel>;
 
 @group(0)
 @binding(5)
-var shadow_out: texture_storage_2d<r16float, read_write>;
+var shadow_out: texture_storage_2d_array<r16float, read_write>;
 
 @compute
 @workgroup_size(16, 16)
@@ -70,6 +70,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             shadow = 0.0;
         }
 
-        textureStore(shadow_out, shadow_id, vec4<f32>(vec3<f32>(shadow), 1.0));
+        textureStore(shadow_out, shadow_id, view_index, vec4<f32>(vec3<f32>(shadow), 1.0));
     }
 }

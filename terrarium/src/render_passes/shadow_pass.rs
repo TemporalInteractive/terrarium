@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use bytemuck::{Pod, Zeroable};
 use glam::UVec2;
 use wgpu::util::DeviceExt;
@@ -102,7 +104,7 @@ pub fn encode(
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
                                     format: wgpu::TextureFormat::R16Float,
-                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    view_dimension: wgpu::TextureViewDimension::D2Array,
                                 },
                                 count: None,
                             },

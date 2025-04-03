@@ -57,7 +57,7 @@ impl SizedResources {
             size: wgpu::Extent3d {
                 width: shadow_resolution.x,
                 height: shadow_resolution.y,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: 2,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -69,8 +69,11 @@ impl SizedResources {
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let shadow_texture_view =
-            shadow_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let shadow_texture_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            array_layer_count: Some(2),
+            ..Default::default()
+        });
 
         Self {
             resolution,
@@ -160,17 +163,17 @@ impl Renderer {
             pipeline_database,
         );
 
-        taa_pass::encode(
-            &TaaPassParameters {
-                resolution: self.sized_resources.resolution,
-                history_influence: 0.8,
-                color_texture_view: parameters.view,
-                prev_color_texture_view: parameters.prev_view,
-            },
-            &ctx.device,
-            command_encoder,
-            pipeline_database,
-        );
+        // taa_pass::encode(
+        //     &TaaPassParameters {
+        //         resolution: self.sized_resources.resolution,
+        //         history_influence: 0.8,
+        //         color_texture_view: parameters.view,
+        //         prev_color_texture_view: parameters.prev_view,
+        //     },
+        //     &ctx.device,
+        //     command_encoder,
+        //     pipeline_database,
+        // );
 
         parameters.gpu_resources.end_frame();
         self.frame_idx += 1;
