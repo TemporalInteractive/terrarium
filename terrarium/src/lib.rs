@@ -103,7 +103,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 1.0;
+        let shadow_resolution_scale = 0.5;
 
         let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
 
@@ -166,17 +166,18 @@ impl Renderer {
             pipeline_database,
         );
 
-        // taa_pass::encode(
-        //     &TaaPassParameters {
-        //         resolution: self.sized_resources.resolution,
-        //         history_influence: 0.8,
-        //         color_texture_view: parameters.view,
-        //         prev_color_texture_view: parameters.prev_view,
-        //     },
-        //     &ctx.device,
-        //     command_encoder,
-        //     pipeline_database,
-        // );
+        taa_pass::encode(
+            &TaaPassParameters {
+                resolution: self.sized_resources.resolution,
+                history_influence: 0.9,
+                color_texture_view: parameters.view,
+                prev_color_texture_view: parameters.prev_view,
+                gbuffer: &self.sized_resources.gbuffer,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
 
         parameters.gpu_resources.end_frame();
         self.frame_idx += 1;

@@ -112,6 +112,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             depth_ws = intersection.t;
             normal_ws = front_facing_shading_normal_ws;
+
+            let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
+            let prev_position_cs: vec4<f32> = xr_camera.prev_view_to_clip_space[view_index] * xr_camera.prev_world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
+            var prev_position_ss: vec4<f32> = (prev_position_cs / prev_position_cs.w + 1.0) / 2.0;
+            prev_position_ss = vec4<f32>(prev_position_ss.x, 1.0 - prev_position_ss.y, prev_position_ss.zw);
+            var position_ss: vec4<f32> = (current_position_cs / current_position_cs.w + 1.0) / 2.0;
+            position_ss = vec4<f32>(position_ss.x, 1.0 - position_ss.y, position_ss.zw);
+            velocity = (position_ss - prev_position_ss).xy;
         }
 
         if (view_index == 0) {

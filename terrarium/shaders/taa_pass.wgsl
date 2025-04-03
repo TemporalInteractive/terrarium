@@ -1,4 +1,5 @@
 @include terrarium/shaders/shared/color.wgsl
+@include terrarium/shaders/shared/gbuffer.wgsl
 @include terrarium/shaders/shared/math.wgsl
 
 struct Constants {
@@ -17,7 +18,17 @@ var color: texture_storage_2d_array<rgba8unorm, read_write>;
 
 @group(0)
 @binding(2)
-var prev_color: texture_storage_2d_array<rgba8unorm, read>;
+var prev_color: texture_2d_array<f32>;
+@group(0)
+@binding(3)
+var color_sampler: sampler;
+
+@group(0)
+@binding(4)
+var<storage, read> gbuffer_left: array<PackedGBufferTexel>;
+@group(0)
+@binding(5)
+var<storage, read> gbuffer_right: array<PackedGBufferTexel>;
 
 // Source: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
 fn mitchell_1d(_x: f32, B: f32, C: f32) -> f32 {
@@ -57,6 +68,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) dispatch_size: vec3<u32>) {
     let id: vec2<u32> = global_id.xy;
     if (any(id >= constants.resolution)) { return; }
+    let i: u32 = id.y * constants.resolution.x + id.x;
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         var current: vec3<f32> = textureLoad(color, id, view_index).rgb;
@@ -95,19 +107,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
         reconstructed /= max(weight_sum, 1e-5);
 
-        var history: vec3<f32> = textureLoad(prev_color, id, view_index).rgb;
-        
-        let mean: vec3<f32> = first_moment / sample_count;
-        var stdev: vec3<f32> = abs(second_moment - (first_moment * first_moment) / sample_count);
-        stdev /= (sample_count - 1.0);
-        stdev = sqrt(stdev);
+        var gbuffer_texel: GBufferTexel;
+        if (view_index == 0) {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
+        } else {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
+        }
 
-        let clipped_history: vec3<f32> = clip_aabb(mean - stdev, mean + stdev, history);
+        if (!GBufferTexel::is_sky(gbuffer_texel)) {
+            var uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution);
+            uv -= gbuffer_texel.velocity;
 
-        let blend_weight: f32 = 1.0 - constants.history_influence;
-        let current_weight: f32 = saturate(blend_weight * (1.0 / (1.0 + linear_to_luma(reconstructed))));
-        let history_weight: f32 = saturate((1.0 - blend_weight) * (1.0 / (1.0 + linear_to_luma(clipped_history))));
-        reconstructed = (current_weight * reconstructed + history_weight * clipped_history) / (current_weight + history_weight);
+            let history: vec3<f32> = textureSampleLevel(prev_color, color_sampler, uv, view_index, 0.0).rgb;
+            
+            let mean: vec3<f32> = first_moment / sample_count;
+            var stdev: vec3<f32> = abs(second_moment - (first_moment * first_moment) / sample_count);
+            stdev /= (sample_count - 1.0);
+            stdev = sqrt(stdev);
+
+            let clipped_history: vec3<f32> = clip_aabb(mean - stdev, mean + stdev, history);
+
+            let blend_weight: f32 = 1.0 - constants.history_influence;
+            let current_weight: f32 = saturate(blend_weight * (1.0 / (1.0 + linear_to_luma(reconstructed))));
+            let history_weight: f32 = saturate((1.0 - blend_weight) * (1.0 / (1.0 + linear_to_luma(clipped_history))));
+            reconstructed = (current_weight * reconstructed + history_weight * clipped_history) / (current_weight + history_weight);
+        }
 
         textureStore(color, id, view_index, vec4<f32>(reconstructed, 1.0));
     }
