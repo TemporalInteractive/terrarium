@@ -6,6 +6,13 @@ struct XrCamera {
     jitter: vec2<f32>,
     _padding0: u32,
     _padding1: u32,
+    prev_view_to_clip_space: array<mat4x4<f32>, 2>,
+    prev_world_to_view_space: array<mat4x4<f32>, 2>,
+    prev_clip_to_view_space: array<mat4x4<f32>, 2>,
+    prev_view_to_world_space: array<mat4x4<f32>, 2>,
+    prev_jitter: vec2<f32>,
+    _padding2: u32,
+    _padding3: u32,
 }
 
 struct XrCameraRay {
@@ -13,7 +20,7 @@ struct XrCameraRay {
     direction: vec3<f32>,
 }
 
-fn XrCamera::raygen(_self: XrCamera, id: vec2<u32>, resolution: vec2<u32>, view_index: u32) -> XrCameraRay {
+fn XrCamera::raygen(xr_camera: XrCamera, id: vec2<u32>, resolution: vec2<u32>, view_index: u32) -> XrCameraRay {
     let pixel_center = vec2<f32>(id) + xr_camera.jitter;
     var uv: vec2<f32> = (pixel_center / vec2<f32>(resolution)) * 2.0 - 1.0;
     uv.y = -uv.y;

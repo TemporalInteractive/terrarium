@@ -204,11 +204,17 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                             .xr_camera_state
                             .view_to_clip_space_from_openxr_views(xr_views);
                     }
+
+                    let xr_camera_data = [
+                        state.xr_camera_state.calculate_camera_data(),
+                        state.prev_xr_camera_data,
+                    ];
                     state.context.queue.write_buffer(
                         &state.xr_camera_buffer,
                         0,
-                        bytemuck::bytes_of(&state.xr_camera_state.calculate_camera_data()),
+                        bytemuck::bytes_of(&xr_camera_data),
                     );
+                    state.prev_xr_camera_data = xr_camera_data[0];
 
                     state.context.queue.submit(Some(command_encoder.finish()));
 
@@ -264,6 +270,7 @@ struct State<R: AppLoop> {
     context: wgpu_util::Context,
     pipeline_database: wgpu_util::PipelineDatabase,
     xr_camera_state: XrCameraState,
+    prev_xr_camera_data: XrCameraData,
     xr_camera_buffer: wgpu::Buffer,
     rt_texture_view: [wgpu::TextureView; 2],
     app_loop: R,
@@ -302,17 +309,20 @@ impl<R: AppLoop> State<R> {
 
         let xr_camera_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::xr_camera"),
-            size: size_of::<XrCameraData>() as u64,
+            size: size_of::<XrCameraData>() as u64 * 2,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
+
+        let xr_camera_state = XrCameraState::new(0.01, 1000.0);
 
         Self {
             window,
             surface,
             context,
             pipeline_database: wgpu_util::PipelineDatabase::new(),
-            xr_camera_state: XrCameraState::new(0.01, 1000.0),
+            xr_camera_state,
+            prev_xr_camera_data: XrCameraData::default(),
             xr_camera_buffer,
             rt_texture_view,
             app_loop,

@@ -49,6 +49,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var normal_ws = vec3<f32>(0.0);
         var material_descriptor_idx: u32 = 0;
         var tex_coord = vec2<f32>(0.0);
+        var velocity = vec2<f32>(0.0);
 
         var rq: ray_query;
         rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
@@ -114,9 +115,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord);
+            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord, velocity);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord);
+            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, material_descriptor_idx, tex_coord, velocity);
         }
     }
 }

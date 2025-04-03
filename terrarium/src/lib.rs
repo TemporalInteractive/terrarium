@@ -1,4 +1,4 @@
-use glam::UVec2;
+use glam::{UVec2, Vec2};
 use gpu_resources::GpuResources;
 use render_passes::{
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
@@ -21,6 +21,9 @@ struct PackedGBufferTexel {
     normal_ws: u32,
     material_descriptor_idx: u32,
     tex_coord: u32,
+    velocity: Vec2,
+    _padding0: u32,
+    _padding1: u32,
 }
 
 struct SizedResources {
