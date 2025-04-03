@@ -299,7 +299,7 @@ impl<R: AppLoop> State<R> {
             .await
         };
 
-        surface.resume(&context, window.clone(), true);
+        surface.resume(&context, window.clone(), false);
 
         let app_loop = R::new(surface.config(), &context, window.clone());
 
@@ -343,7 +343,7 @@ impl<R: AppLoop> State<R> {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING

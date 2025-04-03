@@ -21,10 +21,6 @@ fn Sky::sun_intensity(direction: vec3<f32>) -> f32 {
     var intensity: f32 = sky_constants.sun_intensity *
         max(0.0, 1.0 - exp(-((CUTOFF_ANGLE - acos(zenith_angle_cos)) / 1.4)));
 
-    let cos_theta: f32 = dot(direction, l);
-    let sun_angular_diameter_cos: f32 = cos(sky_constants.sun_size * 0.1);
-    intensity *= select(0.0, 1.0, cos_theta > sun_angular_diameter_cos);
-
     return intensity;
 }
 

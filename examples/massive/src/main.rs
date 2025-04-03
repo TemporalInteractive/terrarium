@@ -181,6 +181,7 @@ impl AppLoop for ExampleApp {
             | wgpu::Features::EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE
             | wgpu::Features::EXPERIMENTAL_RAY_QUERY
             | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+            | wgpu::Features::FLOAT32_FILTERABLE
     }
 
     fn required_limits() -> wgpu::Limits {

@@ -1,6 +1,7 @@
 use glam::{UVec2, Vec2};
 use gpu_resources::GpuResources;
 use render_passes::{
+    color_correction_pass::{self, ColorCorrectionPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters},
     shadow_pass::{self, ShadowPassParameters},
@@ -160,6 +161,16 @@ impl Renderer {
                 gbuffer: &self.sized_resources.gbuffer,
                 shadow_texture_view: &self.sized_resources.shadow_texture_view,
                 dst_view: parameters.view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        color_correction_pass::encode(
+            &ColorCorrectionPassParameters {
+                resolution: self.sized_resources.resolution,
+                color_texture_view: parameters.view,
             },
             &ctx.device,
             command_encoder,
