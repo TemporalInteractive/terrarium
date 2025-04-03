@@ -34,10 +34,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         var hdr: vec3<f32> = textureLoad(color, id, view_index).rgb;
-
         var sdr: vec3<f32> = hdr_to_sdr(hdr);
-        sdr = pow(sdr, vec3<f32>(1.0 / 2.2));
-
         textureStore(color, id, view_index, vec4<f32>(sdr, 1.0));
     }
 }

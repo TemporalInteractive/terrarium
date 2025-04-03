@@ -299,7 +299,7 @@ impl<R: AppLoop> State<R> {
             .await
         };
 
-        surface.resume(&context, window.clone(), false);
+        surface.resume(&context, window.clone(), true);
 
         let app_loop = R::new(surface.config(), &context, window.clone());
 
