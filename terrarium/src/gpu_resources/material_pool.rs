@@ -147,11 +147,13 @@ impl MaterialPool {
     fn alloc_texture(
         &mut self,
         model_texture: &Texture,
+        srgb: bool,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> u32 {
         let (_texture, texture_view) = model_texture.create_wgpu_texture(
             wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            srgb,
             device,
             queue,
         );
@@ -190,7 +192,7 @@ impl MaterialPool {
             if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
                 *texture_idx as u32
             } else {
-                self.alloc_texture(texture, device, queue)
+                self.alloc_texture(texture, true, device, queue)
             }
         } else {
             u32::MAX
@@ -203,7 +205,7 @@ impl MaterialPool {
                 if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
                     *texture_idx as u32
                 } else {
-                    self.alloc_texture(texture, device, queue)
+                    self.alloc_texture(texture, false, device, queue)
                 }
             } else {
                 u32::MAX
@@ -215,7 +217,7 @@ impl MaterialPool {
             if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
                 *texture_idx as u32
             } else {
-                self.alloc_texture(texture, device, queue)
+                self.alloc_texture(texture, false, device, queue)
             }
         } else {
             u32::MAX
@@ -227,7 +229,7 @@ impl MaterialPool {
             if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
                 *texture_idx as u32
             } else {
-                self.alloc_texture(texture, device, queue)
+                self.alloc_texture(texture, false, device, queue)
             }
         } else {
             u32::MAX

@@ -25,7 +25,7 @@ openxr = { version = "0.19.0", default-features = true, features = ["loaded", "l
 specs = { version = "0.20.0", default-features = false, features = ["parallel"] } 
 # ugm = { path = "../ugm", default-features = false, features = ["wgpu"] }
 # ugm = { version = "0.0.1", default-features = false, features = ["wgpu"] }
-ugm = { git = "https://github.com/TemporalInteractive/ugm.git", rev = "8ec8e45", default-features = false, features = ["wgpu"] }
+ugm = { git = "https://github.com/TemporalInteractive/ugm.git", rev = "7cf2edd", default-features = false, features = ["wgpu"] }
 uuid = { version = "1.12.1", default-features = false, features = ["std", "v4", "bytemuck"]}
 wgpu = { version = "24.0.3", default-features = true }
 wgpu-hal = { version = "24.0.2", default-features = true }
