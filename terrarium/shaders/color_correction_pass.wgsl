@@ -15,14 +15,15 @@ var<uniform> constants: Constants;
 var color: texture_storage_2d_array<rgba32float, read_write>;
 
 fn hdr_to_sdr(hdr: vec3<f32>) -> vec3<f32> {
-    let a: f32 = 2.51;
-    let b: f32 = 0.03;
-    let c: f32 = 2.43;
-    let d: f32 = 0.59;
-    let e: f32 = 0.14;
+    // let a: f32 = 2.51;
+    // let b: f32 = 0.03;
+    // let c: f32 = 2.43;
+    // let d: f32 = 0.59;
+    // let e: f32 = 0.14;
     
-    let sdr: vec3<f32> = (hdr * (a * hdr + b)) / (hdr * (c * hdr + d) + e);
-    return clamp(sdr, vec3<f32>(0.0), vec3<f32>(1.0));
+    // let sdr: vec3<f32> = (hdr * (a * hdr + b)) / (hdr * (c * hdr + d) + e);
+    // return clamp(sdr, vec3<f32>(0.0), vec3<f32>(1.0));
+    return hdr / (hdr + 1.0);
 }
 
 @compute

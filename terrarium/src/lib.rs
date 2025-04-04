@@ -217,4 +217,16 @@ impl Renderer {
         self.sized_resources =
             SizedResources::new(config, self.shadow_resolution_scale, &ctx.device);
     }
+
+    pub fn required_features() -> wgpu::Features {
+        wgpu::Features::MULTIVIEW
+            | wgpu::Features::PUSH_CONSTANTS
+            | wgpu::Features::TEXTURE_BINDING_ARRAY
+            | wgpu::Features::TEXTURE_COMPRESSION_BC
+            | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
+            | wgpu::Features::EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE
+            | wgpu::Features::EXPERIMENTAL_RAY_QUERY
+            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+            | wgpu::Features::FLOAT32_FILTERABLE
+    }
 }

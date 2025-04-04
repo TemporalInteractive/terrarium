@@ -89,8 +89,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             // World space tangent, bitangent and normal. Note that these are not front facing yet
             let hit_tangent_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[0], 1.0)).xyz);
             let hit_bitangent_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[1], 1.0)).xyz);
-            var hit_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[2], 1.0)).xyz);
-            let hit_point_ws = origin + direction * intersection.t;
+            let hit_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[2], 1.0)).xyz);
+
+            let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
+            let geometric_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
+            let hit_point_ws: vec3<f32> = origin + direction * intersection.t;
 
             let hit_tangent_to_world = mat3x3<f32>(
                 hit_tangent_ws,
@@ -105,7 +108,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let w_out_worldspace: vec3<f32> = -direction;
 
             // Make sure the hit normal and normal mapped normal are front facing
-            let back_face: bool = dot(w_out_worldspace, hit_normal_ws) < 0.0;
+            let back_face: bool = dot(w_out_worldspace, geometric_normal_ws) < 0.0;
             if (back_face) {
                 front_facing_normal_ws *= -1.0;
                 front_facing_shading_normal_ws *= -1.0;
