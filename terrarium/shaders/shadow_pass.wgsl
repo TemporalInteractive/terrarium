@@ -65,8 +65,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let shadow_origin: vec3<f32> = ray.origin + ray.direction * gbuffer_texel.depth_ws;
         let shadow_direction: vec3<f32> = Sky::direction_to_sun(random_uniform_float2(&rng));
 
-        var shadow: f32 = 0.2;
-        if (trace_shadow_ray_opaque(shadow_origin, shadow_direction, 1000.0, scene)) {
+        var shadow: f32 = 0.0;
+        if (dot(shadow_direction, gbuffer_texel.normal_ws) > 0.0 && trace_shadow_ray_opaque(shadow_origin, shadow_direction, 1000.0, scene)) {
             shadow = 1.0;
         }
 

@@ -33,12 +33,17 @@ fn Sky::sun_solid_angle() -> f32 {
 }
 
 fn Sky::sky(direction: vec3<f32>, skip_sun: bool) -> vec3<f32> {
-    var sky_color = vec3<f32>(0.83, 0.8, 1.0);
+    var sky_color = vec3<f32>(0.83, 0.8, 0.9);
 
     if (!skip_sun) {
         var intensity = Sky::sun_intensity(direction);
 
-        sky_color += intensity * 1000.0 * sky_constants.sun_color;
+        let l: vec3<f32> = -sky_constants.sun_direction;
+        let cos_theta: f32 = dot(direction, l);
+        let sun_angular_diameter_cos: f32 = cos(max(sky_constants.sun_size, 0.1) * 0.1);
+        let sundisk: f32 = select(0.0, 1.0, cos_theta > sun_angular_diameter_cos);
+
+       sky_color += intensity * 10000.0 * sundisk * sky_constants.sun_color;
     }
 
     return sky_color;

@@ -41,7 +41,7 @@ var<storage, read> blas_instances: array<BlasInstance>;
 
 fn _calculate_bitangent(normal: vec3<f32>, tangent: vec4<f32>) -> vec3<f32> {
     var bitangent: vec3<f32> = cross(normal, tangent.xyz);
-    return bitangent * tangent.w;
+    return bitangent * -tangent.w;
 }
 
 fn VertexPoolBindings::load_tbn(v0: Vertex, v1: Vertex, v2: Vertex, barycentrics: vec3<f32>) -> mat3x3<f32> {
