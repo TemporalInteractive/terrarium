@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use ugm::mesh::PackedVertex;
 
-use super::linear_block_allocator::LinearBlockAllocator;
+use super::linear_block_allocator::{LinearBlockAllocation, LinearBlockAllocator};
 
 pub const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
 pub const MAX_VERTEX_POOL_SLICES: usize = 1024 * 16;
@@ -14,7 +14,8 @@ pub struct VertexPoolWriteData<'a> {
 
 #[derive(Debug, Clone)]
 pub struct VertexPoolAlloc {
-    pub slice: VertexPoolSlice,
+    pub vertex_alloc: LinearBlockAllocation,
+    pub index_alloc: LinearBlockAllocation,
     pub index: u32,
 }
 
@@ -66,22 +67,6 @@ impl VertexPoolSlice {
 
     fn is_allocated(&self) -> bool {
         self.is_allocated_and_padding0 != u32::MAX
-    }
-
-    pub fn first_vertex(&self) -> u32 {
-        self.first_vertex
-    }
-
-    pub fn first_index(&self) -> u32 {
-        self.first_index
-    }
-
-    fn last_vertex(&self) -> u32 {
-        self.first_vertex + self.num_vertices
-    }
-
-    pub fn last_index(&self) -> u32 {
-        self.first_index + self.num_indices
     }
 }
 
@@ -200,9 +185,11 @@ impl VertexPool {
     pub fn write_vertex_data(
         &self,
         data: &VertexPoolWriteData,
-        slice: VertexPoolSlice,
+        alloc: &VertexPoolAlloc,
         queue: &wgpu::Queue,
     ) {
+        let slice = &self.slices[alloc.index as usize];
+
         queue.write_buffer(
             &self.vertex_buffer,
             (slice.first_vertex as usize * std::mem::size_of::<PackedVertex>()) as u64,
@@ -235,95 +222,39 @@ impl VertexPool {
         let slice_idx = self
             .first_available_slice_idx()
             .expect("Vertex pool ran out of slices!");
-        let first_vertex = self
-            .first_available_vertex(num_vertices)
-            .expect("Vertex pool ran out of vertices!");
-        let first_index = self
-            .first_available_index(num_indices)
-            .expect("Vertex pool ran out of indices!");
+
+        let vertex_alloc = self
+            .vertex_allocator
+            .allocate(num_vertices as u64)
+            .expect("Failed to allocate vertices.");
+        let index_alloc = self
+            .index_allocator
+            .allocate(num_indices as u64)
+            .expect("Failed to allocate indices.");
 
         let slice = VertexPoolSlice::new(
-            first_vertex,
+            vertex_alloc.start() as u32,
             num_vertices,
-            first_index,
+            index_alloc.start() as u32,
             num_indices,
             material_idx,
         );
         self.slices[slice_idx] = slice;
 
         VertexPoolAlloc {
-            slice,
+            vertex_alloc,
+            index_alloc,
             index: slice_idx as u32,
         }
     }
 
-    pub fn free(index: u32) {}
+    //pub fn free(index: VertexPoolAlloc) {}
 
     fn first_available_slice_idx(&self) -> Option<usize> {
         for (i, slice) in self.slices.iter().enumerate() {
             if !slice.is_allocated() {
                 return Some(i);
             }
-        }
-
-        None
-    }
-
-    fn first_available_vertex(&self, num_vertices: u32) -> Option<u32> {
-        if self.slices.is_empty() && MAX_VERTEX_POOL_VERTICES as u32 > num_vertices {
-            return Some(0);
-        }
-
-        for i in 0..self.slices.len() {
-            if self.slices[i].is_allocated() {
-                continue;
-            }
-
-            let prev = if i > 0 {
-                self.slices[i - 1].last_vertex()
-            } else {
-                0
-            };
-
-            let space = self.slices[i].first_vertex - prev;
-            if space >= num_vertices {
-                return Some(prev + num_vertices);
-            }
-        }
-
-        let back = self.slices.last().unwrap().last_vertex();
-        if back + num_vertices <= MAX_VERTEX_POOL_VERTICES as u32 {
-            return Some(back);
-        }
-
-        None
-    }
-
-    fn first_available_index(&self, num_indices: u32) -> Option<u32> {
-        if self.slices.is_empty() && MAX_VERTEX_POOL_VERTICES as u32 * 3 > num_indices {
-            return Some(0);
-        }
-
-        for i in 0..self.slices.len() {
-            if self.slices[i].is_allocated() {
-                continue;
-            }
-
-            let prev = if i > 0 {
-                self.slices[i - 1].last_index()
-            } else {
-                0
-            };
-
-            let space = self.slices[i].first_index - prev;
-            if space >= num_indices {
-                return Some(prev + num_indices);
-            }
-        }
-
-        let back = self.slices.last().unwrap().last_index();
-        if back + num_indices <= MAX_VERTEX_POOL_VERTICES as u32 {
-            return Some(back);
         }
 
         None

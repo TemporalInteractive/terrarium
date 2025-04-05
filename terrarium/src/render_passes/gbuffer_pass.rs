@@ -79,8 +79,8 @@ pub fn encode(
         bias: wgpu::DepthBiasState::default(),
     });
 
-    let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("../../shaders/gbuffer_pass.wgsl"));
+    let shader =
+        pipeline_database.shader_from_src(device, include_wgsl!("../../shaders/gbuffer_pass.wgsl"));
     let pipeline = pipeline_database.render_pipeline(
         device,
         wgpu::RenderPipelineDescriptor {
@@ -209,7 +209,7 @@ pub fn encode(
         ) = parameters.world.system_data();
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            let vertex_slice = &mesh_component.mesh.vertex_pool_alloc.slice;
+            let vertex_pool_alloc = &mesh_component.mesh.vertex_pool_alloc;
             let local_to_world_space = transform_component.transform.get_matrix();
             let inv_trans_local_to_world_space = transform_component
                 .transform
@@ -226,8 +226,9 @@ pub fn encode(
                 }),
             );
             rpass.draw_indexed(
-                vertex_slice.first_index()..vertex_slice.last_index(),
-                vertex_slice.first_vertex() as i32,
+                vertex_pool_alloc.index_alloc.start() as u32
+                    ..vertex_pool_alloc.index_alloc.end() as u32,
+                vertex_pool_alloc.vertex_alloc.start() as i32,
                 0..1,
             );
         }

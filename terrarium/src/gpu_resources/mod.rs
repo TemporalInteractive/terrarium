@@ -86,7 +86,7 @@ impl GpuResources {
                 indices: &mesh.indices,
                 triangle_material_indices: &mesh.triangle_material_indices,
             },
-            vertex_pool_alloc.slice,
+            &vertex_pool_alloc,
             &ctx.queue,
         );
 
@@ -112,10 +112,10 @@ impl GpuResources {
         let triangle_geometry = wgpu::BlasTriangleGeometry {
             size: &size_desc,
             vertex_buffer: self.vertex_pool.vertex_buffer(),
-            first_vertex: vertex_pool_alloc.slice.first_vertex(),
+            first_vertex: vertex_pool_alloc.vertex_alloc.start() as u32,
             vertex_stride: std::mem::size_of::<PackedVertex>() as u64,
             index_buffer: Some(self.vertex_pool.index_buffer()),
-            first_index: Some(vertex_pool_alloc.slice.first_index()),
+            first_index: Some(vertex_pool_alloc.index_alloc.start() as u32),
             transform_buffer: None,
             transform_buffer_offset: None,
         };

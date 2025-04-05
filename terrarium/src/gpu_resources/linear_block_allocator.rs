@@ -5,8 +5,18 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Pod, Debug, Clone, Copy, Zeroable)]
 #[repr(C)]
 pub struct LinearBlockAllocation {
-    pub start: u64,
-    pub end: u64,
+    start: u64,
+    end: u64,
+}
+
+impl LinearBlockAllocation {
+    pub fn start(&self) -> u64 {
+        self.start
+    }
+
+    pub fn end(&self) -> u64 {
+        self.end
+    }
 }
 
 pub struct LinearBlockAllocator {
@@ -35,9 +45,11 @@ impl LinearBlockAllocator {
                     self.free_regions.insert(end, region_size - size);
                 }
                 self.used_regions.insert(start, size);
+
                 return Some(LinearBlockAllocation { start, end });
             }
         }
+
         None
     }
 
