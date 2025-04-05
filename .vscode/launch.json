@@ -2,14 +2,25 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Example Minimal",
+            "name": "Debug",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/example-massive.exe",
             "args": [
             ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "rust: cargo build example-massive"
+            "preLaunchTask": "rust: cargo build"
+        },
+        {
+            "name": "Release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/release/example-massive.exe",
+            "args": [
+                "--no-gpu-validation"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "rust: cargo build r"
         },
     ]
 }

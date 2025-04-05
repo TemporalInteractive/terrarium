@@ -2,31 +2,22 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "rust: cargo build example-minimal",
+            "label": "rust: cargo build",
             "type": "process",
             "command": "cargo",
             "args": [
                 "build",
                 "-p",
-                "example-minimal"
+                "example-massive"
             ],
         },
         {
-            "label": "rust: cargo build example-input-handling",
+            "label": "rust: cargo build r",
             "type": "process",
             "command": "cargo",
             "args": [
                 "build",
-                "-p",
-                "example-input-handling"
-            ],
-        },
-        {
-            "label": "rust: cargo build example-massive",
-            "type": "process",
-            "command": "cargo",
-            "args": [
-                "build",
+                "-r",
                 "-p",
                 "example-massive"
             ],
