@@ -32,13 +32,13 @@ pub fn spawn_model(
 ) {
     let material_base_idx = gpu_resources.material_pool().material_base_idx();
 
-    let gpu_meshes: Vec<GpuMesh> = model
+    let gpu_meshes: Vec<Arc<GpuMesh>> = model
         .meshes
         .iter()
         .map(|mesh| gpu_resources.create_gpu_mesh(mesh, material_base_idx, command_encoder, ctx))
         .collect();
 
-    let gpu_materials: Vec<GpuMaterial> = model
+    let gpu_materials: Vec<Arc<GpuMaterial>> = model
         .materials
         .iter()
         .map(|material| gpu_resources.create_gpu_material(model, material, ctx))

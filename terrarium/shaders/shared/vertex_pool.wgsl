@@ -11,25 +11,6 @@ struct VertexPoolSlice {
     _padding2: u32,
 };
 
-struct EmissiveTriangleInstance { // EmissiveBlasInstance
-    trans_transform: mat3x4<f32>, // Transposed for memory alignment
-    vertex_pool_slice_idx: u32,
-    num_triangles: u32,
-    _padding0: u32,
-    _padding1: u32,
-}
-
-struct BlasInstance {
-    emissive_blas_instance_idx: u32,
-    vertex_pool_slice_index: u32,
-    _padding0: u32,
-    _padding1: u32,
-}
-
-fn BlasInstance::is_emissive(_self: BlasInstance) -> bool {
-    return _self.emissive_blas_instance_idx != U32_MAX;
-}
-
 struct Vertex {
     position: vec3<f32>,
     normal: vec3<f32>,

@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, sync::Arc};
 
 use material_pool::MaterialPool;
 use sky::Sky;
@@ -17,6 +17,7 @@ use crate::{
 
 const MAX_TLAS_INSTANCES: usize = 1024 * 8;
 
+mod linear_block_allocator;
 pub mod material_pool;
 pub mod sky;
 pub mod vertex_pool;
@@ -37,6 +38,9 @@ pub struct GpuResources {
     material_pool: MaterialPool,
     tlas_package: wgpu::TlasPackage,
     sky: Sky,
+
+    gpu_meshes: Vec<Arc<GpuMesh>>,
+    gpu_materials: Vec<Arc<GpuMaterial>>,
 }
 
 impl GpuResources {
@@ -58,6 +62,8 @@ impl GpuResources {
             material_pool,
             tlas_package: wgpu::TlasPackage::new(tlas),
             sky,
+            gpu_meshes: Vec::new(),
+            gpu_materials: Vec::new(),
         }
     }
 
@@ -67,7 +73,7 @@ impl GpuResources {
         material_base_idx: u32,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
-    ) -> GpuMesh {
+    ) -> Arc<GpuMesh> {
         let vertex_pool_alloc = self.vertex_pool.alloc(
             mesh.packed_vertices.len() as u32,
             mesh.indices.len() as u32,
@@ -121,10 +127,12 @@ impl GpuResources {
 
         command_encoder.build_acceleration_structures(iter::once(&build_entry), iter::empty());
 
-        GpuMesh {
+        let gpu_mesh = Arc::new(GpuMesh {
             vertex_pool_alloc,
             blas,
-        }
+        });
+        self.gpu_meshes.push(gpu_mesh.clone());
+        gpu_mesh
     }
 
     pub fn create_gpu_material(
@@ -132,12 +140,14 @@ impl GpuResources {
         model: &Model,
         material: &Material,
         ctx: &wgpu_util::Context,
-    ) -> GpuMaterial {
+    ) -> Arc<GpuMaterial> {
         let material_idx =
             self.material_pool
                 .alloc_material(model, material, &ctx.device, &ctx.queue);
 
-        GpuMaterial { material_idx }
+        let gpu_material = Arc::new(GpuMaterial { material_idx });
+        self.gpu_materials.push(gpu_material.clone());
+        gpu_material
     }
 
     pub fn vertex_pool(&self) -> &VertexPool {
@@ -156,12 +166,32 @@ impl GpuResources {
         &self.sky
     }
 
+    fn cleanup(&mut self) {
+        fn vec_remove_multiple<T>(vec: &mut Vec<T>, indices: &mut [usize]) {
+            indices.sort();
+            for (j, i) in indices.iter().enumerate() {
+                vec.remove(i - j);
+            }
+        }
+
+        let mut gpu_mesh_indices_to_remove = vec![];
+        for (i, gpu_mesh) in self.gpu_meshes.iter().enumerate() {
+            if Arc::strong_count(gpu_mesh) == 1 {
+                gpu_mesh_indices_to_remove.push(i);
+                println!("REMOVED GPU MESH!");
+            }
+        }
+        vec_remove_multiple(&mut self.gpu_meshes, &mut gpu_mesh_indices_to_remove);
+    }
+
     pub fn update(
         &mut self,
         world: &specs::World,
         command_encoder: &mut wgpu::CommandEncoder,
         queue: &wgpu::Queue,
     ) {
+        self.cleanup();
+
         let (transform_storage, mesh_storage): (
             specs::ReadStorage<'_, TransformComponent>,
             specs::ReadStorage<'_, MeshComponent>,
@@ -170,11 +200,11 @@ impl GpuResources {
         let mut blas_instances: Vec<wgpu::TlasInstance> = vec![];
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            self.vertex_pool.submit_slice_instance(
-                mesh_component.mesh.vertex_pool_alloc.index,
-                transform_component.transform.get_matrix(),
-                false,
-            );
+            // self.vertex_pool.submit_slice_instance(
+            //     mesh_component.mesh.vertex_pool_alloc.index,
+            //     transform_component.transform.get_matrix(),
+            //     false,
+            // );
 
             let transform = transform_component.transform.get_matrix();
             let transform4x3 = transform.transpose().to_cols_array()[..12]
@@ -210,9 +240,5 @@ impl GpuResources {
 
         command_encoder
             .build_acceleration_structures(iter::empty(), iter::once(&self.tlas_package));
-    }
-
-    pub fn end_frame(&mut self) {
-        self.vertex_pool.end_frame();
     }
 }

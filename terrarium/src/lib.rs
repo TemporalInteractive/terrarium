@@ -209,7 +209,6 @@ impl Renderer {
             pipeline_database,
         );
 
-        parameters.gpu_resources.end_frame();
         self.frame_idx += 1;
     }
 

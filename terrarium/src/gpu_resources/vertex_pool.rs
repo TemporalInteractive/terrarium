@@ -1,9 +1,10 @@
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
 use ugm::mesh::PackedVertex;
-use wgpu::util::DeviceExt;
+
+use super::linear_block_allocator::LinearBlockAllocator;
 
 pub const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
+pub const MAX_VERTEX_POOL_SLICES: usize = 1024 * 16;
 
 pub struct VertexPoolWriteData<'a> {
     pub packed_vertices: &'a [PackedVertex],
@@ -25,12 +26,48 @@ pub struct VertexPoolSlice {
     first_index: u32,
     num_indices: u32,
     pub material_idx: u32,
-    _padding0: u32,
+    is_allocated_and_padding0: u32,
     _padding1: u32,
     _padding2: u32,
 }
 
 impl VertexPoolSlice {
+    fn new(
+        first_vertex: u32,
+        num_vertices: u32,
+        first_index: u32,
+        num_indices: u32,
+        material_idx: u32,
+    ) -> Self {
+        Self {
+            first_vertex,
+            num_vertices,
+            first_index,
+            num_indices,
+            material_idx,
+            is_allocated_and_padding0: 0,
+            _padding1: 0,
+            _padding2: 0,
+        }
+    }
+
+    fn new_unallocated() -> Self {
+        Self {
+            first_vertex: 0,
+            num_vertices: 0,
+            first_index: 0,
+            num_indices: 0,
+            material_idx: 0,
+            is_allocated_and_padding0: u32::MAX,
+            _padding1: 0,
+            _padding2: 0,
+        }
+    }
+
+    fn is_allocated(&self) -> bool {
+        self.is_allocated_and_padding0 != u32::MAX
+    }
+
     pub fn first_vertex(&self) -> u32 {
         self.first_vertex
     }
@@ -48,47 +85,15 @@ impl VertexPoolSlice {
     }
 }
 
-#[derive(Pod, Clone, Copy, Zeroable)]
-#[repr(C)]
-struct VertexPoolConstants {
-    num_emissive_triangle_instances: u32,
-    num_emissive_triangles: u32,
-    _padding1: u32,
-    _padding2: u32,
-}
-
-#[derive(Pod, Clone, Copy, Zeroable)]
-#[repr(C)]
-struct EmissiveTriangleInstance {
-    transform: [f32; 12],
-    vertex_pool_slice_idx: u32,
-    num_triangles: u32,
-    _padding0: u32,
-    _padding1: u32,
-}
-
-#[derive(Pod, Clone, Copy, Zeroable)]
-#[repr(C)]
-struct BlasInstance {
-    emissive_blas_instance_idx: u32,
-    vertex_pool_slice_index: u32,
-    _padding0: u32,
-    _padding1: u32,
-}
-
 pub struct VertexPool {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     triangle_material_index_buffer: wgpu::Buffer,
-    emissive_triangle_instance_buffer: wgpu::Buffer,
-    emissive_triangle_instance_cdf_buffer: wgpu::Buffer,
-    blas_instances_buffer: wgpu::Buffer,
     slices_buffer: wgpu::Buffer,
 
-    emissive_triangle_instances: Vec<EmissiveTriangleInstance>,
-    emissive_triangle_count: u32,
-    blas_instances: Vec<BlasInstance>,
-    slices: Vec<VertexPoolSlice>,
+    vertex_allocator: LinearBlockAllocator,
+    index_allocator: LinearBlockAllocator,
+    slices: Box<[VertexPoolSlice]>,
 
     bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -122,47 +127,19 @@ impl VertexPool {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let emissive_triangle_instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("terrarium::vertex_pool emissive_triangle_instances"),
-            mapped_at_creation: false,
-            size: (std::mem::size_of::<EmissiveTriangleInstance>() * 1024) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let emissive_triangle_instance_cdf_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("terrarium::vertex_pool emissive_triangle_instance_cdf_buffer"),
-            mapped_at_creation: false,
-            size: (std::mem::size_of::<f32>() * 1024) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let blas_instances_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("terrarium::vertex_pool blas_instances"),
-            mapped_at_creation: false,
-            size: (std::mem::size_of::<BlasInstance>() * 1024) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
         let slices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::vertex_pool slices"),
             mapped_at_creation: false,
-            size: (std::mem::size_of::<VertexPoolSlice>() * MAX_VERTEX_POOL_VERTICES / 64) as u64,
+            size: (std::mem::size_of::<VertexPoolSlice>() * MAX_VERTEX_POOL_SLICES) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
+
+        let vertex_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64);
+        let index_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64 / 3);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::all(),
@@ -203,36 +180,6 @@ impl VertexPool {
                     },
                     count: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::all(),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
             ],
         });
 
@@ -240,14 +187,12 @@ impl VertexPool {
             vertex_buffer,
             index_buffer,
             triangle_material_index_buffer,
-            emissive_triangle_instance_buffer,
-            emissive_triangle_instance_cdf_buffer,
-            blas_instances_buffer,
             slices_buffer,
-            emissive_triangle_instances: Vec::new(),
-            emissive_triangle_count: 0,
-            blas_instances: Vec::new(),
-            slices: Vec::new(),
+
+            vertex_allocator,
+            index_allocator,
+            slices: vec![VertexPoolSlice::new_unallocated(); MAX_VERTEX_POOL_SLICES]
+                .into_boxed_slice(),
             bind_group_layout,
         }
     }
@@ -278,73 +223,7 @@ impl VertexPool {
     }
 
     pub fn write_slices(&mut self, queue: &wgpu::Queue) {
-        queue.write_buffer(
-            &self.slices_buffer,
-            0,
-            bytemuck::cast_slice(self.slices.as_slice()),
-        );
-
-        queue.write_buffer(
-            &self.emissive_triangle_instance_buffer,
-            0,
-            bytemuck::cast_slice(self.emissive_triangle_instances.as_slice()),
-        );
-
-        queue.write_buffer(
-            &self.emissive_triangle_instance_cdf_buffer,
-            0,
-            bytemuck::cast_slice(self.calculate_emissive_slice_instance_cdfs().as_slice()),
-        );
-
-        queue.write_buffer(
-            &self.blas_instances_buffer,
-            0,
-            bytemuck::cast_slice(self.blas_instances.as_slice()),
-        );
-    }
-
-    pub fn submit_slice_instance(&mut self, index: u32, transform: Mat4, is_emissive: bool) {
-        let mut emissive_blas_instance_idx = u32::MAX;
-
-        if is_emissive {
-            let num_triangles = self.slices[index as usize].num_indices / 3;
-            let transform4x3 = transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap();
-
-            let instance = EmissiveTriangleInstance {
-                transform: transform4x3,
-                vertex_pool_slice_idx: index,
-                num_triangles,
-                _padding0: 0,
-                _padding1: 0,
-            };
-            self.emissive_triangle_instances.push(instance);
-            self.emissive_triangle_count += num_triangles;
-
-            emissive_blas_instance_idx = self.emissive_triangle_instances.len() as u32 - 1;
-        }
-
-        let instance = BlasInstance {
-            emissive_blas_instance_idx,
-            vertex_pool_slice_index: index,
-            _padding0: 0,
-            _padding1: 0,
-        };
-        self.blas_instances.push(instance);
-    }
-
-    fn calculate_emissive_slice_instance_cdfs(&self) -> Vec<f32> {
-        let mut cdfs = vec![];
-
-        let mut cdf = 0.0;
-        for instance in &self.emissive_triangle_instances {
-            let pdf = instance.num_triangles as f32 / self.emissive_triangle_count as f32;
-            cdf += pdf;
-            cdfs.push(cdf);
-        }
-
-        cdfs
+        queue.write_buffer(&self.slices_buffer, 0, bytemuck::cast_slice(&self.slices));
     }
 
     pub fn alloc(
@@ -353,6 +232,9 @@ impl VertexPool {
         num_indices: u32,
         material_idx: u32,
     ) -> VertexPoolAlloc {
+        let slice_idx = self
+            .first_available_slice_idx()
+            .expect("Vertex pool ran out of slices!");
         let first_vertex = self
             .first_available_vertex(num_vertices)
             .expect("Vertex pool ran out of vertices!");
@@ -360,26 +242,31 @@ impl VertexPool {
             .first_available_index(num_indices)
             .expect("Vertex pool ran out of indices!");
 
-        let slice = VertexPoolSlice {
+        let slice = VertexPoolSlice::new(
             first_vertex,
             num_vertices,
             first_index,
             num_indices,
             material_idx,
-            _padding0: 0,
-            _padding1: 0,
-            _padding2: 0,
-        };
-        self.slices.push(slice);
+        );
+        self.slices[slice_idx] = slice;
 
         VertexPoolAlloc {
             slice,
-            index: self.slices.len() as u32 - 1,
+            index: slice_idx as u32,
         }
     }
 
-    pub fn _free(_index: u32) {
-        todo!()
+    pub fn free(index: u32) {}
+
+    fn first_available_slice_idx(&self) -> Option<usize> {
+        for (i, slice) in self.slices.iter().enumerate() {
+            if !slice.is_allocated() {
+                return Some(i);
+            }
+        }
+
+        None
     }
 
     fn first_available_vertex(&self, num_vertices: u32) -> Option<u32> {
@@ -388,6 +275,10 @@ impl VertexPool {
         }
 
         for i in 0..self.slices.len() {
+            if self.slices[i].is_allocated() {
+                continue;
+            }
+
             let prev = if i > 0 {
                 self.slices[i - 1].last_vertex()
             } else {
@@ -414,6 +305,10 @@ impl VertexPool {
         }
 
         for i in 0..self.slices.len() {
+            if self.slices[i].is_allocated() {
+                continue;
+            }
+
             let prev = if i > 0 {
                 self.slices[i - 1].last_index()
             } else {
@@ -439,25 +334,10 @@ impl VertexPool {
     }
 
     pub fn bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
-        let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("terrarium::vertex_pool constants"),
-            contents: bytemuck::bytes_of(&VertexPoolConstants {
-                num_emissive_triangle_instances: self.emissive_triangle_instances.len() as u32,
-                num_emissive_triangles: self.emissive_triangle_count,
-                _padding1: 0,
-                _padding2: 0,
-            }),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.bind_group_layout,
             entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: constants.as_entire_binding(),
-                },
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: self.vertex_buffer.as_entire_binding(),
@@ -474,20 +354,6 @@ impl VertexPool {
                     binding: 4,
                     resource: self.slices_buffer.as_entire_binding(),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: self.emissive_triangle_instance_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: self
-                        .emissive_triangle_instance_cdf_buffer
-                        .as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: self.blas_instances_buffer.as_entire_binding(),
-                },
             ],
         })
     }
@@ -498,11 +364,5 @@ impl VertexPool {
 
     pub fn index_buffer(&self) -> &wgpu::Buffer {
         &self.index_buffer
-    }
-
-    pub fn end_frame(&mut self) {
-        self.emissive_triangle_instances.clear();
-        self.emissive_triangle_count = 0;
-        self.blas_instances.clear();
     }
 }
