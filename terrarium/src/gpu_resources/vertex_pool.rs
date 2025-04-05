@@ -248,7 +248,11 @@ impl VertexPool {
         }
     }
 
-    //pub fn free(index: VertexPoolAlloc) {}
+    pub fn free(&mut self, alloc: &VertexPoolAlloc) {
+        self.vertex_allocator.free(&alloc.vertex_alloc);
+        self.index_allocator.free(&alloc.index_alloc);
+        self.slices[alloc.index as usize].is_allocated_and_padding0 = u32::MAX;
+    }
 
     fn first_available_slice_idx(&self) -> Option<usize> {
         for (i, slice) in self.slices.iter().enumerate() {

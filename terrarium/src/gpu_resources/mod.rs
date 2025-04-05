@@ -178,6 +178,8 @@ impl GpuResources {
         for (i, gpu_mesh) in self.gpu_meshes.iter().enumerate() {
             if Arc::strong_count(gpu_mesh) == 1 {
                 gpu_mesh_indices_to_remove.push(i);
+
+                self.vertex_pool.free(&gpu_mesh.vertex_pool_alloc);
                 println!("REMOVED GPU MESH!");
             }
         }

@@ -53,7 +53,7 @@ impl LinearBlockAllocator {
         None
     }
 
-    pub fn free(&mut self, allocation: LinearBlockAllocation) {
+    pub fn free(&mut self, allocation: &LinearBlockAllocation) {
         let start = allocation.start;
         let size = allocation.end - allocation.start;
         if self.used_regions.remove(&start).is_some() {
