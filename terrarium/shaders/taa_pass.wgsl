@@ -114,10 +114,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
         }
 
-        if (!GBufferTexel::is_sky(gbuffer_texel)) {
-            var uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution);
-            uv -= gbuffer_texel.velocity;
+        var uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution);
+        uv -= gbuffer_texel.velocity;
 
+        if (all(uv >= vec2<f32>(0.0)) && all(uv < vec2<f32>(1.0)) && !GBufferTexel::is_sky(gbuffer_texel)) {
             let history: vec3<f32> = textureSampleLevel(prev_color, color_sampler, uv, view_index, 0.0).rgb;
             
             let mean: vec3<f32> = first_moment / sample_count;
