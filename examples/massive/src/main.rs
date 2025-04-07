@@ -49,7 +49,7 @@ pub fn spawn_model(
             world.create_entity(&node.name, Transform::from(transform), |builder| {
                 builder.with(MeshComponent::new(
                     gpu_meshes[mesh_idx as usize].clone(),
-                    vec![],
+                    gpu_materials.clone(),
                 ))
             });
         }
