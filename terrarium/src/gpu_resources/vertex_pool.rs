@@ -3,8 +3,9 @@ use ugm::mesh::PackedVertex;
 
 use super::linear_block_allocator::{LinearBlockAllocation, LinearBlockAllocator};
 
-pub const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
-pub const MAX_VERTEX_POOL_SLICES: usize = 1024 * 16;
+const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
+const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 256;
+const MAX_VERTEX_POOL_SLICES: usize = 1024 * 16;
 
 pub struct VertexPoolWriteData<'a> {
     pub packed_vertices: &'a [PackedVertex],
@@ -98,7 +99,7 @@ impl VertexPool {
         let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::vertex_pool indices"),
             mapped_at_creation: false,
-            size: (std::mem::size_of::<u32>() * MAX_VERTEX_POOL_VERTICES * 3) as u64,
+            size: (std::mem::size_of::<u32>() * MAX_VERTEX_POOL_INDICES) as u64,
             usage: wgpu::BufferUsages::BLAS_INPUT
                 | wgpu::BufferUsages::INDEX
                 | wgpu::BufferUsages::STORAGE
@@ -108,7 +109,7 @@ impl VertexPool {
         let triangle_material_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::vertex_pool triangle_material_indices"),
             mapped_at_creation: false,
-            size: (std::mem::size_of::<u32>() * MAX_VERTEX_POOL_VERTICES / 3) as u64,
+            size: (std::mem::size_of::<u32>() * MAX_VERTEX_POOL_INDICES / 3) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
