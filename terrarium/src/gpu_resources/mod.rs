@@ -1,5 +1,6 @@
 use std::{iter, sync::Arc};
 
+use glam::Vec4;
 use material_pool::MaterialPool;
 use sky::Sky;
 use specs::Join;
@@ -13,6 +14,7 @@ use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 use crate::{
     wgpu_util,
     world::components::{MeshComponent, TransformComponent},
+    xr::XrCameraState,
 };
 
 const MAX_TLAS_INSTANCES: usize = 1024 * 8;
@@ -188,6 +190,7 @@ impl GpuResources {
 
     pub fn update(
         &mut self,
+        xr_camera_state: &XrCameraState,
         world: &specs::World,
         command_encoder: &mut wgpu::CommandEncoder,
         queue: &wgpu::Queue,
@@ -202,13 +205,8 @@ impl GpuResources {
         let mut blas_instances: Vec<wgpu::TlasInstance> = vec![];
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            // self.vertex_pool.submit_slice_instance(
-            //     mesh_component.mesh.vertex_pool_alloc.index,
-            //     transform_component.transform.get_matrix(),
-            //     false,
-            // );
-
-            let transform = transform_component.transform.get_matrix();
+            let mut transform = transform_component.transform.get_matrix();
+            transform.w_axis -= Vec4::from((xr_camera_state.stage_translation, 0.0));
             let transform4x3 = transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap();

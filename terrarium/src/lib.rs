@@ -8,6 +8,7 @@ use render_passes::{
     ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
 };
+use xr::XrCameraState;
 
 pub mod app_loop;
 pub mod gpu_resources;
@@ -90,6 +91,7 @@ impl SizedResources {
 }
 
 pub struct RenderParameters<'a> {
+    pub xr_camera_state: &'a XrCameraState,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub view: &'a wgpu::TextureView,
     pub prev_view: &'a wgpu::TextureView,
@@ -123,9 +125,12 @@ impl Renderer {
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) {
-        parameters
-            .gpu_resources
-            .update(parameters.world, command_encoder, &ctx.queue);
+        parameters.gpu_resources.update(
+            parameters.xr_camera_state,
+            parameters.world,
+            command_encoder,
+            &ctx.queue,
+        );
 
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {

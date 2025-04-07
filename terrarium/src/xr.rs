@@ -97,7 +97,9 @@ impl XrCameraState {
                 self.stage_rotation * (view_translation - head_position) + head_position;
             let rotated_view_rotation = self.stage_rotation * view_rotation;
 
-            let center = rotated_view_translation + self.stage_translation;
+            // self.stage_translation is not added as we keep the camera always in the center
+            // Stage translation is applied by moving all scene geometry in the opposite direction
+            let center = rotated_view_translation;
             let forward = rotated_view_rotation * FORWARD;
             let up = rotated_view_rotation * UP;
 

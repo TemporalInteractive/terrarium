@@ -136,6 +136,7 @@ impl AppLoop for ExampleApp {
         self.renderer.render(
             &mut RenderParameters {
                 world: self.world.specs(),
+                xr_camera_state,
                 xr_camera_buffer,
                 view,
                 prev_view,
