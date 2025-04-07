@@ -60,7 +60,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (!GBufferTexel::is_sky(gbuffer_texel)) {
-            let center_point_ws: vec3<f32> = GBufferTexel::position_ws(gbuffer_texel, id, constants.resolution, view_index, xr_camera);
+            let center_point_ws: vec3<f32> = gbuffer_texel.position_ws;
 
             let tangent_to_world = mat3x3<f32>(
                 gbuffer_texel.tangent_ws,

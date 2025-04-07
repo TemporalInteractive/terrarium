@@ -45,6 +45,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let targt: vec4<f32> = xr_camera.clip_to_view_space[view_index] * vec4<f32>(uv, 1.0, 1.0);
         let direction: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(normalize(targt.xyz), 0.0)).xyz;
 
+        var position_ws = vec3<f32>(0.0);
         var depth_ws: f32 = 0.0;
         var normal_ws = vec3<f32>(0.0);
         var tangent_ws = vec3<f32>(0.0);
@@ -70,6 +71,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let v2: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i2]);
 
             tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
+            let hit_point: vec3<f32> = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
 
             material_descriptor_idx = vertex_pool_slice.material_idx + triangle_material_indices[vertex_pool_slice.first_index / 3 + intersection.primitive_index];
             let material_descriptor: MaterialDescriptor = material_descriptors[material_descriptor_idx];
@@ -93,7 +95,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
             let geometric_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
-            let hit_point_ws: vec3<f32> = origin + direction * intersection.t;
+            let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
 
             let hit_tangent_to_world = mat3x3<f32>(
                 hit_tangent_ws,
@@ -114,6 +116,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 front_facing_shading_normal_ws *= -1.0;
             }
 
+            position_ws = hit_point_ws;
             depth_ws = intersection.t;
             normal_ws = front_facing_shading_normal_ws;
             tangent_ws = hit_tangent_ws;
@@ -128,9 +131,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
         }
     }
 }

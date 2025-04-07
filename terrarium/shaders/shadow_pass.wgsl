@@ -60,7 +60,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
         }
 
-        let shadow_origin: vec3<f32> = GBufferTexel::position_ws(gbuffer_texel, id, constants.resolution, view_index, xr_camera);
+        let shadow_origin: vec3<f32> = gbuffer_texel.position_ws;
         let shadow_direction: vec3<f32> = Sky::direction_to_sun(random_uniform_float2(&rng));
 
         var shadow: f32 = 0.0;

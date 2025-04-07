@@ -1,4 +1,4 @@
-use glam::{UVec2, Vec2};
+use glam::{UVec2, Vec2, Vec3};
 use gpu_resources::GpuResources;
 use render_passes::{
     color_correction_pass::{self, ColorCorrectionPassParameters},
@@ -20,13 +20,15 @@ pub mod xr;
 
 #[repr(C)]
 struct PackedGBufferTexel {
+    position_ws: Vec3,
     depth_ws: f32,
     normal_ws: u32,
     tangent_ws: u32,
     material_descriptor_idx: u32,
-    velocity: Vec2,
     tex_coord: u32,
+    velocity: Vec2,
     _padding0: u32,
+    _padding1: u32,
 }
 
 struct SizedResources {
@@ -204,7 +206,7 @@ impl Renderer {
         taa_pass::encode(
             &TaaPassParameters {
                 resolution: self.sized_resources.resolution,
-                history_influence: 0.9,
+                history_influence: 0.8,
                 color_texture_view: parameters.view,
                 prev_color_texture_view: parameters.prev_view,
                 gbuffer: &self.sized_resources.gbuffer,

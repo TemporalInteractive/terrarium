@@ -1,4 +1,4 @@
-const TRACE_EPSILON: f32 = 1e-4;
+const TRACE_EPSILON: f32 = 1e-3;
 
 fn safe_origin(origin: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return origin + normal * TRACE_EPSILON;
