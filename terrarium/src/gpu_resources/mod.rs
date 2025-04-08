@@ -210,6 +210,8 @@ impl GpuResources {
                 .try_into()
                 .unwrap();
 
+            self.vertex_pool.submit_slice_instance(transform);
+
             let gpu_mesh = &mesh_component.mesh;
             let blas = &gpu_mesh.blas;
             let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
@@ -243,5 +245,9 @@ impl GpuResources {
 
         command_encoder
             .build_acceleration_structures(iter::empty(), iter::once(&self.tlas_package));
+    }
+
+    pub fn end_frame(&mut self) {
+        self.vertex_pool.end_frame();
     }
 }

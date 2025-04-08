@@ -16,6 +16,10 @@ var<storage, read> triangle_material_indices: array<u32>;
 @binding(4)
 var<storage, read> vertex_pool_slices: array<VertexPoolSlice>;
 
+@group(1)
+@binding(5)
+var<storage, read> vertex_pool_world_to_object: array<mat4x4<f32>>;
+
 fn _calculate_bitangent(normal: vec3<f32>, tangent: vec4<f32>) -> vec3<f32> {
     var bitangent: vec3<f32> = cross(normal, tangent.xyz);
     return bitangent * -tangent.w;
