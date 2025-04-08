@@ -5,13 +5,13 @@ use wgpu::util::DeviceExt;
 #[derive(Debug, Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 pub struct SunInfo {
-    // Normalized sun direction
+    /// Normalized sun direction
     pub direction: Vec3,
-    // Radius in angular radians scaled by a magnitude of 10
+    /// Radius in angular radians scaled by a magnitude of 10
     pub size: f32,
-    // Artistic color, is used as normalized
+    /// Artistic color, is used as normalized
     pub color: Vec3,
-    // Intensity factor
+    /// Intensity factor
     pub intensity: f32,
 }
 

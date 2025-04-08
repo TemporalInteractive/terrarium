@@ -11,13 +11,19 @@ publish.workspace = true
 anyhow.workspace = true
 ash.workspace = true
 bytemuck.workspace = true
+egui = { workspace = true, optional = true }
+egui-winit = { workspace = true, optional = true }
 futures.workspace = true
 glam.workspace = true
 openxr.workspace = true
 specs.workspace = true
+type-map = { workspace = true, optional = true }
 ugm.workspace = true
 uuid.workspace = true
 wgpu.workspace = true
 wgpu-hal.workspace = true
 wgsl-includes.workspace = true
 winit.workspace = true
+
+[features]
+egui = ["dep:egui", "dep:egui-winit", "dep:type-map"]

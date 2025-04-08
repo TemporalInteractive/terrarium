@@ -6,6 +6,7 @@ use clap::Parser;
 use glam::Mat4;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
+    egui,
     gpu_resources::{GpuMaterial, GpuMesh, GpuResources},
     helpers::{
         input_handler::InputHandler,
@@ -14,7 +15,7 @@ use terrarium::{
     wgpu_util,
     world::{components::MeshComponent, transform::Transform},
     xr::XrCameraState,
-    RenderParameters, Renderer,
+    RenderParameters, RenderSettings, Renderer,
 };
 use ugm::{speedy::Readable, Model};
 use winit::window::Window;
@@ -61,6 +62,7 @@ pub struct ExampleApp {
     world: World,
     camera_controller: CameraController,
     renderer: Renderer,
+    render_settings: RenderSettings,
     aspect_ratio: f32,
     gpu_resources: GpuResources,
     frame_timer: Timer,
@@ -87,12 +89,19 @@ impl AppLoop for ExampleApp {
             world,
             camera_controller: CameraController::new(),
             renderer,
+            render_settings: RenderSettings::default(),
             aspect_ratio,
             gpu_resources,
             frame_timer: Timer::new(),
             fps_counter: FpsCounter::new(),
             first_frame: true,
         }
+    }
+
+    fn egui(&mut self, ui: &mut egui::Context) {
+        egui::Window::new("Terrarium - Massive").show(ui, |ui| {
+            self.render_settings.egui(ui);
+        });
     }
 
     fn render(
@@ -135,6 +144,7 @@ impl AppLoop for ExampleApp {
 
         self.renderer.render(
             &mut RenderParameters {
+                render_settings: &self.render_settings,
                 world: self.world.specs(),
                 xr_camera_state,
                 xr_camera_buffer,
@@ -183,6 +193,7 @@ impl AppLoop for ExampleApp {
             | wgpu::Features::EXPERIMENTAL_RAY_QUERY
             | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
             | wgpu::Features::FLOAT32_FILTERABLE
+            | wgpu::Features::CLEAR_TEXTURE
     }
 
     fn required_limits() -> wgpu::Limits {

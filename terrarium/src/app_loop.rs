@@ -33,6 +33,9 @@ pub trait AppLoop: 'static + Sized {
     ) -> wgpu::CommandEncoder;
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context);
 
+    #[cfg(feature = "egui")]
+    fn egui(&mut self, _ui: &mut egui::Context) {}
+
     fn window_event(&mut self, _event: winit::event::WindowEvent) {}
     fn device_event(&mut self, _event: winit::event::DeviceEvent) {}
     fn xr_post_frame(&mut self, _xr_frame_state: &openxr::FrameState, _xr: &wgpu_util::XrContext) {}
@@ -134,6 +137,9 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         if let Some(state) = &mut self.state {
             state.app_loop.window_event(event.clone());
+
+            #[cfg(feature = "egui")]
+            state.egui_renderer.handle_input(&state.window, &event);
         }
 
         match event {
@@ -148,6 +154,13 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         None
                     };
 
+                    #[cfg(feature = "egui")]
+                    {
+                        let mut ui = state.egui_renderer.begin_frame(&state.window);
+                        state.app_loop.egui(&mut ui);
+                        state.egui_renderer.end_frame(ui);
+                    }
+
                     let mut command_encoder = state.app_loop.render(
                         &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
@@ -156,6 +169,26 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         &state.context,
                         &mut state.pipeline_database,
                     );
+
+                    #[cfg(feature = "egui")]
+                    {
+                        let screen_descriptor = crate::egui_renderer::ScreenDescriptor {
+                            size_in_pixels: [
+                                state.window.inner_size().width,
+                                state.window.inner_size().height,
+                            ],
+                            pixels_per_point: state.window.scale_factor() as f32,
+                        };
+
+                        state.egui_renderer.draw(
+                            &state.window,
+                            &state.rt_texture_view[self.frame_idx as usize % 2],
+                            screen_descriptor,
+                            &state.context.device,
+                            &state.context.queue,
+                            &mut command_encoder,
+                        );
+                    }
 
                     let frame = state.surface.acquire(&state.context);
                     let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
@@ -274,6 +307,9 @@ struct State<R: AppLoop> {
     xr_camera_buffer: wgpu::Buffer,
     rt_texture_view: [wgpu::TextureView; 2],
     app_loop: R,
+
+    #[cfg(feature = "egui")]
+    egui_renderer: crate::egui_renderer::EguiRenderer,
 }
 
 impl<R: AppLoop> State<R> {
@@ -316,16 +352,30 @@ impl<R: AppLoop> State<R> {
 
         let xr_camera_state = XrCameraState::new(0.01, 1000.0);
 
+        let mut pipeline_database = wgpu_util::PipelineDatabase::new();
+
+        #[cfg(feature = "egui")]
+        let egui_renderer = crate::egui_renderer::EguiRenderer::new(
+            wgpu::TextureFormat::Rgba32Float,
+            1,
+            &window,
+            &context.device,
+            &mut pipeline_database,
+        );
+
         Self {
             window,
             surface,
             context,
-            pipeline_database: wgpu_util::PipelineDatabase::new(),
+            pipeline_database,
             xr_camera_state,
             prev_xr_camera_data: XrCameraData::default(),
             xr_camera_buffer,
             rt_texture_view,
             app_loop,
+
+            #[cfg(feature = "egui")]
+            egui_renderer,
         }
     }
 

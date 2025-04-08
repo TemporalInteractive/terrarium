@@ -12,6 +12,7 @@ pub struct CameraController {
     stage_translation: Vec3,
     stage_vertical_rotation: Quat,
     stage_horizontal_rotation: Quat,
+    locked: bool,
     frame_idx: u32,
 }
 
@@ -23,6 +24,7 @@ impl Default for CameraController {
             stage_translation: Vec3::ZERO,
             stage_vertical_rotation: Quat::IDENTITY,
             stage_horizontal_rotation: Quat::IDENTITY,
+            locked: false,
             frame_idx: 0,
         }
     }
@@ -39,95 +41,102 @@ impl CameraController {
         delta_time: f32,
         xr_camera_state: &mut XrCameraState,
     ) {
-        let (_, rotation, _) = xr_camera_state.stage_to_view_space[0]
-            .inverse()
-            .to_scale_rotation_translation();
-        let rotation = rotation * (self.stage_vertical_rotation * self.stage_horizontal_rotation);
-        let forward = rotation * FORWARD;
-        let right = rotation * RIGHT;
-
-        let mut velocity = Vec3::ZERO;
-        if input.current().keyboard_key(KeyCode::KeyW) {
-            velocity += forward * HORIZONTAL_MASK;
-        }
-        if input.current().keyboard_key(KeyCode::KeyS) {
-            velocity -= forward * HORIZONTAL_MASK;
-        }
-        if input.current().keyboard_key(KeyCode::KeyD) {
-            velocity += right * HORIZONTAL_MASK;
-        }
-        if input.current().keyboard_key(KeyCode::KeyA) {
-            velocity -= right * HORIZONTAL_MASK;
-        }
-        if input.current().keyboard_key(KeyCode::KeyE) {
-            velocity += UP;
-        }
-        if input.current().keyboard_key(KeyCode::KeyQ) {
-            velocity -= UP;
+        if input.current().keyboard_key(KeyCode::F1) && !input.prev().keyboard_key(KeyCode::F1) {
+            self.locked = !self.locked;
         }
 
-        if let Some(thumbstick) = input
-            .current()
-            .xr_hand(XrHand::Right)
-            .analog_2d("/input/thumbstick")
-        {
-            velocity += (forward * thumbstick.y + right * thumbstick.x) * HORIZONTAL_MASK;
-        }
-        if let Some(y) = input
-            .current()
-            .xr_hand(XrHand::Left)
-            .digital("/input/y/click")
-        {
-            if y {
+        if !self.locked {
+            let (_, rotation, _) = xr_camera_state.stage_to_view_space[0]
+                .inverse()
+                .to_scale_rotation_translation();
+            let rotation =
+                rotation * (self.stage_vertical_rotation * self.stage_horizontal_rotation);
+            let forward = rotation * FORWARD;
+            let right = rotation * RIGHT;
+
+            let mut velocity = Vec3::ZERO;
+            if input.current().keyboard_key(KeyCode::KeyW) {
+                velocity += forward * HORIZONTAL_MASK;
+            }
+            if input.current().keyboard_key(KeyCode::KeyS) {
+                velocity -= forward * HORIZONTAL_MASK;
+            }
+            if input.current().keyboard_key(KeyCode::KeyD) {
+                velocity += right * HORIZONTAL_MASK;
+            }
+            if input.current().keyboard_key(KeyCode::KeyA) {
+                velocity -= right * HORIZONTAL_MASK;
+            }
+            if input.current().keyboard_key(KeyCode::KeyE) {
                 velocity += UP;
             }
-        }
-        if let Some(x) = input
-            .current()
-            .xr_hand(XrHand::Left)
-            .digital("/input/x/click")
-        {
-            if x {
+            if input.current().keyboard_key(KeyCode::KeyQ) {
                 velocity -= UP;
             }
-        }
 
-        if velocity.length() > 0.0 {
-            let translation_speed = if input.current().keyboard_key(KeyCode::Space) {
-                self.translation_speed * 5.0
-            } else if input.current().keyboard_key(KeyCode::ControlLeft) {
-                self.translation_speed * 0.2
-            } else if let Some(trigger_value) = input
+            if let Some(thumbstick) = input
                 .current()
                 .xr_hand(XrHand::Right)
-                .analog("/input/trigger/value")
+                .analog_2d("/input/thumbstick")
             {
-                self.translation_speed * (1.0 + trigger_value * 5.0)
-            } else {
-                self.translation_speed
-            };
-            self.stage_translation += velocity.normalize() * delta_time * translation_speed;
-        }
+                velocity += (forward * thumbstick.y + right * thumbstick.x) * HORIZONTAL_MASK;
+            }
+            if let Some(y) = input
+                .current()
+                .xr_hand(XrHand::Left)
+                .digital("/input/y/click")
+            {
+                if y {
+                    velocity += UP;
+                }
+            }
+            if let Some(x) = input
+                .current()
+                .xr_hand(XrHand::Left)
+                .digital("/input/x/click")
+            {
+                if x {
+                    velocity -= UP;
+                }
+            }
 
-        if let Some(thumbstick) = input
-            .current()
-            .xr_hand(XrHand::Left)
-            .analog_2d("/input/thumbstick")
-        {
+            if velocity.length() > 0.0 {
+                let translation_speed = if input.current().keyboard_key(KeyCode::Space) {
+                    self.translation_speed * 5.0
+                } else if input.current().keyboard_key(KeyCode::ControlLeft) {
+                    self.translation_speed * 0.2
+                } else if let Some(trigger_value) = input
+                    .current()
+                    .xr_hand(XrHand::Right)
+                    .analog("/input/trigger/value")
+                {
+                    self.translation_speed * (1.0 + trigger_value * 5.0)
+                } else {
+                    self.translation_speed
+                };
+                self.stage_translation += velocity.normalize() * delta_time * translation_speed;
+            }
+
+            if let Some(thumbstick) = input
+                .current()
+                .xr_hand(XrHand::Left)
+                .analog_2d("/input/thumbstick")
+            {
+                self.stage_vertical_rotation *= Quat::from_axis_angle(
+                    UP,
+                    (-thumbstick.x * self.look_sensitivity * 4.0).to_radians(),
+                );
+            }
+
             self.stage_vertical_rotation *= Quat::from_axis_angle(
                 UP,
-                (-thumbstick.x * self.look_sensitivity * 4.0).to_radians(),
+                (-input.current().mouse_motion().x * self.look_sensitivity).to_radians(),
+            );
+            self.stage_horizontal_rotation *= Quat::from_axis_angle(
+                RIGHT,
+                (-input.current().mouse_motion().y * self.look_sensitivity).to_radians(),
             );
         }
-
-        self.stage_vertical_rotation *= Quat::from_axis_angle(
-            UP,
-            (-input.current().mouse_motion().x * self.look_sensitivity).to_radians(),
-        );
-        self.stage_horizontal_rotation *= Quat::from_axis_angle(
-            RIGHT,
-            (-input.current().mouse_motion().y * self.look_sensitivity).to_radians(),
-        );
 
         self.frame_idx += 1;
     }

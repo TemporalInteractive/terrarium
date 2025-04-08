@@ -18,6 +18,11 @@ pub mod wgpu_util;
 pub mod world;
 pub mod xr;
 
+#[cfg(feature = "egui")]
+mod egui_renderer;
+#[cfg(feature = "egui")]
+pub use egui;
+
 #[repr(C)]
 struct PackedGBufferTexel {
     position_ws: Vec3,
@@ -35,6 +40,7 @@ struct SizedResources {
     resolution: UVec2,
     gbuffer: [wgpu::Buffer; 2],
     shadow_resolution: UVec2,
+    shadow_texture: wgpu::Texture,
     shadow_texture_view: wgpu::TextureView,
 }
 
@@ -87,12 +93,60 @@ impl SizedResources {
             resolution,
             gbuffer,
             shadow_resolution,
+            shadow_texture,
             shadow_texture_view,
         }
     }
 }
 
+pub struct RenderSettings {
+    pub enable_shadows: bool,
+    pub enable_ssao: bool,
+    pub ssao_intensity: f32,
+    pub ssao_sample_count: u32,
+    pub enable_taa: bool,
+    pub taa_history_influence: f32,
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            enable_shadows: true,
+            enable_ssao: false,
+            ssao_intensity: 1.0,
+            ssao_sample_count: 8,
+            enable_taa: true,
+            taa_history_influence: 0.8,
+        }
+    }
+}
+
+impl RenderSettings {
+    #[cfg(feature = "egui")]
+    pub fn egui(&mut self, ui: &mut egui::Ui) {
+        ui.checkbox(&mut self.enable_shadows, "Shadows");
+        ui.separator();
+
+        ui.checkbox(&mut self.enable_ssao, "Ssao");
+        ui.add(egui::Slider::new(&mut self.ssao_intensity, 0.0..=1.0).text("Intensity"));
+        egui::ComboBox::from_label("Sample Count")
+            .selected_text(format!("{:?}", self.ssao_sample_count))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.ssao_sample_count, 8, "8");
+                ui.selectable_value(&mut self.ssao_sample_count, 16, "16");
+                ui.selectable_value(&mut self.ssao_sample_count, 32, "32");
+            });
+        ui.separator();
+
+        ui.checkbox(&mut self.enable_taa, "Taa");
+        ui.add(
+            egui::Slider::new(&mut self.taa_history_influence, 0.0..=1.0).text("History Influence"),
+        );
+    }
+}
+
 pub struct RenderParameters<'a> {
+    pub render_settings: &'a RenderSettings,
     pub xr_camera_state: &'a XrCameraState,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub view: &'a wgpu::TextureView,
@@ -146,38 +200,47 @@ impl Renderer {
             pipeline_database,
         );
 
-        shadow_pass::encode(
-            &ShadowPassParameters {
-                resolution: self.sized_resources.resolution,
-                shadow_resolution: self.sized_resources.shadow_resolution,
-                seed: self.frame_idx,
-                gpu_resources: parameters.gpu_resources,
-                xr_camera_buffer: parameters.xr_camera_buffer,
-                gbuffer: &self.sized_resources.gbuffer,
-                shadow_texture_view: &self.sized_resources.shadow_texture_view,
-            },
-            &ctx.device,
-            command_encoder,
-            pipeline_database,
-        );
+        if parameters.render_settings.enable_shadows {
+            shadow_pass::encode(
+                &ShadowPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    shadow_resolution: self.sized_resources.shadow_resolution,
+                    seed: self.frame_idx,
+                    gpu_resources: parameters.gpu_resources,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
+                    gbuffer: &self.sized_resources.gbuffer,
+                    shadow_texture_view: &self.sized_resources.shadow_texture_view,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        } else {
+            command_encoder.clear_texture(
+                &self.sized_resources.shadow_texture,
+                &wgpu::ImageSubresourceRange::default(),
+            );
+        }
 
-        ssao_pass::encode(
-            &SsaoPassParameters {
-                resolution: self.sized_resources.resolution,
-                shadow_resolution: self.sized_resources.shadow_resolution,
-                seed: self.frame_idx,
-                sample_count: 8,
-                radius: 1.0,
-                intensity: 1.0,
-                bias: 0.01,
-                shadow_texture_view: &self.sized_resources.shadow_texture_view,
-                xr_camera_buffer: parameters.xr_camera_buffer,
-                gbuffer: &self.sized_resources.gbuffer,
-            },
-            &ctx.device,
-            command_encoder,
-            pipeline_database,
-        );
+        if parameters.render_settings.enable_ssao {
+            ssao_pass::encode(
+                &SsaoPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    shadow_resolution: self.sized_resources.shadow_resolution,
+                    seed: self.frame_idx,
+                    sample_count: parameters.render_settings.ssao_sample_count,
+                    radius: 1.0,
+                    intensity: parameters.render_settings.ssao_intensity,
+                    bias: 0.01,
+                    shadow_texture_view: &self.sized_resources.shadow_texture_view,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
+                    gbuffer: &self.sized_resources.gbuffer,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
 
         shade_pass::encode(
             &ShadePassParameters {
@@ -203,18 +266,20 @@ impl Renderer {
             pipeline_database,
         );
 
-        taa_pass::encode(
-            &TaaPassParameters {
-                resolution: self.sized_resources.resolution,
-                history_influence: 0.8,
-                color_texture_view: parameters.view,
-                prev_color_texture_view: parameters.prev_view,
-                gbuffer: &self.sized_resources.gbuffer,
-            },
-            &ctx.device,
-            command_encoder,
-            pipeline_database,
-        );
+        if parameters.render_settings.enable_taa {
+            taa_pass::encode(
+                &TaaPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    history_influence: parameters.render_settings.taa_history_influence,
+                    color_texture_view: parameters.view,
+                    prev_color_texture_view: parameters.prev_view,
+                    gbuffer: &self.sized_resources.gbuffer,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
 
         self.frame_idx += 1;
     }

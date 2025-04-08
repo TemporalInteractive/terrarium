@@ -20,7 +20,6 @@ impl LinearBlockAllocation {
 }
 
 pub struct LinearBlockAllocator {
-    total_size: u64,
     free_regions: BTreeMap<u64, u64>, // start -> size
     used_regions: BTreeMap<u64, u64>, // start -> size
 }
@@ -30,7 +29,6 @@ impl LinearBlockAllocator {
         let mut free_regions = BTreeMap::new();
         free_regions.insert(0, total_size);
         Self {
-            total_size,
             free_regions,
             used_regions: BTreeMap::new(),
         }

@@ -1,5 +1,4 @@
 [workspace.package]
-name = "terrarium"
 authors = ["Jason de Wolff <jason.dewolff@temporalinteractive.com>"]
 description = "Terrarium is a VR renderer build with wgpu."
 edition = "2021"
@@ -18,17 +17,20 @@ terrarium = { version = "0.0.1", path = "terrarium" }
 anyhow = { version = "1.0.65", default-features = true }
 ash = { version = "0.38.0", default-features = true }
 bytemuck = { version = "1.12.1", default-features = true, features = ["derive"] }
-clap = { version = "4.5.27", default-features = true, features = ["derive"] }
+clap = { version = "4.5.35", default-features = true, features = ["derive"] }
+egui = { version = "0.31.1", default-features = true, features = ["bytemuck"] }
+egui-winit = { version = "0.31.1", default-features = false }
 futures = { version = "0.3.24", default-features = true }
 glam = { version = "0.30.1", default-features = true }
 openxr = { version = "0.19.0", default-features = true, features = ["loaded", "linked", "static"] }
-specs = { version = "0.20.0", default-features = false, features = ["parallel"] } 
+specs = { version = "0.20.0", default-features = false, features = ["parallel"] }
+type-map = { version = "0.5.0", default-features = false }
 # ugm = { path = "../ugm", default-features = false, features = ["wgpu"] }
 # ugm = { version = "0.0.1", default-features = false, features = ["wgpu"] }
 ugm = { git = "https://github.com/TemporalInteractive/ugm.git", rev = "17ee945", default-features = false, features = ["wgpu"] }
 uuid = { version = "1.12.1", default-features = false, features = ["std", "v4", "bytemuck"]}
 wgpu = { version = "24.0.3", default-features = true }
-wgpu-hal = { version = "24.0.2", default-features = true }
+wgpu-hal = { version = "24.0.4", default-features = true }
 # wgsl-includes = { version = "0.0.2", default-features = false }
 wgsl-includes = { git = "https://github.com/TemporalInteractive/wgsl-includes.git", rev = "335b2f9", default-features = false }
 winit = { version = "0.30.5", default-features = false, features = ["rwh_06"] }
@@ -42,3 +44,10 @@ members = [
     "terrarium",
 ]
 resolver = "2"
+
+[profile.dev.build-override]
+opt-level = 3
+codegen-units = 16
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 16

@@ -182,7 +182,6 @@ impl GpuResources {
                 gpu_mesh_indices_to_remove.push(i);
 
                 self.vertex_pool.free(&gpu_mesh.vertex_pool_alloc);
-                println!("REMOVED GPU MESH!");
             }
         }
         vec_remove_multiple(&mut self.gpu_meshes, &mut gpu_mesh_indices_to_remove);
@@ -231,8 +230,12 @@ impl GpuResources {
         for (i, instance) in blas_instances.into_iter().enumerate() {
             tlas_package_instances[i] = Some(instance);
         }
-        for i in num_blas_instances..MAX_TLAS_INSTANCES {
-            tlas_package_instances[i] = None;
+        for instance in tlas_package_instances
+            .iter_mut()
+            .take(MAX_TLAS_INSTANCES)
+            .skip(num_blas_instances)
+        {
+            *instance = None;
         }
 
         self.vertex_pool.write_slices(queue);

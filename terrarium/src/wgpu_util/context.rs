@@ -5,7 +5,7 @@ use ash::vk::{self, Handle};
 use std::ffi::{c_void, CString};
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::{DownlevelCapabilities, Features, Instance, Limits, PowerPreference};
+use wgpu::{DownlevelCapabilities, Features, Limits, PowerPreference};
 use winit::window::Window;
 
 use super::surface::Surface;
@@ -40,13 +40,27 @@ pub struct Context {
 }
 
 impl Context {
-    async fn init_with_instance(
-        instance: Instance,
+    pub(crate) async fn init_with_window(
+        surface: &mut Surface,
+        window: Arc<Window>,
         optional_features: Features,
         required_features: Features,
         required_downlevel_capabilities: DownlevelCapabilities,
         required_limits: Limits,
+        no_gpu_validation: bool,
     ) -> Self {
+        let mut flags = wgpu::InstanceFlags::DEBUG;
+        if !no_gpu_validation {
+            flags |= wgpu::InstanceFlags::VALIDATION;
+        }
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN,
+            flags,
+            backend_options: wgpu::BackendOptions::default(),
+        });
+        surface.pre_adapter(&instance, window);
+
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: PowerPreference::HighPerformance,
@@ -70,12 +84,12 @@ impl Context {
             required_downlevel_capabilities.shader_model
         );
         assert!(
-            downlevel_capabilities
-                .flags
-                .contains(required_downlevel_capabilities.flags),
-            "Adapter does not support the downlevel capabilities required to run this example: {:?}",
-            required_downlevel_capabilities.flags - downlevel_capabilities.flags
-        );
+        downlevel_capabilities
+            .flags
+            .contains(required_downlevel_capabilities.flags),
+        "Adapter does not support the downlevel capabilities required to run this example: {:?}",
+        required_downlevel_capabilities.flags - downlevel_capabilities.flags
+    );
 
         let trace_dir = std::env::var("WGPU_TRACE");
         let (device, queue) = adapter
@@ -98,65 +112,6 @@ impl Context {
             queue,
             xr: None,
         }
-    }
-
-    pub(crate) async fn init_headless(
-        optional_features: Features,
-        required_features: Features,
-        required_downlevel_capabilities: DownlevelCapabilities,
-        required_limits: Limits,
-        no_gpu_validation: bool,
-    ) -> Self {
-        let mut flags = wgpu::InstanceFlags::DEBUG;
-        if !no_gpu_validation {
-            flags |= wgpu::InstanceFlags::VALIDATION;
-        }
-
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN,
-            flags,
-            backend_options: wgpu::BackendOptions::default(),
-        });
-
-        Self::init_with_instance(
-            instance,
-            optional_features,
-            required_features,
-            required_downlevel_capabilities,
-            required_limits,
-        )
-        .await
-    }
-
-    pub(crate) async fn init_with_window(
-        surface: &mut Surface,
-        window: Arc<Window>,
-        optional_features: Features,
-        required_features: Features,
-        required_downlevel_capabilities: DownlevelCapabilities,
-        required_limits: Limits,
-        no_gpu_validation: bool,
-    ) -> Self {
-        let mut flags = wgpu::InstanceFlags::DEBUG;
-        if !no_gpu_validation {
-            flags |= wgpu::InstanceFlags::VALIDATION;
-        }
-
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN,
-            flags,
-            backend_options: wgpu::BackendOptions::default(),
-        });
-        surface.pre_adapter(&instance, window);
-
-        Self::init_with_instance(
-            instance,
-            optional_features,
-            required_features,
-            required_downlevel_capabilities,
-            required_limits,
-        )
-        .await
     }
 
     pub(crate) fn init_with_xr(
