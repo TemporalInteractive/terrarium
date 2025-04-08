@@ -8,7 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-terrarium.workspace = true
+terrarium = { workspace = true, features = ["egui"] }
 
 anyhow.workspace = true
 bytemuck.workspace = true

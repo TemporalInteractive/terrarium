@@ -299,5 +299,6 @@ impl Renderer {
             | wgpu::Features::EXPERIMENTAL_RAY_QUERY
             | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
             | wgpu::Features::FLOAT32_FILTERABLE
+            | wgpu::Features::CLEAR_TEXTURE
     }
 }
