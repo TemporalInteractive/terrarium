@@ -32,6 +32,10 @@ struct PackedGBufferTexel {
     material_descriptor_idx: u32,
     tex_coord: u32,
     velocity: Vec2,
+    // ddx: u32,
+    // ddy: u32,
+    ddx: Vec2,
+    ddy: Vec2,
     _padding0: u32,
     _padding1: u32,
 }
@@ -101,6 +105,7 @@ impl SizedResources {
 
 pub struct RenderSettings {
     pub shading_mode: ShadingMode,
+    pub apply_mipmaps: bool,
     pub enable_shadows: bool,
     pub enable_ssao: bool,
     pub ssao_intensity: f32,
@@ -113,6 +118,7 @@ impl Default for RenderSettings {
     fn default() -> Self {
         Self {
             shading_mode: ShadingMode::Full,
+            apply_mipmaps: true,
             enable_shadows: true,
             enable_ssao: false,
             ssao_intensity: 1.0,
@@ -139,6 +145,7 @@ impl RenderSettings {
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Normals, "Normals");
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Texcoords, "Texcoords");
             });
+        ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
         ui.separator();
 
         ui.checkbox(&mut self.enable_shadows, "Shadows");
@@ -208,6 +215,7 @@ impl Renderer {
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {
                 resolution: self.sized_resources.resolution,
+                mipmapping: parameters.render_settings.apply_mipmaps,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,

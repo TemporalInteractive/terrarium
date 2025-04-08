@@ -32,3 +32,22 @@ fn VertexPoolBindings::load_tbn(v0: Vertex, v1: Vertex, v2: Vertex, barycentrics
 
     return mat3x3<f32>(tangent, bitangent, normal);
 }
+
+fn VertexPoolBindings::barycentrics_from_point(point: vec3<f32>, p0: vec3<f32>, p1: vec3<f32>, p2: vec3<f32>) -> vec3<f32> {
+    let v0: vec3<f32> = p1 - p0;
+    let v1: vec3<f32> = p2 - p0;
+    let v2: vec3<f32> = point - p0;
+
+    let d00: f32 = dot(v0, v0);
+    let d01: f32 = dot(v0, v1);
+    let d11: f32 = dot(v1, v1);
+    let d20: f32 = dot(v2, v0);
+    let d21: f32 = dot(v2, v1);
+
+    let denom: f32 = d00 * d11 - d01 * d01;
+    let v: f32 = (d11 * d20 - d01 * d21) / denom;
+    let w: f32 = (d00 * d21 - d01 * d20) / denom;
+    let u: f32 = 1.0 - v - w;
+
+    return vec3<f32>(u, v, w);
+}

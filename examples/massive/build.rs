@@ -31,7 +31,8 @@ fn parse_model(model_path: PathBuf) {
     let model: Model = Model::parse_glb(
         &gltf_bytes,
         ParseOptions {
-            texture_compression: Some(TextureCompression::Bc),
+            texture_compression: None,
+            generate_mips: true,
         },
     )
     .expect("Failed to parse glTF model.");

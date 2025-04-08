@@ -6,8 +6,8 @@
 
 struct Constants {
     resolution: vec2<u32>,
+    mipmapping: u32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 @group(0)
@@ -38,12 +38,29 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     var i: u32 = id.y * constants.resolution.x + id.x;
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
-        let pixel_center = vec2<f32>(id) + xr_camera.jitter;
-        var uv: vec2<f32> = (pixel_center / vec2<f32>(constants.resolution)) * 2.0 - 1.0;
-        uv.y = -uv.y;
-        let origin: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-        let targt: vec4<f32> = xr_camera.clip_to_view_space[view_index] * vec4<f32>(uv, 1.0, 1.0);
-        let direction: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(normalize(targt.xyz), 0.0)).xyz;
+        let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
+        let origin: vec3<f32> = ray.origin;
+        let direction: vec3<f32> = ray.direction;
+
+        var ray_dx_direction: vec3<f32>;
+        var ray_dy_direction: vec3<f32>;
+        var intersection_dx: RayIntersection;
+        var intersection_dy: RayIntersection;
+
+        if (constants.mipmapping > 0) {
+            let ray_dx: XrCameraRay = XrCamera::raygen(xr_camera, id + vec2<u32>(1, 0), constants.resolution, view_index); // TODO: optimize
+            let ray_dy: XrCameraRay = XrCamera::raygen(xr_camera, id + vec2<u32>(0, 1), constants.resolution, view_index);
+            ray_dx_direction = ray_dx.direction;
+            ray_dy_direction = ray_dy.direction;
+
+            var rq: ray_query;
+            rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, ray_dx_direction));
+            rayQueryProceed(&rq);
+            intersection_dx = rayQueryGetCommittedIntersection(&rq);
+            rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, ray_dy_direction));
+            rayQueryProceed(&rq);
+            intersection_dy = rayQueryGetCommittedIntersection(&rq);
+        }
 
         var position_ws = vec3<f32>(0.0);
         var depth_ws: f32 = 0.0;
@@ -52,11 +69,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var material_descriptor_idx: u32 = 0;
         var tex_coord = vec2<f32>(0.0);
         var velocity = vec2<f32>(0.0);
+        var ddx = vec2<f32>(0.0);
+        var ddy = vec2<f32>(0.0);
 
         var rq: ray_query;
         rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
         rayQueryProceed(&rq);
-        let intersection = rayQueryGetCommittedIntersection(&rq);
+        let intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
         if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
             let vertex_pool_slice: VertexPoolSlice = vertex_pool_slices[intersection.instance_custom_index];
 
@@ -103,9 +122,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 hit_normal_ws
             );
 
+            // Calculate ddx and ddy
+            if (constants.mipmapping > 0) {
+                if (intersection_dx.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+                    let hit_point_ws_dx: vec3<f32> = origin + ray_dx_direction * intersection_dx.t;
+                    let hit_point_dx: vec3<f32> = (intersection.world_to_object * vec4<f32>(hit_point_ws_dx, 1.0)).xyz;
+                    let barycentrics_dx: vec3<f32> = VertexPoolBindings::barycentrics_from_point(hit_point_dx, v0.position, v1.position, v2.position); // TODO: optimize
+                    let tex_coord_dx: vec2<f32> = v0.tex_coord * barycentrics_dx.x + v1.tex_coord * barycentrics_dx.y + v2.tex_coord * barycentrics_dx.z;
+                    ddx = tex_coord_dx - tex_coord;
+                }
+                if (intersection_dy.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+                    let hit_point_ws_dy: vec3<f32> = origin + ray_dy_direction * intersection_dy.t;
+                    let hit_point_dy: vec3<f32> = (intersection.world_to_object * vec4<f32>(hit_point_ws_dy, 1.0)).xyz;
+                    let barycentrics_dy: vec3<f32> = VertexPoolBindings::barycentrics_from_point(hit_point_dy, v0.position, v1.position, v2.position);
+                    let tex_coord_dy: vec2<f32> = v0.tex_coord * barycentrics_dy.x + v1.tex_coord * barycentrics_dy.y + v2.tex_coord * barycentrics_dy.z;
+                    ddy = tex_coord_dy - tex_coord;
+                }
+            }
+
             // Apply normal mapping when available, unlike the name suggest, still not front facing
             var front_facing_normal_ws: vec3<f32> = hit_normal_ws;
-            var front_facing_shading_normal_ws: vec3<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, hit_normal_ws, hit_tangent_to_world);
+            var front_facing_shading_normal_ws: vec3<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
 
             let w_out_worldspace: vec3<f32> = -direction;
 
@@ -131,9 +168,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity);
+            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy);
         }
     }
 }

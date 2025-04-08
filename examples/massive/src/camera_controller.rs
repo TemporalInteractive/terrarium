@@ -21,10 +21,10 @@ impl Default for CameraController {
         Self {
             translation_speed: 1.0,
             look_sensitivity: 0.3,
-            stage_translation: Vec3::ZERO,
+            stage_translation: Vec3::new(0.0, 2.0, 0.0),
             stage_vertical_rotation: Quat::IDENTITY,
             stage_horizontal_rotation: Quat::IDENTITY,
-            locked: false,
+            locked: true,
             frame_idx: 0,
         }
     }
@@ -173,6 +173,6 @@ impl CameraController {
             Vec2::new(0.937500, 0.259259),
             Vec2::new(0.031250, 0.592593),
         ];
-        xr_camera_state.jitter = HALTON_JITTER[self.frame_idx as usize % 16];
+        xr_camera_state.jitter = Vec2::ZERO; // HALTON_JITTER[self.frame_idx as usize % 16];
     }
 }
