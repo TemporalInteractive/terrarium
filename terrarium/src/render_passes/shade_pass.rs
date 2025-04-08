@@ -8,16 +8,28 @@ use crate::{
     wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
 };
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ShadingMode {
+    #[default]
+    Full,
+    LightingOnly,
+    Albedo,
+    Normals,
+    Texcoords,
+}
+
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
+    shading_mode: u32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 pub struct ShadePassParameters<'a> {
     pub resolution: UVec2,
+    pub shading_mode: ShadingMode,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a [wgpu::Buffer; 2],
@@ -31,8 +43,8 @@ pub fn encode(
     command_encoder: &mut wgpu::CommandEncoder,
     pipeline_database: &mut PipelineDatabase,
 ) {
-    let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("../../shaders/shade_pass.wgsl"));
+    let shader =
+        pipeline_database.shader_from_src(device, include_wgsl!("../../shaders/shade_pass.wgsl"));
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {
@@ -135,8 +147,8 @@ pub fn encode(
         label: Some("terrarium::shade constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
+            shading_mode: parameters.shading_mode as u32,
             _padding0: 0,
-            _padding1: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

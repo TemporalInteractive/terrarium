@@ -3,7 +3,7 @@ use gpu_resources::GpuResources;
 use render_passes::{
     color_correction_pass::{self, ColorCorrectionPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
-    shade_pass::{self, ShadePassParameters},
+    shade_pass::{self, ShadePassParameters, ShadingMode},
     shadow_pass::{self, ShadowPassParameters},
     ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
@@ -100,6 +100,7 @@ impl SizedResources {
 }
 
 pub struct RenderSettings {
+    pub shading_mode: ShadingMode,
     pub enable_shadows: bool,
     pub enable_ssao: bool,
     pub ssao_intensity: f32,
@@ -111,6 +112,7 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            shading_mode: ShadingMode::Full,
             enable_shadows: true,
             enable_ssao: false,
             ssao_intensity: 1.0,
@@ -124,6 +126,21 @@ impl Default for RenderSettings {
 impl RenderSettings {
     #[cfg(feature = "egui")]
     pub fn egui(&mut self, ui: &mut egui::Ui) {
+        egui::ComboBox::from_label("Shading Mode")
+            .selected_text(format!("{:?}", self.shading_mode))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Full, "Full");
+                ui.selectable_value(
+                    &mut self.shading_mode,
+                    ShadingMode::LightingOnly,
+                    "LightingOnly",
+                );
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Albedo, "Albedo");
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Normals, "Normals");
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Texcoords, "Texcoords");
+            });
+        ui.separator();
+
         ui.checkbox(&mut self.enable_shadows, "Shadows");
         ui.separator();
 
@@ -245,6 +262,7 @@ impl Renderer {
         shade_pass::encode(
             &ShadePassParameters {
                 resolution: self.sized_resources.resolution,
+                shading_mode: parameters.render_settings.shading_mode,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,

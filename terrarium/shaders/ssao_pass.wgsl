@@ -103,7 +103,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let occlusion_factor: f32 = mix(1.0, 1.0 - (occlusion / f32(constants.sample_count)), constants.intensity);
 
             var shadow_factor: f32 = textureLoad(shadow, shadow_id, view_index).r;
-            shadow_factor *= occlusion_factor;
+            shadow_factor = 1.0 - ((1.0 - shadow_factor) * occlusion_factor);
             textureStore(shadow, shadow_id, view_index, vec4<f32>(vec3<f32>(shadow_factor), 1.0));
         }
     }

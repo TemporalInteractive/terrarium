@@ -6,10 +6,16 @@
 @include shared/material_pool_bindings.wgsl
 @include shared/sky_bindings.wgsl
 
+const SHADING_MODE_FULL: u32 = 0;
+const SHADING_MODE_LIGHTING_ONLY: u32 = 1;
+const SHADING_MODE_ALBEDO: u32 = 2;
+const SHADING_MODE_NORMALS: u32 = 3;
+const SHADING_MODE_TEX_COORDS: u32 = 4;
+
 struct Constants {
     resolution: vec2<u32>,
+    shading_mode: u32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 @group(0)
@@ -73,7 +79,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let light_intensity: f32 = shadow * Sky::sun_intensity(l);
             let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, gbuffer_texel.normal_ws);
 
-            color = reflectance * max(light_intensity * n_dot_l, 0.2);
+            if (constants.shading_mode == SHADING_MODE_FULL) {
+                color = reflectance * max(light_intensity * n_dot_l, 0.2);
+            } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
+                color = vec3<f32>(max(light_intensity * n_dot_l, 0.2));
+            } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
+                color = material.color;
+            } else if (constants.shading_mode == SHADING_MODE_NORMALS) {
+                color = gbuffer_texel.normal_ws * 0.5 + 0.5;
+            } else if (constants.shading_mode == SHADING_MODE_TEX_COORDS) {
+                color = vec3<f32>(gbuffer_texel.tex_coord, 0.0);
+            }
         } else {
             color = Sky::sky(ray.direction, false);
         }
