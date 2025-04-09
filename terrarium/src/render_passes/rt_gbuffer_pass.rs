@@ -12,12 +12,13 @@ use crate::{
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
+    mipmapping: u32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 pub struct RtGbufferPassParameters<'a> {
     pub resolution: UVec2,
+    pub mipmapping: bool,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a [wgpu::Buffer; 2],
@@ -104,8 +105,8 @@ pub fn encode(
         label: Some("terrarium::rt_gbuffer constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
+            mipmapping: parameters.mipmapping as u32,
             _padding0: 0,
-            _padding1: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

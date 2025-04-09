@@ -24,12 +24,11 @@ pub enum ShadingMode {
 struct Constants {
     resolution: UVec2,
     shading_mode: u32,
-    mipmapping: u32,
+    _padding0: u32,
 }
 
 pub struct ShadePassParameters<'a> {
     pub resolution: UVec2,
-    pub mipmapping: bool,
     pub shading_mode: ShadingMode,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
@@ -149,7 +148,7 @@ pub fn encode(
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             shading_mode: parameters.shading_mode as u32,
-            mipmapping: parameters.mipmapping as u32,
+            _padding0: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

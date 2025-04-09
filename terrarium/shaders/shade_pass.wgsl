@@ -15,7 +15,7 @@ const SHADING_MODE_TEX_COORDS: u32 = 4;
 struct Constants {
     resolution: vec2<u32>,
     shading_mode: u32,
-    mipmapping: u32,
+    _padding0: u32,
 }
 
 @group(0)
@@ -56,23 +56,6 @@ fn read_gbuffer(i: u32, view_index: u32) -> GBufferTexel {
         }
 }
 
-fn delta_tex_coord_at(id: vec2<u32>, view_index: u32, tex_coord: vec2<f32>, world_to_object: mat4x4<f32>, v0: Vertex, v1: Vertex, v2: Vertex) -> vec2<f32> {
-    if (all(id < constants.resolution)) {
-        let gbuffer_texel: GBufferTexel = read_gbuffer(id.y * constants.resolution.x + id.x, view_index);
-        if (!GBufferTexel::is_sky(gbuffer_texel)) {
-            let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
-
-            let hit_point_ws: vec3<f32> = ray.origin + ray.direction * gbuffer_texel.depth_ws;
-            let hit_point: vec3<f32> = (world_to_object * vec4<f32>(hit_point_ws, 1.0)).xyz;
-            let barycentrics: vec3<f32> = VertexPoolBindings::barycentrics_from_point(hit_point, v0.position, v1.position, v2.position);
-            
-            return (v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z) - tex_coord;
-        }
-    }
-
-    return vec2<f32>(0.0);
-}
-
 @compute
 @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
@@ -82,37 +65,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     var i: u32 = id.y * constants.resolution.x + id.x;
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
-        let gbuffer_texel: GBufferTexel = read_gbuffer(i, view_index);
+        var gbuffer_texel: GBufferTexel;
+        if (view_index == 0) {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
+        } else {
+            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
+        }
 
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
 
         var color: vec3<f32>;
         if (!GBufferTexel::is_sky(gbuffer_texel)) {
-            var ddx = vec2<f32>(0.0);
-            var ddy = vec2<f32>(0.0);
-
-            if (constants.mipmapping > 0) {
-                let vertex_pool_slice: VertexPoolSlice = vertex_pool_slices[gbuffer_texel.vertex_pool_slice_idx];
-
-                let barycentrics = gbuffer_texel.barycentrics;
-
-                let i0: u32 = vertex_indices[vertex_pool_slice.first_index + gbuffer_texel.primitive_index * 3 + 0];
-                let i1: u32 = vertex_indices[vertex_pool_slice.first_index + gbuffer_texel.primitive_index * 3 + 1];
-                let i2: u32 = vertex_indices[vertex_pool_slice.first_index + gbuffer_texel.primitive_index * 3 + 2];
-
-                let v0: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i0]);
-                let v1: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i1]);
-                let v2: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i2]);
-
-                let tex_coord: vec2<f32> = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
-                let world_to_object: mat4x4<f32> = vertex_pool_world_to_object[gbuffer_texel.vertex_pool_instance_idx];
-
-                ddx = delta_tex_coord_at(id + vec2<u32>(1, 0), view_index, tex_coord, world_to_object, v0, v1, v2);
-                ddy = delta_tex_coord_at(id + vec2<u32>(0, 1), view_index, tex_coord, world_to_object, v0, v1, v2);
-            }
-
             let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
-            let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord, ddx, ddy);
+            let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord, gbuffer_texel.ddx, gbuffer_texel.ddy);
 
             let shadow: f32 = 1.0 - textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), view_index, 0.0).r;
 

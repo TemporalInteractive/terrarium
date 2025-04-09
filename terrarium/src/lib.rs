@@ -32,10 +32,10 @@ struct PackedGBufferTexel {
     material_descriptor_idx: u32,
     tex_coord: u32,
     velocity: Vec2,
-    vertex_pool_slice_idx: u32,
-    vertex_pool_instance_idx: u32,
-    barycentrics: Vec3,
-    primitive_index: u32,
+    ddx: Vec2,
+    ddy: Vec2,
+    _padding0: u32,
+    _padding1: u32,
 }
 
 struct SizedResources {
@@ -213,6 +213,7 @@ impl Renderer {
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {
                 resolution: self.sized_resources.resolution,
+                mipmapping: parameters.render_settings.apply_mipmaps,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
@@ -267,7 +268,6 @@ impl Renderer {
         shade_pass::encode(
             &ShadePassParameters {
                 resolution: self.sized_resources.resolution,
-                mipmapping: parameters.render_settings.apply_mipmaps,
                 shading_mode: parameters.render_settings.shading_mode,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,

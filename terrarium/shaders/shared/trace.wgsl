@@ -15,3 +15,27 @@ fn trace_shadow_ray_opaque(origin: vec3<f32>, direction: vec3<f32>, distance: f3
     let intersection = rayQueryGetCommittedIntersection(&shadow_rq);
     return intersection.kind != RAY_QUERY_INTERSECTION_TRIANGLE;
 }
+
+fn trace_ray_plane(
+    ray_origin: vec3<f32>,
+    ray_dir: vec3<f32>,
+    p0: vec3<f32>,
+    p1: vec3<f32>,
+    p2: vec3<f32>
+) -> f32 {
+    let edge1: vec3<f32> = p1 - p0;
+    let edge2: vec3<f32> = p2 - p0;
+    let normal: vec3<f32> = normalize(cross(edge1, edge2));
+
+    let denom: f32 = dot(ray_dir, normal);
+    if abs(denom) < 1e-6 {
+        return -1.0;
+    }
+
+    let t: f32 = dot(p0 - ray_origin, normal) / denom;
+    if t < 0.0 {
+        return -1.0;
+    }
+
+    return t;
+}
