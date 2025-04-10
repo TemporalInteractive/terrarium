@@ -1,5 +1,8 @@
 use glam::{UVec2, Vec2, Vec3};
-use gpu_resources::GpuResources;
+use gpu_resources::{
+    sky::{AtmosphereInfo, SunInfo},
+    GpuResources,
+};
 use render_passes::{
     color_correction_pass::{self, ColorCorrectionPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
@@ -8,6 +11,7 @@ use render_passes::{
     ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
 };
+use world::transform::UP;
 use xr::XrCameraState;
 
 pub mod app_loop;
@@ -110,6 +114,9 @@ pub struct RenderSettings {
     pub ssao_sample_count: u32,
     pub enable_taa: bool,
     pub taa_history_influence: f32,
+    pub sun: SunInfo,
+    pub atmosphere: AtmosphereInfo,
+    pub world_up: Vec3,
 }
 
 impl Default for RenderSettings {
@@ -123,6 +130,9 @@ impl Default for RenderSettings {
             ssao_sample_count: 8,
             enable_taa: true,
             taa_history_influence: 0.8,
+            sun: SunInfo::default(),
+            atmosphere: AtmosphereInfo::default(),
+            world_up: UP,
         }
     }
 }
@@ -130,7 +140,8 @@ impl Default for RenderSettings {
 impl RenderSettings {
     #[cfg(feature = "egui")]
     pub fn egui(&mut self, ui: &mut egui::Ui) {
-        egui::ComboBox::from_label("Shading Mode")
+        ui.heading("Shading");
+        egui::ComboBox::from_label("Visualization Mode")
             .selected_text(format!("{:?}", self.shading_mode))
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Full, "Full");
@@ -146,10 +157,19 @@ impl RenderSettings {
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
         ui.separator();
 
-        ui.checkbox(&mut self.enable_shadows, "Shadows");
+        ui.heading("Shadows");
+        ui.checkbox(&mut self.enable_shadows, "Enable");
         ui.separator();
 
-        ui.checkbox(&mut self.enable_ssao, "Ssao");
+        ui.heading("Sun");
+        self.sun.egui(ui);
+        ui.separator();
+        ui.heading("Atmosphere");
+        self.atmosphere.egui(ui);
+        ui.separator();
+
+        ui.heading("Ssao");
+        ui.checkbox(&mut self.enable_ssao, "Enable");
         ui.add(egui::Slider::new(&mut self.ssao_intensity, 0.0..=1.0).text("Intensity"));
         egui::ComboBox::from_label("Sample Count")
             .selected_text(format!("{:?}", self.ssao_sample_count))
@@ -160,7 +180,8 @@ impl RenderSettings {
             });
         ui.separator();
 
-        ui.checkbox(&mut self.enable_taa, "Taa");
+        ui.heading("Taa");
+        ui.checkbox(&mut self.enable_taa, "Enable");
         ui.add(
             egui::Slider::new(&mut self.taa_history_influence, 0.0..=1.0).text("History Influence"),
         );
@@ -203,6 +224,11 @@ impl Renderer {
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) {
+        parameters.gpu_resources.sky_mut().constants.sun = parameters.render_settings.sun;
+        parameters.gpu_resources.sky_mut().constants.atmosphere =
+            parameters.render_settings.atmosphere;
+        parameters.gpu_resources.sky_mut().constants.world_up = parameters.render_settings.world_up;
+
         parameters.gpu_resources.update(
             parameters.xr_camera_state,
             parameters.world,

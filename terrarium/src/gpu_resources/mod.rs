@@ -168,6 +168,10 @@ impl GpuResources {
         &self.sky
     }
 
+    pub fn sky_mut(&mut self) -> &mut Sky {
+        &mut self.sky
+    }
+
     fn cleanup(&mut self) {
         fn vec_remove_multiple<T>(vec: &mut Vec<T>, indices: &mut [usize]) {
             indices.sort();

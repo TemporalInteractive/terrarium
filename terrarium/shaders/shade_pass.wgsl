@@ -48,12 +48,10 @@ var shadow_sampler: sampler;
 @binding(7)
 var color_out: texture_storage_2d_array<rgba32float, read_write>;
 
-fn read_gbuffer(i: u32, view_index: u32) -> GBufferTexel {
-    if (view_index == 0) {
-            return PackedGBufferTexel::unpack(gbuffer_left[i]);
-        } else {
-            return PackedGBufferTexel::unpack(gbuffer_right[i]);
-        }
+fn shade_fog(shade_color: vec3<f32>, gbuffer_texel: GBufferTexel, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
+    let fog_strength: f32 = 1.0 - exp(-gbuffer_texel.depth_ws * sky_constants.atmosphere.density);
+    let inscattering: vec3<f32> = Sky::inscattering(view_dir, true);
+    return mix(shade_color, inscattering, fog_strength);
 }
 
 @compute
@@ -92,6 +90,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             if (constants.shading_mode == SHADING_MODE_FULL) {
                 color = reflectance * max(light_intensity * n_dot_l, 0.2);
+                color = shade_fog(color, gbuffer_texel, ray.direction, l);
             } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
                 color = vec3<f32>(max(light_intensity * n_dot_l, 0.2));
             } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
@@ -102,7 +101,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 color = vec3<f32>(gbuffer_texel.tex_coord, 0.0);
             }
         } else {
-            color = Sky::sky(ray.direction, false);
+            color = Sky::inscattering(ray.direction, false);
         }
 
         textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
