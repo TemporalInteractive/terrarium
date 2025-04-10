@@ -173,6 +173,6 @@ impl CameraController {
             Vec2::new(0.937500, 0.259259),
             Vec2::new(0.031250, 0.592593),
         ];
-        xr_camera_state.jitter = Vec2::ZERO; // HALTON_JITTER[self.frame_idx as usize % 16];
+        xr_camera_state.jitter = HALTON_JITTER[self.frame_idx as usize % 16];
     }
 }
