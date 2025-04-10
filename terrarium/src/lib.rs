@@ -39,7 +39,7 @@ struct PackedGBufferTexel {
     ddx: Vec2,
     ddy: Vec2,
     normal_roughness: f32,
-    _padding0: u32,
+    geometric_normal_ws: u32,
 }
 
 struct SizedResources {

@@ -88,11 +88,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let light_intensity: f32 = shadow * Sky::sun_intensity(l);
             let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, gbuffer_texel.normal_ws);
 
+            let ambient: vec3<f32> = material.color * 0.1;
+
             if (constants.shading_mode == SHADING_MODE_FULL) {
-                color = reflectance * max(light_intensity * n_dot_l, 0.2);
+                color = reflectance * light_intensity * n_dot_l + ambient;
                 color = shade_fog(color, gbuffer_texel, ray.direction, l);
             } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
-                color = vec3<f32>(max(light_intensity * n_dot_l, 0.2));
+                color = vec3<f32>(light_intensity * n_dot_l) + ambient;
             } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
                 color = material.color;
             } else if (constants.shading_mode == SHADING_MODE_NORMALS) {

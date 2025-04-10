@@ -53,6 +53,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var ddx = vec2<f32>(0.0);
         var ddy = vec2<f32>(0.0);
         var normal_roughness: f32 = 0.0;
+        var geometric_normal_ws = vec3<f32>(0.0);
 
         var rq: ray_query;
         rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
@@ -95,7 +96,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let hit_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[2], 1.0)).xyz);
 
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
-            let geometric_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
+            geometric_normal_ws = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
             let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
 
             let hit_tangent_to_world = mat3x3<f32>(
@@ -129,7 +130,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             }
 
             // Apply normal mapping when available, unlike the name suggest, not front facing yet
-            var front_facing_normal_ws: vec3<f32> = hit_normal_ws;
             let mapped_normal_and_roughness: vec4<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
             var front_facing_shading_normal_ws: vec3<f32> = mapped_normal_and_roughness.xyz;
 
@@ -138,7 +138,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             // Make sure the hit normal and normal mapped normal are front facing
             let back_face: bool = dot(w_out_worldspace, geometric_normal_ws) < 0.0;
             if (back_face) {
-                front_facing_normal_ws *= -1.0;
+                geometric_normal_ws *= -1.0;
                 front_facing_shading_normal_ws *= -1.0;
             }
 
@@ -158,9 +158,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness);
+            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness, geometric_normal_ws);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness);
+            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness, geometric_normal_ws);
         }
     }
 }

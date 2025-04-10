@@ -80,7 +80,7 @@ impl Surface {
             config.format = format;
             config.view_formats.push(format);
         };
-        config.present_mode = wgpu::PresentMode::AutoNoVsync;
+        config.present_mode = wgpu::PresentMode::Immediate;
 
         surface.configure(&context.device, &config);
         self.config = Some(config);
