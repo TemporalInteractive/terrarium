@@ -26,7 +26,7 @@ pub struct XrContext {
     pub frame_wait: openxr::FrameWaiter,
     pub frame_stream: openxr::FrameStream<openxr::Vulkan>,
     event_storage: openxr::EventDataBuffer,
-    view_configs: Vec<openxr::ViewConfigurationView>,
+    pub view_configs: Vec<openxr::ViewConfigurationView>,
     pub stage: openxr::Space,
     swapchain: Option<XrSwapchain>,
 }
@@ -295,7 +295,7 @@ impl Context {
             let wgpu_open_device: wgpu_hal::OpenDevice<V::Api> = unsafe {
                 wgpu_exposed_adapter.adapter.device_from_raw(
                     vk_device,
-                    Some(Box::new(|| ())), // ?
+                    Some(Box::new(|| ())),
                     &enabled_extensions,
                     required_features,
                     &wgpu::MemoryHints::Performance,
@@ -346,10 +346,8 @@ impl Context {
         assert_eq!(view_configs.len(), 2);
         assert_eq!(view_configs[0], view_configs[1]);
 
-        let stage = session.create_reference_space(
-            openxr::ReferenceSpaceType::LOCAL_FLOOR,
-            openxr::Posef::IDENTITY,
-        )?;
+        let stage = session
+            .create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
 
         let xr = Some(XrContext {
             instance: xr_instance,

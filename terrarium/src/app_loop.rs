@@ -337,6 +337,13 @@ impl<R: AppLoop> State<R> {
 
         surface.resume(&context, window.clone(), true);
 
+        if let Some(xr) = &context.xr {
+            let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                xr.view_configs[0].recommended_image_rect_width,
+                xr.view_configs[0].recommended_image_rect_height,
+            ));
+        }
+
         let app_loop = R::new(surface.config(), &context, window.clone());
 
         let rt_texture_view = std::array::from_fn(|_| {
