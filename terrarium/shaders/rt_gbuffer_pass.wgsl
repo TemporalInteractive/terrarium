@@ -98,6 +98,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
             geometric_normal_ws = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
             let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
+            let prev_hit_point_ws: vec3<f32> = (vertex_pool_prev_object_to_world[intersection.instance_id] * vec4<f32>(hit_point, 1.0)).xyz;
 
             let hit_tangent_to_world = mat3x3<f32>(
                 hit_tangent_ws,
@@ -149,7 +150,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             tangent_ws = hit_tangent_ws;
 
             let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
-            let prev_position_cs: vec4<f32> = xr_camera.prev_view_to_clip_space[view_index] * xr_camera.prev_world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
+            let prev_position_cs: vec4<f32> = xr_camera.prev_view_to_clip_space[view_index] * xr_camera.prev_world_to_view_space[view_index] * vec4<f32>(prev_hit_point_ws, 1.0);
             var prev_position_ss: vec4<f32> = (prev_position_cs / prev_position_cs.w + 1.0) / 2.0;
             prev_position_ss = vec4<f32>(prev_position_ss.x, 1.0 - prev_position_ss.y, prev_position_ss.zw);
             var position_ss: vec4<f32> = (current_position_cs / current_position_cs.w + 1.0) / 2.0;

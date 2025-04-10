@@ -78,12 +78,13 @@ pub struct VertexPool {
     index_buffer: wgpu::Buffer,
     triangle_material_index_buffer: wgpu::Buffer,
     slices_buffer: wgpu::Buffer,
-    world_to_object_buffer: wgpu::Buffer,
+    object_to_world_buffer: [wgpu::Buffer; 2],
 
     vertex_allocator: LinearBlockAllocator,
     index_allocator: LinearBlockAllocator,
     slices: Box<[VertexPoolSlice]>,
-    world_to_object: Vec<Mat4>,
+    object_to_world: Vec<Mat4>,
+    frame_idx: u32,
 
     bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -124,11 +125,13 @@ impl VertexPool {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let world_to_object_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("terrarium::vertex_pool world_to_object"),
-            mapped_at_creation: false,
-            size: (std::mem::size_of::<Mat4>() * MAX_VERTEX_POOL_INSTANCES) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        let object_to_world_buffer = std::array::from_fn(|i| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("terrarium::vertex_pool object_to_world {}", i)),
+                mapped_at_creation: false,
+                size: (std::mem::size_of::<Mat4>() * MAX_VERTEX_POOL_INSTANCES) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            })
         });
 
         let vertex_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64);
@@ -195,13 +198,14 @@ impl VertexPool {
             index_buffer,
             triangle_material_index_buffer,
             slices_buffer,
-            world_to_object_buffer,
+            object_to_world_buffer,
 
             vertex_allocator,
             index_allocator,
             slices: vec![VertexPoolSlice::new_unallocated(); MAX_VERTEX_POOL_SLICES]
                 .into_boxed_slice(),
-            world_to_object: Vec::new(),
+            object_to_world: Vec::new(),
+            frame_idx: 0,
             bind_group_layout,
         }
     }
@@ -237,18 +241,19 @@ impl VertexPool {
         queue.write_buffer(&self.slices_buffer, 0, bytemuck::cast_slice(&self.slices));
 
         queue.write_buffer(
-            &self.world_to_object_buffer,
+            &self.object_to_world_buffer[self.frame_idx as usize % 2],
             0,
-            bytemuck::cast_slice(&self.world_to_object),
+            bytemuck::cast_slice(&self.object_to_world),
         );
     }
 
     pub fn submit_slice_instance(&mut self, transform: Mat4) {
-        self.world_to_object.push(transform.inverse());
+        self.object_to_world.push(transform);
     }
 
     pub fn end_frame(&mut self) {
-        self.world_to_object.clear();
+        self.object_to_world.clear();
+        self.frame_idx += 1;
     }
 
     pub fn alloc(
@@ -329,7 +334,8 @@ impl VertexPool {
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: self.world_to_object_buffer.as_entire_binding(),
+                    resource: self.object_to_world_buffer[(self.frame_idx as usize + 1) % 2]
+                        .as_entire_binding(),
                 },
             ],
         })
