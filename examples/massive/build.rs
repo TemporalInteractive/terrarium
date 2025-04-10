@@ -31,7 +31,7 @@ fn parse_model(model_path: PathBuf) {
     let model: Model = Model::parse_glb(
         &gltf_bytes,
         ParseOptions {
-            texture_compression: None,
+            texture_compression: Some(TextureCompression::Bc),
             generate_mips: true,
         },
     )
