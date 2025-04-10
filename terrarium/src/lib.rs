@@ -34,8 +34,8 @@ struct PackedGBufferTexel {
     velocity: Vec2,
     ddx: Vec2,
     ddy: Vec2,
+    normal_roughness: f32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 struct SizedResources {

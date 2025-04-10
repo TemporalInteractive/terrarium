@@ -77,7 +77,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var color: vec3<f32>;
         if (!GBufferTexel::is_sky(gbuffer_texel)) {
             let material_descriptor: MaterialDescriptor = material_descriptors[gbuffer_texel.material_descriptor_idx];
-            let material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord, gbuffer_texel.ddx, gbuffer_texel.ddy);
+            var material: Material = Material::from_material_descriptor(material_descriptor, gbuffer_texel.tex_coord, gbuffer_texel.ddx, gbuffer_texel.ddy);
+
+            let geometric_roughness: f32 = sqrt(1.0 - gbuffer_texel.normal_roughness);
+            material.roughness = sqrt(sqr(material.roughness) + sqr(geometric_roughness));
 
             let shadow: f32 = 1.0 - textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), view_index, 0.0).r;
 

@@ -19,8 +19,6 @@ var material_texture_sampler: sampler;
 
 fn _texture(id: u32, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     return textureSampleGrad(material_textures[id], material_texture_sampler, tex_coord, ddx, ddy);
-
-    //return textureSampleLevel(material_textures[id], material_texture_sampler, tex_coord, 7.0);
 }
 
 fn MaterialPoolBindings::transform_uv(id: u32, uv: vec2<f32>) -> vec2<f32> { // TODO: apply for others as well
@@ -40,7 +38,8 @@ fn MaterialDescriptor::color(_self: MaterialDescriptor, tex_coord: vec2<f32>, dd
 fn MaterialDescriptor::emission(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
     var emission: vec3<f32> = _self.emission;
     if (_self.emission_texture != INVALID_TEXTURE && dot(emission, emission) > 0.0) {
-        emission *= _texture(_self.emission_texture, tex_coord, ddx, ddy).rgb;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.emission_texture, tex_coord);
+        emission *= _texture(_self.emission_texture, transformed_tex_coord, ddx, ddy).rgb;
     }
     return emission;
 }
@@ -49,7 +48,8 @@ fn MaterialDescriptor::metallic_roughness(_self: MaterialDescriptor, tex_coord: 
     var metallic: f32 = _self.metallic;
     var roughness: f32 = _self.roughness;
     if (_self.metallic_roughness_texture != INVALID_TEXTURE && (metallic > 0.0 || roughness > 0.0)) {
-        var mr: vec3<f32> = _texture(_self.metallic_roughness_texture, tex_coord, ddx, ddy).rgb;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.metallic_roughness_texture, tex_coord);
+        var mr: vec3<f32> = _texture(_self.metallic_roughness_texture, transformed_tex_coord, ddx, ddy).rgb;
         metallic *= mr.b;
         roughness *= mr.g;
     }
@@ -59,7 +59,8 @@ fn MaterialDescriptor::metallic_roughness(_self: MaterialDescriptor, tex_coord: 
 fn MaterialDescriptor::clearcoat(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> f32 {
     var clearcoat: f32 = _self.clearcoat;
     if (_self.clearcoat_texture != INVALID_TEXTURE && clearcoat > 0.0) {
-        clearcoat *= _texture(_self.clearcoat_texture, tex_coord, ddx, ddy).r;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.clearcoat_texture, tex_coord);
+        clearcoat *= _texture(_self.clearcoat_texture, transformed_tex_coord, ddx, ddy).r;
     }
     return clearcoat;
 }
@@ -67,7 +68,8 @@ fn MaterialDescriptor::clearcoat(_self: MaterialDescriptor, tex_coord: vec2<f32>
 fn MaterialDescriptor::clearcoat_roughness(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> f32 {
     var clearcoat_roughness: f32 = _self.clearcoat_roughness;
     if (_self.clearcoat_roughness_texture != INVALID_TEXTURE && clearcoat_roughness > 0.0) {
-        clearcoat_roughness *= _texture(_self.clearcoat_roughness_texture, tex_coord, ddx, ddy).g;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.clearcoat_roughness_texture, tex_coord);
+        clearcoat_roughness *= _texture(_self.clearcoat_roughness_texture, transformed_tex_coord, ddx, ddy).g;
     }
     return clearcoat_roughness;
 }
@@ -75,7 +77,8 @@ fn MaterialDescriptor::clearcoat_roughness(_self: MaterialDescriptor, tex_coord:
 fn MaterialDescriptor::transmission(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> f32 {
     var transmission: f32 = _self.transmission;
     if (_self.transmission_texture != INVALID_TEXTURE && transmission > 0.0) {
-        transmission *= _texture(_self.transmission_texture, tex_coord, ddx, ddy).r;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.transmission_texture, tex_coord);
+        transmission *= _texture(_self.transmission_texture, transformed_tex_coord, ddx, ddy).r;
     }
     return transmission;
 }
@@ -83,7 +86,8 @@ fn MaterialDescriptor::transmission(_self: MaterialDescriptor, tex_coord: vec2<f
 fn MaterialDescriptor::sheen(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> f32 {
     var sheen: f32 = _self.sheen;
     if (_self.sheen_texture != INVALID_TEXTURE && sheen > 0.0) {
-        sheen *= _texture(_self.sheen_texture, tex_coord, ddx, ddy).r;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.sheen_texture, tex_coord);
+        sheen *= _texture(_self.sheen_texture, transformed_tex_coord, ddx, ddy).r;
     }
     return sheen;
 }
@@ -91,7 +95,8 @@ fn MaterialDescriptor::sheen(_self: MaterialDescriptor, tex_coord: vec2<f32>, dd
 fn MaterialDescriptor::sheen_tint(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
     var sheen_tint: vec3<f32> = _self.sheen_tint;
     if (_self.sheen_tint_texture != INVALID_TEXTURE && dot(sheen_tint, sheen_tint) > 0.0) {
-        sheen_tint *= srgb_to_linear(_texture(_self.sheen_tint_texture, tex_coord, ddx, ddy)).rgb;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.sheen_tint_texture, tex_coord);
+        sheen_tint *= srgb_to_linear(_texture(_self.sheen_tint_texture, transformed_tex_coord, ddx, ddy)).rgb;
     }
     return sheen_tint;
 }
@@ -100,7 +105,8 @@ fn MaterialDescriptor::normal_ts(_self: MaterialDescriptor, tex_coord: vec2<f32>
     if (_self.normal_texture == INVALID_TEXTURE) {
         return vec3<f32>(0.0);
     } else {
-        let normal_ts: vec3<f32> = _texture(_self.normal_texture, tex_coord, ddx, ddy).rgb * 2.0 - 1.0;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.normal_texture, tex_coord);
+        let normal_ts: vec3<f32> = _texture(_self.normal_texture, transformed_tex_coord, ddx, ddy).rgb * 2.0 - 1.0;
         return normal_ts;
     }
 }
@@ -109,32 +115,37 @@ fn MaterialDescriptor::clearcoat_normal_ts(_self: MaterialDescriptor, tex_coord:
     if (_self.clearcoat_normal_texture == INVALID_TEXTURE) {
         return vec3<f32>(0.0);
     } else {
-        let normal_ts: vec3<f32> = _texture(_self.clearcoat_normal_texture, tex_coord, ddx, ddy).rgb * 2.0 - 1.0;
+        let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.clearcoat_normal_texture, tex_coord);
+        let normal_ts: vec3<f32> = _texture(_self.clearcoat_normal_texture, transformed_tex_coord, ddx, ddy).rgb * 2.0 - 1.0;
         return normal_ts;
     }
 }
 
-fn MaterialDescriptor::apply_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec3<f32> {
+fn MaterialDescriptor::apply_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec4<f32> {
     if (_self.normal_texture != INVALID_TEXTURE && _self.normal_scale > 0.0) {
         let normal_ts: vec3<f32> = MaterialDescriptor::normal_ts(_self, tex_coord, ddx, ddy);
+        let roughness: f32 = length(normal_ts);
+
         var normal: vec3<f32> = normalize(hit_tangent_to_world * normal_ts);
         if (_self.normal_scale < 1.0) {
             normal = normalize(mix(normal_ws, normal, _self.normal_scale));
         }
-        return normal;
+        return vec4<f32>(normal, roughness);
     }
 
-    return normal_ws;
+    return vec4<f32>(normal_ws, 1.0);
 }
 
-fn MaterialDescriptor::apply_clearcoat_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec3<f32> {
+fn MaterialDescriptor::apply_clearcoat_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec4<f32> {
     if (_self.clearcoat_normal_texture != INVALID_TEXTURE) {
         let normal_ts: vec3<f32> = MaterialDescriptor::clearcoat_normal_ts(_self, tex_coord, ddx, ddy);
+        let roughness: f32 = length(normal_ts);
+        
         var normal: vec3<f32> = normalize(hit_tangent_to_world * normal_ts);
-        return normal;
+        return vec4<f32>(normal, roughness);
     }
 
-    return normal_ws;
+    return vec4<f32>(normal_ws, 1.0);
 }
 
 fn Material::from_material_descriptor_with_color(material_descriptor: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, color: vec4<f32>) -> Material {

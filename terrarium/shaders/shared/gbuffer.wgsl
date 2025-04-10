@@ -11,8 +11,8 @@ struct PackedGBufferTexel {
     velocity: vec2<f32>,
     ddx: vec2<f32>,
     ddy: vec2<f32>,
+    normal_roughness: f32,
     _padding0: u32,
-    _padding1: u32
 }
 
 struct GBufferTexel {
@@ -24,7 +24,8 @@ struct GBufferTexel {
     velocity: vec2<f32>,
     tex_coord: vec2<f32>,
     ddx: vec2<f32>,
-    ddy: vec2<f32>
+    ddy: vec2<f32>,
+    normal_roughness: f32,
 }
 
 fn GBufferTexel::is_sky(_self: GBufferTexel) -> bool {
@@ -36,7 +37,7 @@ fn GBufferTexel::bitangent_ws(_self: GBufferTexel) -> vec3<f32> {
 }
  
 fn PackedGBufferTexel::new(position_ws: vec3<f32>, depth_ws: f32, normal_ws: vec3<f32>, tangent_ws: vec3<f32>,
-    material_descriptor_idx: u32, tex_coord: vec2<f32>, velocity: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> PackedGBufferTexel {
+    material_descriptor_idx: u32, tex_coord: vec2<f32>, velocity: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_roughness: f32) -> PackedGBufferTexel {
     let fract_tex_coord: vec2<f32> = fract(tex_coord);
 
     return PackedGBufferTexel(
@@ -49,7 +50,8 @@ fn PackedGBufferTexel::new(position_ws: vec3<f32>, depth_ws: f32, normal_ws: vec
         velocity,
         ddx,
         ddy,
-        0, 0
+        normal_roughness,
+        0
     );
 }
 
@@ -63,6 +65,7 @@ fn PackedGBufferTexel::unpack(_self: PackedGBufferTexel) -> GBufferTexel {
         _self.velocity,
         unpack2x16unorm(_self.tex_coord),
         _self.ddx,
-        _self.ddy
+        _self.ddy,
+        _self.normal_roughness
     );
 }

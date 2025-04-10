@@ -52,6 +52,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var velocity = vec2<f32>(0.0);
         var ddx = vec2<f32>(0.0);
         var ddy = vec2<f32>(0.0);
+        var normal_roughness: f32 = 0.0;
 
         var rq: ray_query;
         rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
@@ -127,10 +128,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 }
             }
 
-            // Apply normal mapping when available, unlike the name suggest, still not front facing
+            // Apply normal mapping when available, unlike the name suggest, not front facing yet
             var front_facing_normal_ws: vec3<f32> = hit_normal_ws;
-            // TODO: Move normal mapping to shading pass, to allow mip maps
-            var front_facing_shading_normal_ws: vec3<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
+            let mapped_normal_and_roughness: vec4<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
+            var front_facing_shading_normal_ws: vec3<f32> = mapped_normal_and_roughness.xyz;
 
             let w_out_worldspace: vec3<f32> = -direction;
 
@@ -144,6 +145,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             position_ws = hit_point_ws;
             depth_ws = intersection.t;
             normal_ws = front_facing_shading_normal_ws;
+            normal_roughness = mapped_normal_and_roughness.w;
             tangent_ws = hit_tangent_ws;
 
             let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
@@ -156,9 +158,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy);
+            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness);
         } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy);
+            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness);
         }
     }
 }
