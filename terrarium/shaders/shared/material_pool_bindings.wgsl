@@ -123,7 +123,7 @@ fn MaterialDescriptor::clearcoat_normal_ts(_self: MaterialDescriptor, tex_coord:
 
 fn MaterialDescriptor::apply_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec4<f32> {
     if (_self.normal_texture != INVALID_TEXTURE && _self.normal_scale > 0.0) {
-        let normal_ts: vec3<f32> = MaterialDescriptor::normal_ts(_self, tex_coord, ddx, ddy);
+        let normal_ts: vec3<f32> = MaterialDescriptor::normal_ts(_self, tex_coord, ddx / 4.0, ddy / 4.0);
         let roughness: f32 = length(normal_ts);
 
         var normal: vec3<f32> = normalize(hit_tangent_to_world * normal_ts);
@@ -138,7 +138,7 @@ fn MaterialDescriptor::apply_normal_mapping(_self: MaterialDescriptor, tex_coord
 
 fn MaterialDescriptor::apply_clearcoat_normal_mapping(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, normal_ws: vec3<f32>, hit_tangent_to_world: mat3x3<f32>) -> vec4<f32> {
     if (_self.clearcoat_normal_texture != INVALID_TEXTURE) {
-        let normal_ts: vec3<f32> = MaterialDescriptor::clearcoat_normal_ts(_self, tex_coord, ddx, ddy);
+        let normal_ts: vec3<f32> = MaterialDescriptor::clearcoat_normal_ts(_self, tex_coord, ddx / 4.0, ddy / 4.0);
         let roughness: f32 = length(normal_ts);
         
         var normal: vec3<f32> = normalize(hit_tangent_to_world * normal_ts);
