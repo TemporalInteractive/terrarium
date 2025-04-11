@@ -31,12 +31,10 @@ pub fn spawn_model(
     command_encoder: &mut wgpu::CommandEncoder,
     ctx: &wgpu_util::Context,
 ) {
-    let material_base_idx = gpu_resources.material_pool().material_base_idx();
-
     let gpu_meshes: Vec<Arc<GpuMesh>> = model
         .meshes
         .iter()
-        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, material_base_idx, command_encoder, ctx))
+        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
         .collect();
 
     let gpu_materials: Vec<Arc<GpuMaterial>> = model

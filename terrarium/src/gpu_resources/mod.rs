@@ -72,15 +72,12 @@ impl GpuResources {
     pub fn create_gpu_mesh(
         &mut self,
         mesh: &Mesh,
-        material_base_idx: u32,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
     ) -> Arc<GpuMesh> {
-        let vertex_pool_alloc = self.vertex_pool.alloc(
-            mesh.packed_vertices.len() as u32,
-            mesh.indices.len() as u32,
-            material_base_idx,
-        );
+        let vertex_pool_alloc = self
+            .vertex_pool
+            .alloc(mesh.packed_vertices.len() as u32, mesh.indices.len() as u32);
 
         self.vertex_pool.write_vertex_data(
             &VertexPoolWriteData {
@@ -214,7 +211,8 @@ impl GpuResources {
                 .try_into()
                 .unwrap();
 
-            self.vertex_pool.submit_slice_instance(transform);
+            self.vertex_pool
+                .submit_slice_instance(transform, &mesh_component.materials);
 
             let gpu_mesh = &mesh_component.mesh;
             let blas = &gpu_mesh.blas;

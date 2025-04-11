@@ -1,5 +1,7 @@
 @include vertex_pool.wgsl
 
+const MAX_MATERIALS_PER_INSTANCE: u32 = 8;
+
 @group(1)
 @binding(1)
 var<storage, read> vertices: array<PackedVertex>;
@@ -19,6 +21,10 @@ var<storage, read> vertex_pool_slices: array<VertexPoolSlice>;
 @group(1)
 @binding(5)
 var<storage, read> vertex_pool_prev_object_to_world: array<mat4x4<f32>>;
+
+@group(1)
+@binding(6)
+var<storage, read> vertex_pool_material_indices: array<u32>;
 
 fn _calculate_bitangent(normal: vec3<f32>, tangent: vec4<f32>) -> vec3<f32> {
     var bitangent: vec3<f32> = cross(normal, tangent.xyz);
@@ -54,4 +60,9 @@ fn VertexPoolBindings::barycentrics_from_point(point: vec3<f32>, p0: vec3<f32>, 
     let u: f32 = 1.0 - v - w;
 
     return vec3<f32>(u, v, w);
+}
+
+fn VertexPoolBindings::material_idx(instance_idx: u32, triangle_idx: u32) -> u32 {
+    let triangle_material_idx: u32 = triangle_material_indices[triangle_idx];
+    return vertex_pool_material_indices[instance_idx * MAX_MATERIALS_PER_INSTANCE + triangle_material_idx];
 }

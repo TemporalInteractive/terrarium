@@ -75,7 +75,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
             let hit_point: vec3<f32> = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
 
-            material_descriptor_idx = vertex_pool_slice.material_idx + triangle_material_indices[vertex_pool_slice.first_index / 3 + intersection.primitive_index];
+            material_descriptor_idx = VertexPoolBindings::material_idx(intersection.instance_id, vertex_pool_slice.first_index / 3 + intersection.primitive_index);
             let material_descriptor: MaterialDescriptor = material_descriptors[material_descriptor_idx];
 
             // Load tangent, bitangent and normal in local space

@@ -1,13 +1,19 @@
+use std::sync::Arc;
+
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use ugm::mesh::PackedVertex;
 
-use super::linear_block_allocator::{LinearBlockAllocation, LinearBlockAllocator};
+use super::{
+    linear_block_allocator::{LinearBlockAllocation, LinearBlockAllocator},
+    GpuMaterial,
+};
 
 const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
 const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 256;
 const MAX_VERTEX_POOL_SLICES: usize = 1024 * 8;
 const MAX_VERTEX_POOL_INSTANCES: usize = 1024 * 64;
+const MAX_MATERIALS_PER_INSTANCE: usize = 8;
 
 pub struct VertexPoolWriteData<'a> {
     pub packed_vertices: &'a [PackedVertex],
@@ -29,29 +35,15 @@ pub struct VertexPoolSlice {
     num_vertices: u32,
     first_index: u32,
     num_indices: u32,
-    pub material_idx: u32,
-    is_allocated_and_padding0: u32,
-    _padding1: u32,
-    _padding2: u32,
 }
 
 impl VertexPoolSlice {
-    fn new(
-        first_vertex: u32,
-        num_vertices: u32,
-        first_index: u32,
-        num_indices: u32,
-        material_idx: u32,
-    ) -> Self {
+    fn new(first_vertex: u32, num_vertices: u32, first_index: u32, num_indices: u32) -> Self {
         Self {
             first_vertex,
             num_vertices,
             first_index,
             num_indices,
-            material_idx,
-            is_allocated_and_padding0: 0,
-            _padding1: 0,
-            _padding2: 0,
         }
     }
 
@@ -61,15 +53,11 @@ impl VertexPoolSlice {
             num_vertices: 0,
             first_index: 0,
             num_indices: 0,
-            material_idx: 0,
-            is_allocated_and_padding0: u32::MAX,
-            _padding1: 0,
-            _padding2: 0,
         }
     }
 
     fn is_allocated(&self) -> bool {
-        self.is_allocated_and_padding0 != u32::MAX
+        self.num_vertices > 0
     }
 }
 
@@ -79,11 +67,13 @@ pub struct VertexPool {
     triangle_material_index_buffer: wgpu::Buffer,
     slices_buffer: wgpu::Buffer,
     object_to_world_buffer: [wgpu::Buffer; 2],
+    material_index_buffer: wgpu::Buffer,
 
     vertex_allocator: LinearBlockAllocator,
     index_allocator: LinearBlockAllocator,
     slices: Box<[VertexPoolSlice]>,
     object_to_world: Vec<Mat4>,
+    material_indices: Vec<u32>,
     frame_idx: u32,
 
     bind_group_layout: wgpu::BindGroupLayout,
@@ -132,6 +122,15 @@ impl VertexPool {
                 size: (std::mem::size_of::<Mat4>() * MAX_VERTEX_POOL_INSTANCES) as u64,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             })
+        });
+
+        let material_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::vertex_pool material_indices"),
+            mapped_at_creation: false,
+            size: (std::mem::size_of::<u32>()
+                * MAX_VERTEX_POOL_INSTANCES
+                * MAX_MATERIALS_PER_INSTANCE) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
         let vertex_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64);
@@ -190,6 +189,16 @@ impl VertexPool {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::all(),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -199,12 +208,14 @@ impl VertexPool {
             triangle_material_index_buffer,
             slices_buffer,
             object_to_world_buffer,
+            material_index_buffer,
 
             vertex_allocator,
             index_allocator,
             slices: vec![VertexPoolSlice::new_unallocated(); MAX_VERTEX_POOL_SLICES]
                 .into_boxed_slice(),
             object_to_world: Vec::new(),
+            material_indices: Vec::new(),
             frame_idx: 0,
             bind_group_layout,
         }
@@ -245,23 +256,33 @@ impl VertexPool {
             0,
             bytemuck::cast_slice(&self.object_to_world),
         );
+
+        queue.write_buffer(
+            &self.material_index_buffer,
+            0,
+            bytemuck::cast_slice(&self.material_indices),
+        );
     }
 
-    pub fn submit_slice_instance(&mut self, transform: Mat4) {
+    pub fn submit_slice_instance(&mut self, transform: Mat4, materials: &[Arc<GpuMaterial>]) {
         self.object_to_world.push(transform);
+
+        assert!(materials.len() <= MAX_MATERIALS_PER_INSTANCE);
+        for material in materials {
+            self.material_indices.push(material.material_idx);
+        }
+        for _ in 0..(MAX_MATERIALS_PER_INSTANCE - materials.len()) {
+            self.material_indices.push(0);
+        }
     }
 
     pub fn end_frame(&mut self) {
         self.object_to_world.clear();
+        self.material_indices.clear();
         self.frame_idx += 1;
     }
 
-    pub fn alloc(
-        &mut self,
-        num_vertices: u32,
-        num_indices: u32,
-        material_idx: u32,
-    ) -> VertexPoolAlloc {
+    pub fn alloc(&mut self, num_vertices: u32, num_indices: u32) -> VertexPoolAlloc {
         let slice_idx = self
             .first_available_slice_idx()
             .expect("Vertex pool ran out of slices!");
@@ -280,7 +301,6 @@ impl VertexPool {
             num_vertices,
             index_alloc.start() as u32,
             num_indices,
-            material_idx,
         );
         self.slices[slice_idx] = slice;
 
@@ -294,7 +314,7 @@ impl VertexPool {
     pub fn free(&mut self, alloc: &VertexPoolAlloc) {
         self.vertex_allocator.free(&alloc.vertex_alloc);
         self.index_allocator.free(&alloc.index_alloc);
-        self.slices[alloc.index as usize].is_allocated_and_padding0 = u32::MAX;
+        self.slices[alloc.index as usize].num_vertices = 0;
     }
 
     fn first_available_slice_idx(&self) -> Option<usize> {
@@ -336,6 +356,10 @@ impl VertexPool {
                     binding: 5,
                     resource: self.object_to_world_buffer[(self.frame_idx as usize + 1) % 2]
                         .as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: self.material_index_buffer.as_entire_binding(),
                 },
             ],
         })
