@@ -29,14 +29,19 @@ pub struct EntityBuilder<'a> {
 }
 
 impl<'a> EntityBuilder<'a> {
-    fn new(ecs: &'a mut specs::World, name: &str, transform: Transform) -> Self {
+    fn new(
+        ecs: &'a mut specs::World,
+        name: &str,
+        transform: Transform,
+        parent: Option<specs::Entity>,
+    ) -> Self {
         let entity_info_component = EntityInfoComponent {
             entity_name: name.to_owned(),
             uuid: Uuid::new_v4(),
             marked_for_destroy: false,
             entity: None,
         };
-        let transform_component = TransformComponent::new(transform);
+        let transform_component = TransformComponent::new(transform, parent);
 
         let builder = ecs
             .create_entity()
@@ -81,13 +86,15 @@ impl World {
         &mut self,
         name: &str,
         transform: Transform,
+        parent: Option<specs::Entity>,
         mut builder_pattern: F,
     ) -> specs::Entity
     where
         F: FnMut(EntityBuilder<'_>) -> EntityBuilder<'_>,
     {
         let entity = {
-            let builder = builder_pattern(EntityBuilder::new(&mut self.ecs, name, transform));
+            let builder =
+                builder_pattern(EntityBuilder::new(&mut self.ecs, name, transform, parent));
             builder.builder.build()
         };
 

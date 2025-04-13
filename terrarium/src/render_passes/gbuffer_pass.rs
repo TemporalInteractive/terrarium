@@ -210,10 +210,10 @@ pub fn encode(
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
             let vertex_pool_alloc = &mesh_component.mesh.vertex_pool_alloc;
-            let local_to_world_space = transform_component.transform.get_matrix();
+            let local_to_world_space =
+                transform_component.get_local_to_world_matrix(&transform_storage);
             let inv_trans_local_to_world_space = transform_component
-                .transform
-                .get_matrix()
+                .get_local_to_world_matrix(&transform_storage)
                 .inverse()
                 .transpose();
 

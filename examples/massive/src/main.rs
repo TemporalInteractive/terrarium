@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use camera_controller::CameraController;
 use clap::Parser;
-use glam::Mat4;
+use glam::{Mat4, Quat, Vec3};
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     egui,
@@ -24,8 +24,43 @@ use world::World;
 mod camera_controller;
 mod world;
 
+fn spawn_model_recursive(
+    model: &Model,
+    node: u32,
+    parent: Option<specs::Entity>,
+    gpu_meshes: &[Arc<GpuMesh>],
+    gpu_materials: &Vec<Arc<GpuMaterial>>,
+    world: &mut World,
+) {
+    let node = &model.nodes[node as usize];
+    let transform = Mat4::from_cols_array(&node.transform);
+
+    let entity = world.create_entity(&node.name, Transform::from(transform), parent, |builder| {
+        if let Some(mesh_idx) = node.mesh_idx {
+            builder.with(MeshComponent::new(
+                gpu_meshes[mesh_idx as usize].clone(),
+                gpu_materials.clone(),
+            ))
+        } else {
+            builder
+        }
+    });
+
+    for child_node in &node.child_node_indices {
+        spawn_model_recursive(
+            model,
+            *child_node,
+            Some(entity),
+            gpu_meshes,
+            gpu_materials,
+            world,
+        );
+    }
+}
+
 pub fn spawn_model(
     model: &Model,
+    root_transform: Mat4,
     world: &mut World,
     gpu_resources: &mut GpuResources,
     command_encoder: &mut wgpu::CommandEncoder,
@@ -43,16 +78,35 @@ pub fn spawn_model(
         .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
         .collect();
 
-    model.traverse_nodes(Mat4::IDENTITY, |node, transform| {
-        if let Some(mesh_idx) = node.mesh_idx {
-            world.create_entity(&node.name, Transform::from(transform), |builder| {
-                builder.with(MeshComponent::new(
-                    gpu_meshes[mesh_idx as usize].clone(),
-                    gpu_materials.clone(),
-                ))
-            });
-        }
-    });
+    let root_name = &model.nodes[model.root_node_indices[0] as usize].name;
+    let root = world.create_entity(
+        root_name,
+        Transform::from(root_transform),
+        None,
+        |builder| builder,
+    );
+
+    for root_node in &model.root_node_indices {
+        spawn_model_recursive(
+            model,
+            *root_node,
+            Some(root),
+            &gpu_meshes,
+            &gpu_materials,
+            world,
+        );
+    }
+
+    // model.traverse_nodes(root_transform, |node, transform| {
+    //     if let Some(mesh_idx) = node.mesh_idx {
+    //         world.create_entity(&node.name, Transform::from(transform), None, |builder| {
+    //             builder.with(MeshComponent::new(
+    //                 gpu_meshes[mesh_idx as usize].clone(),
+    //                 gpu_materials.clone(),
+    //             ))
+    //         });
+    //     }
+    // });
 }
 
 pub struct ExampleApp {
@@ -133,6 +187,7 @@ impl AppLoop for ExampleApp {
             .unwrap();
             spawn_model(
                 &model,
+                Mat4::IDENTITY,
                 &mut self.world,
                 &mut self.gpu_resources,
                 &mut command_encoder,
