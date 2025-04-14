@@ -96,17 +96,6 @@ pub fn spawn_model(
             world,
         );
     }
-
-    // model.traverse_nodes(root_transform, |node, transform| {
-    //     if let Some(mesh_idx) = node.mesh_idx {
-    //         world.create_entity(&node.name, Transform::from(transform), None, |builder| {
-    //             builder.with(MeshComponent::new(
-    //                 gpu_meshes[mesh_idx as usize].clone(),
-    //                 gpu_materials.clone(),
-    //             ))
-    //         });
-    //     }
-    // });
 }
 
 pub struct ExampleApp {

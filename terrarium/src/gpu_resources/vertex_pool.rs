@@ -134,7 +134,7 @@ impl VertexPool {
         });
 
         let vertex_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64);
-        let index_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_VERTICES as u64 / 3);
+        let index_allocator = LinearBlockAllocator::new(MAX_VERTEX_POOL_INDICES as u64);
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
