@@ -72,6 +72,10 @@ impl TransformComponent {
         self.resolve_global_transform(transforms)
     }
 
+    pub fn get_local_to_local_matrix(&self) -> Mat4 {
+        self.local_transform.get_matrix()
+    }
+
     fn resolve_global_transform(
         &self,
         transforms: &specs::ReadStorage<'_, TransformComponent>,
@@ -118,8 +122,8 @@ impl specs::Component for TransformComponent {
 
 #[derive(Debug)]
 pub struct MeshComponent {
-    pub(crate) mesh: Arc<GpuMesh>,
-    pub(crate) materials: Vec<Arc<GpuMaterial>>,
+    pub mesh: Arc<GpuMesh>,
+    pub materials: Vec<Arc<GpuMaterial>>,
 }
 
 impl MeshComponent {

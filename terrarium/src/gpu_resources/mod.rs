@@ -1,7 +1,7 @@
 use std::{iter, sync::Arc};
 
 use debug_lines::DebugLines;
-use glam::Vec4;
+use glam::{Vec3, Vec4};
 use material_pool::MaterialPool;
 use sky::Sky;
 use specs::Join;
@@ -30,6 +30,8 @@ pub mod vertex_pool;
 pub struct GpuMesh {
     pub vertex_pool_alloc: VertexPoolAlloc,
     pub blas: wgpu::Blas,
+    pub bounds_min: Vec3,
+    pub bounds_max: Vec3,
 }
 
 #[derive(Debug, Clone)]
@@ -134,6 +136,8 @@ impl GpuResources {
         let gpu_mesh = Arc::new(GpuMesh {
             vertex_pool_alloc,
             blas,
+            bounds_min: mesh.bounds_min.into(),
+            bounds_max: mesh.bounds_max.into(),
         });
         self.gpu_meshes.push(gpu_mesh.clone());
         gpu_mesh
