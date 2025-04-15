@@ -1,23 +1,17 @@
+#![allow(dead_code)]
+
+use std::sync::Arc;
+
+use glam::Mat4;
 use specs::{Builder, WorldExt};
+use terrarium::gpu_resources::{GpuMaterial, GpuMesh, GpuResources};
+use terrarium::wgpu_util;
 use terrarium::world::components::{MeshComponent, TransformComponent};
 use terrarium::world::transform::Transform;
-use uuid::Uuid;
+use ugm::Model;
 
 pub struct EntityInfoComponent {
-    pub entity_name: String,
-    uuid: Uuid,
     marked_for_destroy: bool,
-    entity: Option<specs::Entity>,
-}
-
-impl EntityInfoComponent {
-    pub fn uuid(&self) -> Uuid {
-        self.uuid
-    }
-
-    pub fn entity(&self) -> specs::Entity {
-        self.entity.unwrap()
-    }
 }
 
 impl specs::Component for EntityInfoComponent {
@@ -29,19 +23,11 @@ pub struct EntityBuilder<'a> {
 }
 
 impl<'a> EntityBuilder<'a> {
-    fn new(
-        ecs: &'a mut specs::World,
-        name: &str,
-        transform: Transform,
-        parent: Option<specs::Entity>,
-    ) -> Self {
+    fn new(ecs: &'a mut specs::World, transform: Transform) -> Self {
         let entity_info_component = EntityInfoComponent {
-            entity_name: name.to_owned(),
-            uuid: Uuid::new_v4(),
             marked_for_destroy: false,
-            entity: None,
         };
-        let transform_component = TransformComponent::new(transform, parent);
+        let transform_component = TransformComponent::new(transform);
 
         let builder = ecs
             .create_entity()
@@ -84,7 +70,6 @@ impl World {
 
     pub fn create_entity<F>(
         &mut self,
-        name: &str,
         transform: Transform,
         parent: Option<specs::Entity>,
         mut builder_pattern: F,
@@ -93,15 +78,11 @@ impl World {
         F: FnMut(EntityBuilder<'_>) -> EntityBuilder<'_>,
     {
         let entity = {
-            let builder =
-                builder_pattern(EntityBuilder::new(&mut self.ecs, name, transform, parent));
+            let builder = builder_pattern(EntityBuilder::new(&mut self.ecs, transform));
             builder.builder.build()
         };
 
-        self.entities_mut::<EntityInfoComponent>()
-            .get_mut(entity)
-            .unwrap()
-            .entity = Some(entity);
+        entity.set_parent(parent, self);
 
         entity
     }
@@ -131,5 +112,88 @@ impl World {
 
     pub fn specs(&self) -> &specs::World {
         &self.ecs
+    }
+
+    fn spawn_model_recursive(
+        &mut self,
+        model: &Model,
+        node: u32,
+        parent: specs::Entity,
+        gpu_meshes: &[Arc<GpuMesh>],
+        gpu_materials: &Vec<Arc<GpuMaterial>>,
+    ) {
+        let node = &model.nodes[node as usize];
+        let transform = Mat4::from_cols_array(&node.transform);
+
+        let entity = self.create_entity(Transform::from(transform), Some(parent), |builder| {
+            if let Some(mesh_idx) = node.mesh_idx {
+                builder.with(MeshComponent::new(
+                    gpu_meshes[mesh_idx as usize].clone(),
+                    gpu_materials.clone(),
+                ))
+            } else {
+                builder
+            }
+        });
+
+        for child_node in &node.child_node_indices {
+            self.spawn_model_recursive(model, *child_node, entity, gpu_meshes, gpu_materials);
+        }
+    }
+
+    pub fn spawn_model(
+        &mut self,
+        model: &Model,
+        root_transform: Transform,
+        parent: Option<specs::Entity>,
+        gpu_resources: &mut GpuResources,
+        command_encoder: &mut wgpu::CommandEncoder,
+        ctx: &wgpu_util::Context,
+    ) -> specs::Entity {
+        let gpu_meshes: Vec<Arc<GpuMesh>> = model
+            .meshes
+            .iter()
+            .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
+            .collect();
+
+        let gpu_materials: Vec<Arc<GpuMaterial>> = model
+            .materials
+            .iter()
+            .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
+            .collect();
+
+        let root = self.create_entity(root_transform, parent, |builder| builder);
+
+        for root_node in &model.root_node_indices {
+            self.spawn_model_recursive(model, *root_node, root, &gpu_meshes, &gpu_materials);
+        }
+
+        root
+    }
+}
+
+pub trait EntityExt {
+    fn set_parent(&self, parent: Option<specs::Entity>, world: &mut World);
+}
+impl EntityExt for specs::Entity {
+    fn set_parent(&self, parent: Option<specs::Entity>, world: &mut World) {
+        let mut transforms = world.entities_mut::<TransformComponent>();
+
+        if let Some(parent) = transforms.get(*self).unwrap().parent {
+            let parent_transform = transforms.get_mut(parent).unwrap();
+            parent_transform.children.remove(
+                parent_transform
+                    .children
+                    .iter()
+                    .position(|x| *x == *self)
+                    .unwrap(),
+            );
+        }
+
+        transforms.get_mut(*self).unwrap().parent = parent;
+        if let Some(parent) = transforms.get(*self).unwrap().parent {
+            let parent_transform = transforms.get_mut(parent).unwrap();
+            parent_transform.children.push(*self);
+        }
     }
 }

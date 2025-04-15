@@ -3,100 +3,25 @@ use std::sync::Arc;
 use anyhow::Result;
 use camera_controller::CameraController;
 use clap::Parser;
-use glam::{Mat4, Quat, Vec3};
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     egui,
-    gpu_resources::{GpuMaterial, GpuMesh, GpuResources},
+    gpu_resources::GpuResources,
     helpers::{
         input_handler::InputHandler,
         timer::{FpsCounter, Timer},
     },
     wgpu_util,
-    world::{components::MeshComponent, transform::Transform},
+    world::transform::Transform,
     xr::XrCameraState,
     RenderParameters, RenderSettings, Renderer,
 };
-use ugm::{speedy::Readable, Model};
+use ugm::speedy::Readable;
 use winit::window::Window;
 use world::World;
 
 mod camera_controller;
 mod world;
-
-fn spawn_model_recursive(
-    model: &Model,
-    node: u32,
-    parent: Option<specs::Entity>,
-    gpu_meshes: &[Arc<GpuMesh>],
-    gpu_materials: &Vec<Arc<GpuMaterial>>,
-    world: &mut World,
-) {
-    let node = &model.nodes[node as usize];
-    let transform = Mat4::from_cols_array(&node.transform);
-
-    let entity = world.create_entity(&node.name, Transform::from(transform), parent, |builder| {
-        if let Some(mesh_idx) = node.mesh_idx {
-            builder.with(MeshComponent::new(
-                gpu_meshes[mesh_idx as usize].clone(),
-                gpu_materials.clone(),
-            ))
-        } else {
-            builder
-        }
-    });
-
-    for child_node in &node.child_node_indices {
-        spawn_model_recursive(
-            model,
-            *child_node,
-            Some(entity),
-            gpu_meshes,
-            gpu_materials,
-            world,
-        );
-    }
-}
-
-pub fn spawn_model(
-    model: &Model,
-    root_transform: Mat4,
-    world: &mut World,
-    gpu_resources: &mut GpuResources,
-    command_encoder: &mut wgpu::CommandEncoder,
-    ctx: &wgpu_util::Context,
-) {
-    let gpu_meshes: Vec<Arc<GpuMesh>> = model
-        .meshes
-        .iter()
-        .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
-        .collect();
-
-    let gpu_materials: Vec<Arc<GpuMaterial>> = model
-        .materials
-        .iter()
-        .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
-        .collect();
-
-    let root_name = &model.nodes[model.root_node_indices[0] as usize].name;
-    let root = world.create_entity(
-        root_name,
-        Transform::from(root_transform),
-        None,
-        |builder| builder,
-    );
-
-    for root_node in &model.root_node_indices {
-        spawn_model_recursive(
-            model,
-            *root_node,
-            Some(root),
-            &gpu_meshes,
-            &gpu_materials,
-            world,
-        );
-    }
-}
 
 pub struct ExampleApp {
     input_handler: InputHandler,
@@ -174,10 +99,10 @@ impl AppLoop for ExampleApp {
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )
             .unwrap();
-            spawn_model(
+            self.world.spawn_model(
                 &model,
-                Mat4::IDENTITY,
-                &mut self.world,
+                Transform::default(),
+                None,
                 &mut self.gpu_resources,
                 &mut command_encoder,
                 ctx,
@@ -199,6 +124,7 @@ impl AppLoop for ExampleApp {
             pipeline_database,
         );
 
+        self.world.update();
         self.input_handler.update();
         self.fps_counter.end_frame();
 
@@ -226,16 +152,7 @@ impl AppLoop for ExampleApp {
     }
 
     fn required_features() -> wgpu::Features {
-        wgpu::Features::MULTIVIEW
-            | wgpu::Features::PUSH_CONSTANTS
-            | wgpu::Features::TEXTURE_BINDING_ARRAY
-            | wgpu::Features::TEXTURE_COMPRESSION_BC
-            | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
-            | wgpu::Features::EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE
-            | wgpu::Features::EXPERIMENTAL_RAY_QUERY
-            | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
-            | wgpu::Features::FLOAT32_FILTERABLE
-            | wgpu::Features::CLEAR_TEXTURE
+        Renderer::required_features()
     }
 
     fn required_limits() -> wgpu::Limits {
