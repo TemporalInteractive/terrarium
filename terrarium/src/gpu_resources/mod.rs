@@ -1,5 +1,6 @@
 use std::{iter, sync::Arc};
 
+use debug_lines::DebugLines;
 use glam::Vec4;
 use material_pool::MaterialPool;
 use sky::Sky;
@@ -19,6 +20,7 @@ use crate::{
 
 const MAX_TLAS_INSTANCES: usize = 1024 * 8;
 
+pub mod debug_lines;
 mod linear_block_allocator;
 pub mod material_pool;
 pub mod sky;
@@ -38,6 +40,7 @@ pub struct GpuMaterial {
 pub struct GpuResources {
     vertex_pool: VertexPool,
     material_pool: MaterialPool,
+    debug_lines: DebugLines,
     tlas_package: wgpu::TlasPackage,
     sky: Sky,
 
@@ -49,6 +52,7 @@ impl GpuResources {
     pub fn new(device: &wgpu::Device) -> Self {
         let vertex_pool = VertexPool::new(device);
         let material_pool = MaterialPool::new(device);
+        let debug_lines = DebugLines::new(device);
 
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
             label: Some("terrarium::gpu_resources tlas"),
@@ -62,6 +66,7 @@ impl GpuResources {
         Self {
             vertex_pool,
             material_pool,
+            debug_lines,
             tlas_package: wgpu::TlasPackage::new(tlas),
             sky,
             gpu_meshes: Vec::new(),
@@ -157,6 +162,14 @@ impl GpuResources {
         &self.material_pool
     }
 
+    pub fn debug_lines(&self) -> &DebugLines {
+        &self.debug_lines
+    }
+
+    pub fn debug_lines_mut(&mut self) -> &mut DebugLines {
+        &mut self.debug_lines
+    }
+
     pub fn tlas(&self) -> &wgpu::Tlas {
         self.tlas_package.tlas()
     }
@@ -244,6 +257,7 @@ impl GpuResources {
 
         self.vertex_pool.write_slices(queue);
         self.material_pool.write_materials(queue);
+        self.debug_lines.write_lines(xr_camera_state, queue);
 
         command_encoder
             .build_acceleration_structures(iter::empty(), iter::once(&self.tlas_package));
@@ -251,5 +265,6 @@ impl GpuResources {
 
     pub fn end_frame(&mut self) {
         self.vertex_pool.end_frame();
+        self.debug_lines.end_frame();
     }
 }

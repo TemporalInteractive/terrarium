@@ -5,6 +5,7 @@ use gpu_resources::{
 };
 use render_passes::{
     color_correction_pass::{self, ColorCorrectionPassParameters},
+    debug_line_pass::{self, DebugLinePassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
     shadow_pass::{self, ShadowPassParameters},
@@ -107,6 +108,7 @@ impl SizedResources {
 
 pub struct RenderSettings {
     pub shading_mode: ShadingMode,
+    pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
     pub enable_shadows: bool,
     pub enable_ssao: bool,
@@ -123,6 +125,7 @@ impl Default for RenderSettings {
     fn default() -> Self {
         Self {
             shading_mode: ShadingMode::Full,
+            enable_debug_lines: true,
             apply_mipmaps: true,
             enable_shadows: true,
             enable_ssao: false,
@@ -154,6 +157,7 @@ impl RenderSettings {
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Normals, "Normals");
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Texcoords, "Texcoords");
             });
+        ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
         ui.separator();
 
@@ -306,6 +310,20 @@ impl Renderer {
             pipeline_database,
         );
 
+        if parameters.render_settings.enable_debug_lines {
+            debug_line_pass::encode(
+                &DebugLinePassParameters {
+                    gpu_resources: parameters.gpu_resources,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
+                    dst_view: parameters.view,
+                    target_format: wgpu::TextureFormat::Rgba32Float,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
+
         color_correction_pass::encode(
             &ColorCorrectionPassParameters {
                 resolution: self.sized_resources.resolution,
@@ -351,5 +369,6 @@ impl Renderer {
             | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
             | wgpu::Features::FLOAT32_FILTERABLE
             | wgpu::Features::CLEAR_TEXTURE
+            | wgpu::Features::POLYGON_MODE_LINE
     }
 }

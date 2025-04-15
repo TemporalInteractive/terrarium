@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use camera_controller::CameraController;
 use clap::Parser;
+use glam::Vec3;
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     egui,
@@ -12,7 +13,7 @@ use terrarium::{
         timer::{FpsCounter, Timer},
     },
     wgpu_util,
-    world::transform::Transform,
+    world::transform::{Transform, FORWARD, RIGHT, UP},
     xr::XrCameraState,
     RenderParameters, RenderSettings, Renderer,
 };
@@ -108,6 +109,22 @@ impl AppLoop for ExampleApp {
                 ctx,
             );
         }
+
+        self.gpu_resources.debug_lines_mut().submit_line(
+            Vec3::ZERO,
+            RIGHT * 10000.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        self.gpu_resources.debug_lines_mut().submit_line(
+            Vec3::ZERO,
+            UP * 10000.0,
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        self.gpu_resources.debug_lines_mut().submit_line(
+            Vec3::ZERO,
+            FORWARD * 10000.0,
+            Vec3::new(0.0, 0.0, 1.0),
+        );
 
         self.renderer.render(
             &mut RenderParameters {
