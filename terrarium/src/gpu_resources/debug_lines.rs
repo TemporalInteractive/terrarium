@@ -3,7 +3,7 @@ use glam::{Vec3, Vec4, Vec4Swizzles};
 
 use crate::xr::XrCameraState;
 
-const MAX_LINES: u64 = 1024 * 1024;
+const MAX_LINES: u64 = 1024 * 1024 * 16;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
