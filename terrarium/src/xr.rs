@@ -32,6 +32,7 @@ pub struct XrCameraState {
     pub view_to_clip_space: [Mat4; 2],
     pub stage_translation: Vec3,
     pub stage_rotation: Quat,
+    pub camera_rotation_offset: Quat,
     pub z_near: f32,
     pub z_far: f32,
     pub jitter: Vec2,
@@ -44,6 +45,7 @@ impl XrCameraState {
             view_to_clip_space: [Mat4::IDENTITY; 2],
             stage_translation: Vec3::ZERO,
             stage_rotation: Quat::IDENTITY,
+            camera_rotation_offset: Quat::IDENTITY,
             z_near,
             z_far,
             jitter: Vec2::ZERO,
@@ -91,10 +93,16 @@ impl XrCameraState {
                 .inverse()
                 .to_scale_rotation_translation();
 
+            // let head_position = Vec3::new(0.0, view_translation.y, 0.0);
+
+            // let rotated_view_translation =
+            //     self.camera_rotation_offset * (view_translation - head_position) + head_position;
+            // let rotated_view_rotation = self.camera_rotation_offset * view_rotation;
+
             let head_position = Vec3::new(0.0, view_translation.y, 0.0);
 
-            let rotated_view_translation =
-                self.stage_rotation * (view_translation - head_position) + head_position;
+            let rotated_view_translation = self.stage_rotation * view_translation;
+            //self.camera_rotation_offset * (view_translation - head_position) + head_position;
             let rotated_view_rotation = self.stage_rotation * view_rotation;
 
             // self.stage_translation is not added as we keep the camera always in the center
