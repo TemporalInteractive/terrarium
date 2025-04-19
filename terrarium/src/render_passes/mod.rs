@@ -1,4 +1,5 @@
 pub mod blit_pass;
+pub mod bloom_pass;
 pub mod color_correction_pass;
 pub mod debug_line_pass;
 pub mod debug_pass;

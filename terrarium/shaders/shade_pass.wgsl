@@ -91,7 +91,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let ambient: vec3<f32> = material.color * 0.1;
 
             if (constants.shading_mode == SHADING_MODE_FULL) {
-                color = reflectance * light_intensity * n_dot_l + ambient;
+                color = reflectance * light_intensity * n_dot_l + ambient + material.emission;
                 color = shade_fog(color, gbuffer_texel, ray.direction, l);
             } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
                 color = vec3<f32>(light_intensity * n_dot_l) + ambient;

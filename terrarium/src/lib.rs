@@ -4,6 +4,7 @@ use gpu_resources::{
     GpuResources,
 };
 use render_passes::{
+    bloom_pass::{self, BloomPassParameters},
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
@@ -114,6 +115,9 @@ pub struct RenderSettings {
     pub enable_ssao: bool,
     pub ssao_intensity: f32,
     pub ssao_sample_count: u32,
+    pub enable_bloom: bool,
+    pub bloom_intensity: f32,
+    pub bloom_radius: f32,
     pub enable_taa: bool,
     pub taa_history_influence: f32,
     pub sun: SunInfo,
@@ -131,6 +135,9 @@ impl Default for RenderSettings {
             enable_ssao: false,
             ssao_intensity: 1.0,
             ssao_sample_count: 8,
+            enable_bloom: true,
+            bloom_intensity: 1.0,
+            bloom_radius: 1.0,
             enable_taa: true,
             taa_history_influence: 0.8,
             sun: SunInfo::default(),
@@ -184,6 +191,12 @@ impl RenderSettings {
             });
         ui.separator();
 
+        ui.heading("Bloom");
+        ui.checkbox(&mut self.enable_bloom, "Enable");
+        ui.add(egui::Slider::new(&mut self.bloom_intensity, 0.0..=1.0).text("Intensity"));
+        ui.add(egui::Slider::new(&mut self.bloom_radius, 0.0..=10.0).text("Radius"));
+        ui.separator();
+
         ui.heading("Taa");
         ui.checkbox(&mut self.enable_taa, "Enable");
         ui.add(
@@ -196,8 +209,8 @@ pub struct RenderParameters<'a> {
     pub render_settings: &'a RenderSettings,
     pub xr_camera_state: &'a XrCameraState,
     pub xr_camera_buffer: &'a wgpu::Buffer,
-    pub view: &'a wgpu::TextureView,
-    pub prev_view: &'a wgpu::TextureView,
+    pub render_target: &'a wgpu::Texture,
+    pub prev_render_target: &'a wgpu::Texture,
     pub world: &'a specs::World,
     pub gpu_resources: &'a mut GpuResources,
 }
@@ -295,6 +308,24 @@ impl Renderer {
             );
         }
 
+        let rt_view = parameters
+            .render_target
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                array_layer_count: Some(2),
+                mip_level_count: Some(1),
+                ..Default::default()
+            });
+        let prev_rt_view =
+            parameters
+                .prev_render_target
+                .create_view(&wgpu::TextureViewDescriptor {
+                    dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    array_layer_count: Some(2),
+                    mip_level_count: Some(1),
+                    ..Default::default()
+                });
+
         shade_pass::encode(
             &ShadePassParameters {
                 resolution: self.sized_resources.resolution,
@@ -303,19 +334,31 @@ impl Renderer {
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
                 shadow_texture_view: &self.sized_resources.shadow_texture_view,
-                dst_view: parameters.view,
+                dst_view: &rt_view,
             },
             &ctx.device,
             command_encoder,
             pipeline_database,
         );
 
+        if parameters.render_settings.enable_bloom {
+            bloom_pass::encode(
+                &BloomPassParameters {
+                    radius: parameters.render_settings.bloom_radius,
+                    color_texture: parameters.render_target,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
+
         if parameters.render_settings.enable_debug_lines {
             debug_line_pass::encode(
                 &DebugLinePassParameters {
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
-                    dst_view: parameters.view,
+                    dst_view: &rt_view,
                     target_format: wgpu::TextureFormat::Rgba32Float,
                 },
                 &ctx.device,
@@ -327,7 +370,7 @@ impl Renderer {
         color_correction_pass::encode(
             &ColorCorrectionPassParameters {
                 resolution: self.sized_resources.resolution,
-                color_texture_view: parameters.view,
+                color_texture_view: &rt_view,
             },
             &ctx.device,
             command_encoder,
@@ -339,8 +382,8 @@ impl Renderer {
                 &TaaPassParameters {
                     resolution: self.sized_resources.resolution,
                     history_influence: parameters.render_settings.taa_history_influence,
-                    color_texture_view: parameters.view,
-                    prev_color_texture_view: parameters.prev_view,
+                    color_texture_view: &rt_view,
+                    prev_color_texture_view: &prev_rt_view,
                     gbuffer: &self.sized_resources.gbuffer,
                 },
                 &ctx.device,

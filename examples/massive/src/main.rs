@@ -75,8 +75,8 @@ impl AppLoop for ExampleApp {
         &mut self,
         xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
-        view: &wgpu::TextureView,
-        prev_view: &wgpu::TextureView,
+        render_target: &wgpu::Texture,
+        prev_render_target: &wgpu::Texture,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> wgpu::CommandEncoder {
@@ -108,6 +108,20 @@ impl AppLoop for ExampleApp {
                 &mut command_encoder,
                 ctx,
             );
+
+            let model = ugm::Model::read_from_buffer(
+                &std::fs::read("examples/massive/assets/EmissiveMonkey.ugm")
+                .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
+            )
+            .unwrap();
+            self.world.spawn_model(
+                &model,
+                Transform::from_translation(Vec3::new(2.0, 1.0, 0.0)),
+                None,
+                &mut self.gpu_resources,
+                &mut command_encoder,
+                ctx,
+            );
         }
 
         self.gpu_resources.debug_lines_mut().submit_line(
@@ -132,8 +146,8 @@ impl AppLoop for ExampleApp {
                 world: self.world.specs(),
                 xr_camera_state,
                 xr_camera_buffer,
-                view,
-                prev_view,
+                render_target,
+                prev_render_target,
                 gpu_resources: &mut self.gpu_resources,
             },
             &mut command_encoder,

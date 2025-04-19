@@ -26,8 +26,8 @@ pub trait AppLoop: 'static + Sized {
         &mut self,
         xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
-        view: &wgpu::TextureView,
-        prev_view: &wgpu::TextureView,
+        render_target: &wgpu::Texture,
+        prev_render_target: &wgpu::Texture,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) -> wgpu::CommandEncoder;
@@ -164,11 +164,19 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     let mut command_encoder = state.app_loop.render(
                         &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
-                        &state.rt_texture_view[self.frame_idx as usize % 2],
-                        &state.rt_texture_view[(self.frame_idx as usize + 1) % 2],
+                        &state.rt_texture[self.frame_idx as usize % 2],
+                        &state.rt_texture[(self.frame_idx as usize + 1) % 2],
                         &state.context,
                         &mut state.pipeline_database,
                     );
+
+                    let rt_texture_view = state.rt_texture[self.frame_idx as usize % 2]
+                        .create_view(&wgpu::TextureViewDescriptor {
+                            dimension: Some(wgpu::TextureViewDimension::D2Array),
+                            array_layer_count: Some(2),
+                            mip_level_count: Some(1),
+                            ..Default::default()
+                        });
 
                     #[cfg(feature = "egui")]
                     {
@@ -182,7 +190,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                         state.egui_renderer.draw(
                             &state.window,
-                            &state.rt_texture_view[self.frame_idx as usize % 2],
+                            &rt_texture_view,
                             screen_descriptor,
                             &state.context.device,
                             &state.context.queue,
@@ -197,7 +205,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     });
                     blit_pass::encode(
                         &BlitPassParameters {
-                            src_view: &state.rt_texture_view[self.frame_idx as usize % 2],
+                            src_view: &rt_texture_view,
                             dst_view: &view,
                             multiview: None,
                             target_format: state.surface.config().view_formats[0],
@@ -213,7 +221,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
 
                             let xr_views = xr
                                 .post_frame(
-                                    &state.rt_texture_view[self.frame_idx as usize % 2],
+                                    &rt_texture_view,
                                     xr_frame_state,
                                     &state.context.device,
                                     &mut command_encoder,
@@ -267,11 +275,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             WindowEvent::Resized(size) => {
                 if let Some(state) = &mut self.state {
                     state.surface.resize(&state.context, size);
-                    state.rt_texture_view = std::array::from_fn(|_| {
-                        State::<R>::create_rt_texture_view(
-                            state.surface.config(),
-                            &state.context.device,
-                        )
+                    state.rt_texture = std::array::from_fn(|_| {
+                        State::<R>::create_rt_texture(state.surface.config(), &state.context.device)
                     });
 
                     state
@@ -305,7 +310,7 @@ struct State<R: AppLoop> {
     xr_camera_state: XrCameraState,
     prev_xr_camera_data: XrCameraData,
     xr_camera_buffer: wgpu::Buffer,
-    rt_texture_view: [wgpu::TextureView; 2],
+    rt_texture: [wgpu::Texture; 2],
     app_loop: R,
 
     #[cfg(feature = "egui")]
@@ -346,9 +351,8 @@ impl<R: AppLoop> State<R> {
 
         let app_loop = R::new(surface.config(), &context, window.clone());
 
-        let rt_texture_view = std::array::from_fn(|_| {
-            Self::create_rt_texture_view(surface.config(), &context.device)
-        });
+        let rt_texture =
+            std::array::from_fn(|_| Self::create_rt_texture(surface.config(), &context.device));
 
         let xr_camera_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::xr_camera"),
@@ -378,7 +382,7 @@ impl<R: AppLoop> State<R> {
             xr_camera_state,
             prev_xr_camera_data: XrCameraData::default(),
             xr_camera_buffer,
-            rt_texture_view,
+            rt_texture,
             app_loop,
 
             #[cfg(feature = "egui")]
@@ -386,18 +390,22 @@ impl<R: AppLoop> State<R> {
         }
     }
 
-    fn create_rt_texture_view(
+    fn create_rt_texture(
         surface_config: &wgpu::SurfaceConfiguration,
         device: &wgpu::Device,
-    ) -> wgpu::TextureView {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
+    ) -> wgpu::Texture {
+        let width = surface_config.width;
+        let height = surface_config.height;
+        let mip_level_count = (((width.max(height) as f32).log2()).floor() + 1.0) as u32;
+
+        device.create_texture(&wgpu::TextureDescriptor {
             label: Some("terrarium::render_target"),
             size: wgpu::Extent3d {
                 width: surface_config.width,
                 height: surface_config.height,
                 depth_or_array_layers: 2,
             },
-            mip_level_count: 1,
+            mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba32Float,
@@ -406,11 +414,6 @@ impl<R: AppLoop> State<R> {
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING,
             view_formats: &[],
-        });
-        texture.create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            array_layer_count: Some(2),
-            ..Default::default()
         })
     }
 }
