@@ -344,6 +344,7 @@ impl Renderer {
         if parameters.render_settings.enable_bloom {
             bloom_pass::encode(
                 &BloomPassParameters {
+                    intensity: parameters.render_settings.bloom_intensity,
                     radius: parameters.render_settings.bloom_radius,
                     color_texture: parameters.render_target,
                 },

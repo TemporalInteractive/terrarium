@@ -2,9 +2,9 @@ struct Constants {
     src_resolution: vec2<u32>,
     dst_resolution: vec2<u32>,
     radius: f32,
+    intensity: f32,
     _padding0: u32,
     _padding1: u32,
-    _padding2: u32,
 }
 
 @group(0)
@@ -30,7 +30,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     let id: vec2<u32> = global_id.xy;
     if (any(id >= constants.dst_resolution)) { return; }
 
-    let uv: vec2<f32> = vec2<f32>(id) / vec2<f32>(constants.dst_resolution);
+    let uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.dst_resolution);
     let x: f32 = constants.radius / f32(constants.src_resolution.x);
     let y: f32 = constants.radius / f32(constants.src_resolution.y);
 
