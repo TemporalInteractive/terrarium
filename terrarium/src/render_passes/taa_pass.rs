@@ -57,7 +57,7 @@ pub fn encode(
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
-                                    format: wgpu::TextureFormat::Rgba32Float,
+                                    format: wgpu::TextureFormat::Rgba16Float,
                                     view_dimension: wgpu::TextureViewDimension::D2Array,
                                 },
                                 count: None,

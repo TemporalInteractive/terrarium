@@ -367,7 +367,7 @@ impl<R: AppLoop> State<R> {
 
         #[cfg(feature = "egui")]
         let egui_renderer = crate::egui_renderer::EguiRenderer::new(
-            wgpu::TextureFormat::Rgba32Float,
+            wgpu::TextureFormat::Rgba16Float,
             1,
             &window,
             &context.device,
@@ -408,7 +408,7 @@ impl<R: AppLoop> State<R> {
             mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba32Float,
+            format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING

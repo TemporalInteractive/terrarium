@@ -12,7 +12,7 @@ var<uniform> constants: Constants;
 
 @group(0)
 @binding(1)
-var color: texture_storage_2d_array<rgba32float, read_write>;
+var color: texture_storage_2d_array<rgba16float, read_write>;
 
 fn hdr_to_sdr(hdr: vec3<f32>) -> vec3<f32> {
     // let a: f32 = 2.51;

@@ -14,7 +14,7 @@ var<uniform> constants: Constants;
 
 @group(0)
 @binding(1)
-var color: texture_storage_2d_array<rgba32float, read_write>;
+var color: texture_storage_2d_array<rgba16float, read_write>;
 
 @group(0)
 @binding(2)

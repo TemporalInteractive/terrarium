@@ -21,7 +21,7 @@ var src_sampler: sampler;
 
 @group(0)
 @binding(3)
-var dst: texture_storage_2d_array<rgba32float, read_write>;
+var dst: texture_storage_2d_array<rgba16float, read_write>;
 
 @compute
 @workgroup_size(16, 16)

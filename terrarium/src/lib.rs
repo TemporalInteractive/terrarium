@@ -360,7 +360,7 @@ impl Renderer {
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     dst_view: &rt_view,
-                    target_format: wgpu::TextureFormat::Rgba32Float,
+                    target_format: wgpu::TextureFormat::Rgba16Float,
                 },
                 &ctx.device,
                 command_encoder,

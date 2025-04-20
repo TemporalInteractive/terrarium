@@ -46,7 +46,7 @@ var shadow_sampler: sampler;
 
 @group(0)
 @binding(7)
-var color_out: texture_storage_2d_array<rgba32float, read_write>;
+var color_out: texture_storage_2d_array<rgba16float, read_write>;
 
 fn shade_fog(shade_color: vec3<f32>, gbuffer_texel: GBufferTexel, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let fog_strength: f32 = 1.0 - exp(-gbuffer_texel.depth_ws * sky_constants.atmosphere.density);
