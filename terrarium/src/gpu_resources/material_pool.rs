@@ -222,7 +222,7 @@ impl MaterialPool {
             u32::MAX
         };
 
-        let emission_texture = if let Some(texture_idx) = &material.normal_texture {
+        let emission_texture = if let Some(texture_idx) = &material.emission_texture {
             let texture = &model.textures[*texture_idx as usize];
 
             if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
