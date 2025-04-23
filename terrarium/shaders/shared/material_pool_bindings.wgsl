@@ -36,7 +36,7 @@ fn MaterialDescriptor::color(_self: MaterialDescriptor, tex_coord: vec2<f32>, dd
 }
 
 fn MaterialDescriptor::emission(_self: MaterialDescriptor, tex_coord: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
-    var emission: vec3<f32> = _self.emission * 20.0;
+    var emission: vec3<f32> = _self.emission;
     if (_self.emission_texture != INVALID_TEXTURE && dot(emission, emission) > 0.0) {
         let transformed_tex_coord: vec2<f32> = MaterialPoolBindings::transform_uv(_self.emission_texture, tex_coord);
         emission *= _texture(_self.emission_texture, transformed_tex_coord, ddx, ddy).rgb;

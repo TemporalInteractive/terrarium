@@ -133,6 +133,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             reconstructed = (current_weight * reconstructed + history_weight * clipped_history) / (current_weight + history_weight);
         }
 
+        // Anti-NaN hack, TODO: proper fix
+        if (!(reconstructed.x <= 1.0 && reconstructed.x >= 0.0)) {
+            reconstructed.x = 0.5;
+        }
+         if (!(reconstructed.y <= 1.0 && reconstructed.y >= 0.0)) {
+            reconstructed.y = 0.5;
+        }
+         if (!(reconstructed.z <= 1.0 && reconstructed.z >= 0.0)) {
+            reconstructed.z = 0.5;
+        }
+
         textureStore(color, id, view_index, vec4<f32>(reconstructed, 1.0));
     }
 }

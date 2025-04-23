@@ -53,7 +53,7 @@ fn Sky::inscattering(direction: vec3<f32>, skip_sun: bool) -> vec3<f32> {
         let sun_angular_diameter_cos: f32 = cos(max(sky_constants.sun.size, 0.05) * 0.1);
         let sundisk: f32 = select(0.0, 1.0, cos_theta > sun_angular_diameter_cos);
 
-       inscattering += intensity * 10000.0 * sundisk * sky_constants.sun.color;
+       inscattering += intensity * 100.0 * sundisk * sky_constants.sun.color;
     }
 
     return inscattering;
