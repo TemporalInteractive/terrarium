@@ -111,6 +111,7 @@ pub struct RenderSettings {
     pub shading_mode: ShadingMode,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
+    pub apply_normal_maps: bool,
     pub enable_shadows: bool,
     pub enable_ssao: bool,
     pub ssao_intensity: f32,
@@ -131,6 +132,7 @@ impl Default for RenderSettings {
             shading_mode: ShadingMode::Full,
             enable_debug_lines: true,
             apply_mipmaps: true,
+            apply_normal_maps: true,
             enable_shadows: true,
             enable_ssao: false,
             ssao_intensity: 1.0,
@@ -166,6 +168,7 @@ impl RenderSettings {
             });
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
+        ui.checkbox(&mut self.apply_normal_maps, "Normal Mapping");
         ui.separator();
 
         ui.heading("Shadows");
@@ -257,6 +260,7 @@ impl Renderer {
             &RtGbufferPassParameters {
                 resolution: self.sized_resources.resolution,
                 mipmapping: parameters.render_settings.apply_mipmaps,
+                normal_mapping: parameters.render_settings.apply_normal_maps,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,

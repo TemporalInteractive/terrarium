@@ -8,7 +8,7 @@
 struct Constants {
     resolution: vec2<u32>,
     mipmapping: u32,
-    _padding0: u32,
+    normal_mapping: u32,
 }
 
 @group(0)
@@ -131,7 +131,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             }
 
             // Apply normal mapping when available, unlike the name suggest, not front facing yet
-            let mapped_normal_and_roughness: vec4<f32> = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
+            var mapped_normal_and_roughness: vec4<f32>;
+            if (constants.normal_mapping > 0) {
+                mapped_normal_and_roughness = MaterialDescriptor::apply_normal_mapping(material_descriptor, tex_coord, ddx, ddy, hit_normal_ws, hit_tangent_to_world);
+            } else {
+                mapped_normal_and_roughness = vec4<f32>(hit_normal_ws, 1.0);
+            }
             var front_facing_shading_normal_ws: vec3<f32> = mapped_normal_and_roughness.xyz;
 
             let w_out_worldspace: vec3<f32> = -direction;

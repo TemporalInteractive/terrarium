@@ -13,12 +13,13 @@ use crate::{
 struct Constants {
     resolution: UVec2,
     mipmapping: u32,
-    _padding0: u32,
+    normal_mapping: u32,
 }
 
 pub struct RtGbufferPassParameters<'a> {
     pub resolution: UVec2,
     pub mipmapping: bool,
+    pub normal_mapping: bool,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a [wgpu::Buffer; 2],
@@ -106,7 +107,7 @@ pub fn encode(
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             mipmapping: parameters.mipmapping as u32,
-            _padding0: 0,
+            normal_mapping: parameters.normal_mapping as u32,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
