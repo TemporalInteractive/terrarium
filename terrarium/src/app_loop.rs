@@ -247,7 +247,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     }
 
                     let xr_camera_data = [
-                        state.xr_camera_state.calculate_camera_data(),
+                        state.xr_camera_state.calculate_camera_data(true),
                         state.prev_xr_camera_data,
                     ];
                     state.context.queue.write_buffer(

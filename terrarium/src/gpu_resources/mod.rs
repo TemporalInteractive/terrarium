@@ -26,6 +26,36 @@ pub mod material_pool;
 pub mod sky;
 pub mod vertex_pool;
 
+pub struct GpuModel {
+    pub gpu_meshes: Vec<Arc<GpuMesh>>,
+    pub gpu_materials: Vec<Arc<GpuMaterial>>,
+}
+
+impl GpuModel {
+    pub fn new(
+        model: &Model,
+        gpu_resources: &mut GpuResources,
+        command_encoder: &mut wgpu::CommandEncoder,
+        ctx: &wgpu_util::Context,
+    ) -> Self {
+        let gpu_meshes: Vec<Arc<GpuMesh>> = model
+            .meshes
+            .iter()
+            .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
+            .collect();
+        let gpu_materials: Vec<Arc<GpuMaterial>> = model
+            .materials
+            .iter()
+            .map(|material| gpu_resources.create_gpu_material(&model, material, ctx))
+            .collect();
+
+        Self {
+            gpu_meshes,
+            gpu_materials,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GpuMesh {
     pub vertex_pool_alloc: VertexPoolAlloc,

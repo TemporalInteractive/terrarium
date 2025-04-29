@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec2, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 
 use crate::{
     wgpu_util,
@@ -87,7 +87,7 @@ impl XrCameraState {
         }
     }
 
-    pub fn calculate_camera_data(&self) -> XrCameraData {
+    pub fn calculate_camera_data(&self, zero_translation: bool) -> XrCameraData {
         let world_to_view_space: [Mat4; 2] = std::array::from_fn(|i| {
             let (_, view_rotation, view_translation) = self.stage_to_view_space[i]
                 .inverse()
@@ -99,15 +99,19 @@ impl XrCameraState {
             //     self.camera_rotation_offset * (view_translation - head_position) + head_position;
             // let rotated_view_rotation = self.camera_rotation_offset * view_rotation;
 
-            let head_position = Vec3::new(0.0, view_translation.y, 0.0);
+            //let head_position = Vec3::new(0.0, view_translation.y, 0.0);
 
             let rotated_view_translation = self.stage_rotation * view_translation;
             //self.camera_rotation_offset * (view_translation - head_position) + head_position;
             let rotated_view_rotation = self.stage_rotation * view_rotation;
 
-            // self.stage_translation is not added as we keep the camera always in the center
+            // self.stage_translation is not always added as we keep the camera always in the center
             // Stage translation is applied by moving all scene geometry in the opposite direction
-            let center = rotated_view_translation;
+            let mut center = rotated_view_translation;
+            if !zero_translation {
+                center += self.stage_translation;
+            }
+
             let forward = rotated_view_rotation * FORWARD;
             let up = rotated_view_rotation * UP;
 
@@ -129,6 +133,18 @@ impl XrCameraState {
             _padding0: 0,
             _padding1: 1,
         }
+    }
+}
+
+impl XrCameraData {
+    pub fn generate_ray(&self, uv: Vec2, view_index: usize) -> (Vec3, Vec3) {
+        let origin = (self.view_to_world_space[view_index] * Vec4::new(0.0, 0.0, 0.0, 1.0)).xyz();
+        let target = self.clip_to_view_space[view_index] * Vec4::from((uv, 1.0, 1.0));
+        let direction = (self.view_to_world_space[view_index]
+            * Vec4::from((target.xyz().normalize(), 0.0)))
+        .xyz();
+
+        (origin, direction)
     }
 }
 
