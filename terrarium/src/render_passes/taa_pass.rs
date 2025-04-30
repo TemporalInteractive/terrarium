@@ -1,5 +1,7 @@
+use std::sync::OnceLock;
+
 use bytemuck::{Pod, Zeroable};
-use glam::UVec2;
+use glam::{UVec2, Vec2};
 use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
@@ -19,6 +21,49 @@ pub struct TaaPassParameters<'a> {
     pub color_texture_view: &'a wgpu::TextureView,
     pub prev_color_texture_view: &'a wgpu::TextureView,
     pub gbuffer: &'a [wgpu::Buffer; 2],
+}
+
+pub struct TaaJitter {
+    samples: Vec<Vec2>,
+}
+
+impl TaaJitter {
+    const SAMPLE_COUNT: u32 = 128;
+
+    pub fn frame_jitter(frame_idx: u32) -> Vec2 {
+        Self::get().samples[(frame_idx % Self::SAMPLE_COUNT) as usize]
+    }
+
+    fn get() -> &'static Self {
+        static INSTANCE: OnceLock<TaaJitter> = OnceLock::new();
+        INSTANCE.get_or_init(|| {
+            let samples: Vec<glam::Vec2> = (0..Self::SAMPLE_COUNT)
+                .map(|i| {
+                    glam::Vec2::new(
+                        Self::radical_inverse(i % Self::SAMPLE_COUNT + 1, 2) - 0.5,
+                        Self::radical_inverse(i % Self::SAMPLE_COUNT + 1, 3) - 0.5,
+                    )
+                })
+                .collect();
+
+            Self { samples }
+        })
+    }
+
+    fn radical_inverse(mut n: u32, base: u32) -> f32 {
+        let mut val = 0.0f32;
+        let inv_base = 1.0f32 / base as f32;
+        let mut inv_bi = inv_base;
+
+        while n > 0 {
+            let d_i = n % base;
+            val += d_i as f32 * inv_bi;
+            n = (n as f32 * inv_base) as u32;
+            inv_bi *= inv_base;
+        }
+
+        val
+    }
 }
 
 pub fn encode(

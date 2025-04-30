@@ -1,6 +1,7 @@
 use glam::{Mat4, Quat, Vec2, Vec3};
 use terrarium::{
     helpers::input_handler::InputHandler,
+    render_passes::taa_pass::TaaJitter,
     world::transform::{FORWARD, HORIZONTAL_MASK, RIGHT, UP},
     xr::{XrCameraState, XrHand},
 };
@@ -155,24 +156,6 @@ impl CameraController {
         xr_camera_state.stage_rotation =
             self.stage_vertical_rotation * self.stage_horizontal_rotation;
 
-        const HALTON_JITTER: [Vec2; 16] = [
-            Vec2::new(0.500000, 0.333333),
-            Vec2::new(0.250000, 0.666667),
-            Vec2::new(0.750000, 0.111111),
-            Vec2::new(0.125000, 0.444444),
-            Vec2::new(0.625000, 0.777778),
-            Vec2::new(0.375000, 0.222222),
-            Vec2::new(0.875000, 0.555556),
-            Vec2::new(0.062500, 0.888889),
-            Vec2::new(0.562500, 0.037037),
-            Vec2::new(0.312500, 0.370370),
-            Vec2::new(0.812500, 0.703704),
-            Vec2::new(0.187500, 0.148148),
-            Vec2::new(0.687500, 0.481481),
-            Vec2::new(0.437500, 0.814815),
-            Vec2::new(0.937500, 0.259259),
-            Vec2::new(0.031250, 0.592593),
-        ];
-        xr_camera_state.jitter = HALTON_JITTER[self.frame_idx as usize % 16];
+        xr_camera_state.jitter = TaaJitter::frame_jitter(self.frame_idx);
     }
 }
