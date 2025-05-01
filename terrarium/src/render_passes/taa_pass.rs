@@ -21,6 +21,7 @@ pub struct TaaPassParameters<'a> {
     pub color_texture_view: &'a wgpu::TextureView,
     pub prev_color_texture_view: &'a wgpu::TextureView,
     pub gbuffer: &'a [wgpu::Buffer; 2],
+    pub xr_camera_buffer: &'a wgpu::Buffer,
 }
 
 pub struct TaaJitter {
@@ -145,6 +146,16 @@ pub fn encode(
                                 },
                                 count: None,
                             },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 6,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
                         ],
                     },
                 )],
@@ -199,6 +210,10 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 5,
                 resource: parameters.gbuffer[1].as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: parameters.xr_camera_buffer.as_entire_binding(),
             },
         ],
     });

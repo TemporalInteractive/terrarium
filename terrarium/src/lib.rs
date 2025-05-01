@@ -390,6 +390,7 @@ impl Renderer {
                     color_texture_view: &rt_view,
                     prev_color_texture_view: &prev_rt_view,
                     gbuffer: &self.sized_resources.gbuffer,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
                 },
                 &ctx.device,
                 command_encoder,

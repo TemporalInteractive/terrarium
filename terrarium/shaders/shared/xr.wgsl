@@ -21,7 +21,7 @@ struct XrCameraRay {
 }
 
 fn XrCamera::raygen(xr_camera: XrCamera, id: vec2<u32>, resolution: vec2<u32>, view_index: u32) -> XrCameraRay {
-    let pixel_center = vec2<f32>(id) + xr_camera.jitter;
+    let pixel_center = vec2<f32>(id) + vec2<f32>(0.5) + xr_camera.jitter;
     var uv: vec2<f32> = (pixel_center / vec2<f32>(resolution)) * 2.0 - 1.0;
     uv.y = -uv.y;
     let origin: vec3<f32> = (xr_camera.view_to_world_space[view_index] * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;

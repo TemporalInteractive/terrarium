@@ -1,4 +1,4 @@
-use glam::{Mat4, Quat, Vec2, Vec3};
+use glam::{Mat4, Quat, Vec3};
 use terrarium::{
     helpers::input_handler::InputHandler,
     render_passes::taa_pass::TaaJitter,
