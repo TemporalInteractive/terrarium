@@ -57,6 +57,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         result += (b + d + f + h) * 0.0625;
         result += (j + k + l + m) * 0.125;
 
+        result = max(result, vec3<f32>(0.0001));
+
         textureStore(dst, id, view_index, vec4<f32>(result, 1.0));
     }
 }
