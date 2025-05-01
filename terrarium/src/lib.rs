@@ -226,7 +226,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 0.5;
+        let shadow_resolution_scale = 1.0;
 
         let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
 

@@ -1,4 +1,4 @@
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3};
 use terrarium::{
     helpers::input_handler::InputHandler,
     render_passes::taa_pass::TaaJitter,
@@ -142,7 +142,12 @@ impl CameraController {
         self.frame_idx += 1;
     }
 
-    pub fn update_xr_camera_state(&self, aspect_ratio: f32, xr_camera_state: &mut XrCameraState) {
+    pub fn update_xr_camera_state(
+        &self,
+        aspect_ratio: f32,
+        jitter: bool,
+        xr_camera_state: &mut XrCameraState,
+    ) {
         for i in 0..2 {
             xr_camera_state.view_to_clip_space[i] = Mat4::perspective_rh(
                 60.0f32.to_radians(),
@@ -156,6 +161,10 @@ impl CameraController {
         xr_camera_state.stage_rotation =
             self.stage_vertical_rotation * self.stage_horizontal_rotation;
 
-        xr_camera_state.jitter = TaaJitter::frame_jitter(self.frame_idx);
+        xr_camera_state.jitter = if jitter {
+            TaaJitter::frame_jitter(self.frame_idx)
+        } else {
+            Vec2::ZERO
+        };
     }
 }

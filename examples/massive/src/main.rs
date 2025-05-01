@@ -85,8 +85,11 @@ impl AppLoop for ExampleApp {
 
         self.camera_controller
             .update(&self.input_handler, delta_time, xr_camera_state);
-        self.camera_controller
-            .update_xr_camera_state(self.aspect_ratio, xr_camera_state);
+        self.camera_controller.update_xr_camera_state(
+            self.aspect_ratio,
+            self.render_settings.enable_taa,
+            xr_camera_state,
+        );
 
         let mut command_encoder = ctx
             .device
