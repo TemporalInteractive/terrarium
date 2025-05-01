@@ -228,7 +228,7 @@ impl MaterialPool {
             if let Some(texture_idx) = self.texture_indices.get(&texture.uuid()) {
                 *texture_idx as u32
             } else {
-                self.alloc_texture(texture, false, device, queue)
+                self.alloc_texture(texture, true, device, queue)
             }
         } else {
             u32::MAX
