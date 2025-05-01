@@ -11,6 +11,7 @@ const SHADING_MODE_LIGHTING_ONLY: u32 = 1;
 const SHADING_MODE_ALBEDO: u32 = 2;
 const SHADING_MODE_NORMALS: u32 = 3;
 const SHADING_MODE_TEX_COORDS: u32 = 4;
+const SHADING_MODE_EMISSION: u32 = 5;
 
 struct Constants {
     resolution: vec2<u32>,
@@ -101,6 +102,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 color = gbuffer_texel.normal_ws * 0.5 + 0.5;
             } else if (constants.shading_mode == SHADING_MODE_TEX_COORDS) {
                 color = vec3<f32>(gbuffer_texel.tex_coord, 0.0);
+            } else if (constants.shading_mode == SHADING_MODE_EMISSION) {
+                color = material.emission;
             }
         } else {
             color = Sky::inscattering(ray.direction, false);

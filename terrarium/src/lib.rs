@@ -162,9 +162,10 @@ impl RenderSettings {
                     ShadingMode::LightingOnly,
                     "LightingOnly",
                 );
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Albedo, "Albedo");
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Normals, "Normals");
                 ui.selectable_value(&mut self.shading_mode, ShadingMode::Texcoords, "Texcoords");
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Albedo, "Albedo");
+                ui.selectable_value(&mut self.shading_mode, ShadingMode::Emission, "Emission");
             });
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");

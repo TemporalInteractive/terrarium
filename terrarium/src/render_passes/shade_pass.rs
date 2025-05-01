@@ -17,6 +17,7 @@ pub enum ShadingMode {
     Albedo,
     Normals,
     Texcoords,
+    Emission,
 }
 
 #[derive(Pod, Clone, Copy, Zeroable)]
