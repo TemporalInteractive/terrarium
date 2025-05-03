@@ -69,6 +69,10 @@ impl TransformComponent {
         self.local_transform.get_scale()
     }
 
+    pub fn set_local_scale(&mut self, scale: Vec3) {
+        self.local_transform.set_scale(scale);
+    }
+
     pub fn get_local_to_world_matrix(
         &self,
         transforms: &specs::ReadStorage<'_, TransformComponent>,

@@ -68,7 +68,7 @@ fn fetchCenterFiltered(id: vec2<u32>, view_index: u32) -> vec3<f32> {
         for (var x: i32 = -1; x <= 1; x += 1) {
             let neigh_pixel: vec2<i32> = vec2<i32>(id) + vec2<i32>(x, y) + vec2<i32>(1);
             let neigh = vec4<f32>(linear_to_ycbcr(textureLoad(color, neigh_pixel, view_index).rgb), 1.0);
-            let dist: f32 = length(xr_camera.jitter - vec2<f32>(f32(x), f32(y)));
+            let dist: f32 = length(-xr_camera.jitter - vec2<f32>(f32(x), f32(y)));
             let weight: f32 = mitchellNetravali(dist);
 
             result += neigh * weight;
