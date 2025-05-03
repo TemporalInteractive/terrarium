@@ -66,6 +66,12 @@ pub fn encode(
         ],
     };
 
+    let color_target_state = Some(wgpu::ColorTargetState {
+        format: parameters.target_format,
+        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+        write_mask: wgpu::ColorWrites::ALL,
+    });
+
     let shader =
         pipeline_database.shader_from_src(device, include_wgsl!("../../shaders/gizmo_pass.wgsl"));
     let pipeline = pipeline_database.render_pipeline(
@@ -83,7 +89,7 @@ pub fn encode(
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
-                targets: &[Some(parameters.target_format.into())],
+                targets: &[color_target_state],
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
