@@ -65,7 +65,7 @@ impl AppLoop for ExampleApp {
         }
     }
 
-    fn egui(&mut self, ui: &mut egui::Context) {
+    fn egui(&mut self, ui: &mut egui::Context, xr_camera_state: &XrCameraState) {
         egui::Window::new("Terrarium - Massive").show(ui, |ui| {
             self.render_settings.egui(ui);
         });
@@ -113,7 +113,7 @@ impl AppLoop for ExampleApp {
             );
 
             let model = ugm::Model::read_from_buffer(
-                &std::fs::read("examples/massive/assets/EmissiveMonkey.ugm")
+                &std::fs::read("examples/massive/assets/DamagedHelmet.ugm")
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )
             .unwrap();

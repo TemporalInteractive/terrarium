@@ -65,6 +65,10 @@ impl TransformComponent {
         self.local_transform.rotate(rotation);
     }
 
+    pub fn get_local_scale(&self) -> Vec3 {
+        self.local_transform.get_scale()
+    }
+
     pub fn get_local_to_world_matrix(
         &self,
         transforms: &specs::ReadStorage<'_, TransformComponent>,
@@ -122,13 +126,18 @@ impl specs::Component for TransformComponent {
 
 #[derive(Debug)]
 pub struct MeshComponent {
+    pub enabled: bool,
     pub mesh: Arc<GpuMesh>,
     pub materials: Vec<Arc<GpuMaterial>>,
 }
 
 impl MeshComponent {
     pub fn new(mesh: Arc<GpuMesh>, materials: Vec<Arc<GpuMaterial>>) -> Self {
-        Self { mesh, materials }
+        Self {
+            enabled: true,
+            mesh,
+            materials,
+        }
     }
 }
 

@@ -217,6 +217,8 @@ pub struct RenderParameters<'a> {
     pub prev_render_target: &'a wgpu::Texture,
     pub world: &'a specs::World,
     pub gpu_resources: &'a mut GpuResources,
+    #[cfg(feature = "transform-gizmo")]
+    pub gizmo_draw_data: Option<transform_gizmo::GizmoDrawData>,
 }
 
 pub struct Renderer {
@@ -364,6 +366,23 @@ impl Renderer {
                 &DebugLinePassParameters {
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
+                    dst_view: &rt_view,
+                    target_format: wgpu::TextureFormat::Rgba16Float,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
+
+        #[cfg(feature = "transform-gizmo")]
+        if let Some(gizmo_draw_data) = &parameters.gizmo_draw_data {
+            use crate::render_passes::gizmo_pass::{self, GizmoPassParameters};
+
+            gizmo_pass::encode(
+                &GizmoPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    gizmo_draw_data,
                     dst_view: &rt_view,
                     target_format: wgpu::TextureFormat::Rgba16Float,
                 },

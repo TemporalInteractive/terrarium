@@ -9,3 +9,6 @@ pub mod shade_pass;
 pub mod shadow_pass;
 pub mod ssao_pass;
 pub mod taa_pass;
+
+#[cfg(feature = "transform-gizmo")]
+pub mod gizmo_pass;

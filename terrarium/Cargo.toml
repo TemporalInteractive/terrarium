@@ -17,6 +17,7 @@ futures.workspace = true
 glam.workspace = true
 openxr.workspace = true
 specs.workspace = true
+transform-gizmo = { workspace = true, optional = true }
 type-map = { workspace = true, optional = true }
 ugm.workspace = true
 uuid.workspace = true
@@ -27,3 +28,4 @@ winit.workspace = true
 
 [features]
 egui = ["dep:egui", "dep:egui-winit", "dep:type-map"]
+transform-gizmo = ["dep:transform-gizmo"]

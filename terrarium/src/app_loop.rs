@@ -34,7 +34,7 @@ pub trait AppLoop: 'static + Sized {
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context);
 
     #[cfg(feature = "egui")]
-    fn egui(&mut self, _ui: &mut egui::Context) {}
+    fn egui(&mut self, _ui: &mut egui::Context, _xr_camera_state: &XrCameraState) {}
 
     fn window_event(&mut self, _event: winit::event::WindowEvent) {}
     fn device_event(&mut self, _event: winit::event::DeviceEvent) {}
@@ -157,7 +157,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     #[cfg(feature = "egui")]
                     {
                         let mut ui = state.egui_renderer.begin_frame(&state.window);
-                        state.app_loop.egui(&mut ui);
+                        state.app_loop.egui(&mut ui, &state.xr_camera_state);
                         state.egui_renderer.end_frame(ui);
                     }
 

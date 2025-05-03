@@ -252,6 +252,10 @@ impl GpuResources {
         let mut blas_instances: Vec<wgpu::TlasInstance> = vec![];
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
+            if !mesh_component.enabled {
+                continue;
+            }
+
             let mut transform = transform_component.get_local_to_world_matrix(&transform_storage);
             transform.w_axis -= Vec4::from((xr_camera_state.stage_translation, 0.0));
             let transform4x3 = transform.transpose().to_cols_array()[..12]
