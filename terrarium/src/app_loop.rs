@@ -28,13 +28,22 @@ pub trait AppLoop: 'static + Sized {
         xr_camera_buffer: &wgpu::Buffer,
         render_target: &wgpu::Texture,
         prev_render_target: &wgpu::Texture,
+        command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
-    ) -> wgpu::CommandEncoder;
+    );
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context);
 
     #[cfg(feature = "egui")]
-    fn egui(&mut self, _ui: &mut egui::Context, _xr_camera_state: &XrCameraState) {}
+    fn egui(
+        &mut self,
+        _ui: &mut egui::Context,
+        _xr_camera_state: &XrCameraState,
+        _command_encoder: &mut wgpu::CommandEncoder,
+        _ctx: &wgpu_util::Context,
+        _pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) {
+    }
 
     fn window_event(&mut self, _event: winit::event::WindowEvent) {}
     fn device_event(&mut self, _event: winit::event::DeviceEvent) {}
@@ -154,18 +163,31 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         None
                     };
 
+                    let mut command_encoder = state
+                        .context
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
                     #[cfg(feature = "egui")]
                     {
                         let mut ui = state.egui_renderer.begin_frame(&state.window);
-                        state.app_loop.egui(&mut ui, &state.xr_camera_state);
+
+                        state.app_loop.egui(
+                            &mut ui,
+                            &state.xr_camera_state,
+                            &mut command_encoder,
+                            &state.context,
+                            &mut state.pipeline_database,
+                        );
                         state.egui_renderer.end_frame(ui);
                     }
 
-                    let mut command_encoder = state.app_loop.render(
+                    state.app_loop.render(
                         &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
                         &state.rt_texture[self.frame_idx as usize % 2],
                         &state.rt_texture[(self.frame_idx as usize + 1) % 2],
+                        &mut command_encoder,
                         &state.context,
                         &mut state.pipeline_database,
                     );

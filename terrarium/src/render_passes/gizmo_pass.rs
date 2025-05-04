@@ -1,17 +1,12 @@
 use std::num::NonZeroU32;
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, UVec2, Vec2, Vec4};
-use specs::Join;
+use glam::{UVec2, Vec2, Vec4};
 use transform_gizmo::GizmoDrawData;
 use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
-use crate::{
-    gpu_resources::GpuResources,
-    wgpu_util::PipelineDatabase,
-    world::components::{MeshComponent, TransformComponent},
-};
+use crate::wgpu_util::PipelineDatabase;
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]

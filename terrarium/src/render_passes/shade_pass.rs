@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bytemuck::{Pod, Zeroable};
 use glam::UVec2;
 use wgpu::util::DeviceExt;
@@ -18,6 +20,22 @@ pub enum ShadingMode {
     Normals,
     Texcoords,
     Emission,
+    SimpleLighting,
+}
+
+impl fmt::Display for ShadingMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Full => "Full",
+            Self::LightingOnly => "Lighting Only",
+            Self::Albedo => "Albedo",
+            Self::Normals => "Normals",
+            Self::Texcoords => "Texcoords",
+            Self::Emission => "Emission",
+            Self::SimpleLighting => "Simple Lighting",
+        };
+        write!(f, "{}", name)
+    }
 }
 
 #[derive(Pod, Clone, Copy, Zeroable)]

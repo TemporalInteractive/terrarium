@@ -154,18 +154,19 @@ impl RenderSettings {
     pub fn egui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Shading");
         egui::ComboBox::from_label("Visualization Mode")
-            .selected_text(format!("{:?}", self.shading_mode))
+            .selected_text(self.shading_mode.to_string())
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Full, "Full");
-                ui.selectable_value(
-                    &mut self.shading_mode,
+                for mode in [
+                    ShadingMode::Full,
                     ShadingMode::LightingOnly,
-                    "LightingOnly",
-                );
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Normals, "Normals");
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Texcoords, "Texcoords");
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Albedo, "Albedo");
-                ui.selectable_value(&mut self.shading_mode, ShadingMode::Emission, "Emission");
+                    ShadingMode::Albedo,
+                    ShadingMode::Normals,
+                    ShadingMode::Texcoords,
+                    ShadingMode::Emission,
+                    ShadingMode::SimpleLighting,
+                ] {
+                    ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());
+                }
             });
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
