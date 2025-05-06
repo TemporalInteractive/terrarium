@@ -269,7 +269,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     }
 
                     let xr_camera_data = [
-                        state.xr_camera_state.calculate_camera_data(true),
+                        state.xr_camera_state.calculate_camera_data(),
                         state.prev_xr_camera_data,
                     ];
                     state.context.queue.write_buffer(
@@ -383,7 +383,7 @@ impl<R: AppLoop> State<R> {
             mapped_at_creation: false,
         });
 
-        let xr_camera_state = XrCameraState::new(0.01, 1000.0);
+        let xr_camera_state = XrCameraState::new(0.01, 10000.0);
 
         let mut pipeline_database = wgpu_util::PipelineDatabase::new();
 

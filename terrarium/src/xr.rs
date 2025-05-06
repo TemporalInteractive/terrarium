@@ -87,7 +87,7 @@ impl XrCameraState {
         }
     }
 
-    pub fn calculate_camera_data(&self, zero_translation: bool) -> XrCameraData {
+    pub fn calculate_camera_data(&self) -> XrCameraData {
         let world_to_view_space: [Mat4; 2] = std::array::from_fn(|i| {
             let (_, view_rotation, view_translation) = self.stage_to_view_space[i]
                 .inverse()
@@ -105,13 +105,7 @@ impl XrCameraState {
             //self.camera_rotation_offset * (view_translation - head_position) + head_position;
             let rotated_view_rotation = self.stage_rotation * view_rotation;
 
-            // self.stage_translation is not always added as we keep the camera always in the center
-            // Stage translation is applied by moving all scene geometry in the opposite direction
-            let mut center = rotated_view_translation;
-            if !zero_translation {
-                center += self.stage_translation;
-            }
-
+            let mut center = rotated_view_translation + self.stage_translation;
             let forward = rotated_view_rotation * FORWARD;
             let up = rotated_view_rotation * UP;
 

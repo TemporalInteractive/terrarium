@@ -143,7 +143,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
 
         var history_uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution) - gbuffer_texel.velocity;
-        
         // let history: vec3<f32> = linear_to_ycbcr(bicubicHermiteHistorySample(history_uv, view_index));
 
         let history_g: f32 = bicubicHermiteHistorySample(history_uv, view_index).g;

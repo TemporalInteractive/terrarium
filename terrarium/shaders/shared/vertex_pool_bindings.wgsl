@@ -1,6 +1,6 @@
 @include vertex_pool.wgsl
 
-const MAX_MATERIALS_PER_INSTANCE: u32 = 8;
+const MAX_MATERIALS_PER_INSTANCE: u32 = 8 * 10;
 
 @group(1)
 @binding(1)

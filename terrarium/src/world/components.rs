@@ -9,20 +9,26 @@ use super::transform::Transform;
 pub struct TransformComponent {
     global_transform: Mutex<(Mat4, bool)>,
     local_transform: Transform,
+    is_static: bool,
     pub parent: Option<specs::Entity>,
     pub children: Vec<specs::Entity>,
 }
 
 impl TransformComponent {
-    pub fn new(local_transform: Transform) -> Self {
+    pub fn new(local_transform: Transform, is_static: bool) -> Self {
         let global_transform = Mutex::new((local_transform.get_matrix(), true));
 
         Self {
             global_transform,
             local_transform,
+            is_static,
             parent: None,
             children: Vec::new(),
         }
+    }
+
+    pub fn is_static(&self) -> bool {
+        self.is_static
     }
 
     pub fn get_translation(&self, transforms: &specs::ReadStorage<'_, TransformComponent>) -> Vec3 {

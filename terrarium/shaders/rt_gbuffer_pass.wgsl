@@ -56,7 +56,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var geometric_normal_ws = vec3<f32>(0.0);
 
         var rq: ray_query;
-        rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 1000.0, origin, direction));
+        rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
         rayQueryProceed(&rq);
         let intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
         if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {

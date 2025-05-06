@@ -18,7 +18,8 @@ use crate::{
     xr::XrCameraState,
 };
 
-const MAX_TLAS_INSTANCES: usize = 1024 * 8;
+const MAX_STATIC_TLAS_INSTANCES: usize = 1024 * 512;
+const MAX_DYNAMIC_TLAS_INSTANCES: usize = 1024 * 2;
 
 pub mod debug_lines;
 mod linear_block_allocator;
@@ -46,7 +47,7 @@ impl GpuModel {
         let gpu_materials: Vec<Arc<GpuMaterial>> = model
             .materials
             .iter()
-            .map(|material| gpu_resources.create_gpu_material(&model, material, ctx))
+            .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
             .collect();
 
         Self {
@@ -74,6 +75,7 @@ pub struct GpuResources {
     material_pool: MaterialPool,
     debug_lines: DebugLines,
     tlas_package: wgpu::TlasPackage,
+    static_dirty: bool,
     sky: Sky,
 
     gpu_meshes: Vec<Arc<GpuMesh>>,
@@ -88,7 +90,7 @@ impl GpuResources {
 
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
             label: Some("terrarium::gpu_resources tlas"),
-            max_instances: MAX_TLAS_INSTANCES as u32,
+            max_instances: (MAX_STATIC_TLAS_INSTANCES + MAX_DYNAMIC_TLAS_INSTANCES) as u32,
             flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
             update_mode: wgpu::AccelerationStructureUpdateMode::Build,
         });
@@ -100,6 +102,7 @@ impl GpuResources {
             material_pool,
             debug_lines,
             tlas_package: wgpu::TlasPackage::new(tlas),
+            static_dirty: true,
             sky,
             gpu_meshes: Vec::new(),
             gpu_materials: Vec::new(),
@@ -235,6 +238,10 @@ impl GpuResources {
         vec_remove_multiple(&mut self.gpu_meshes, &mut gpu_mesh_indices_to_remove);
     }
 
+    pub fn mark_statics_dirty(&mut self) {
+        self.static_dirty = true;
+    }
+
     pub fn update(
         &mut self,
         xr_camera_state: &XrCameraState,
@@ -249,15 +256,16 @@ impl GpuResources {
             specs::ReadStorage<'_, MeshComponent>,
         ) = world.system_data();
 
-        let mut blas_instances: Vec<wgpu::TlasInstance> = vec![];
+        let mut dynamic_blas_instances: Vec<wgpu::TlasInstance> = vec![];
+        let mut static_blas_instances: Vec<wgpu::TlasInstance> = vec![];
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            if !mesh_component.enabled {
+            if !mesh_component.enabled || (transform_component.is_static() && !self.static_dirty) {
                 continue;
             }
 
             let mut transform = transform_component.get_local_to_world_matrix(&transform_storage);
-            transform.w_axis -= Vec4::from((xr_camera_state.stage_translation, 0.0));
+            //transform.w_axis -= Vec4::from((xr_camera_state.stage_translation, 0.0));
             let transform4x3 = transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap();
@@ -269,28 +277,50 @@ impl GpuResources {
             let blas = &gpu_mesh.blas;
             let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
 
-            blas_instances.push(wgpu::TlasInstance::new(
-                blas,
-                transform4x3,
-                vertex_slice_index,
-                0xff,
-            ));
+            let blas_instance =
+                wgpu::TlasInstance::new(blas, transform4x3, vertex_slice_index, 0xff);
+
+            if transform_component.is_static() {
+                static_blas_instances.push(blas_instance);
+            } else {
+                dynamic_blas_instances.push(blas_instance);
+            }
         }
 
-        let num_blas_instances = blas_instances.len();
+        let num_blas_instances = dynamic_blas_instances.len();
         let tlas_package_instances = self
             .tlas_package
-            .get_mut_slice(0..MAX_TLAS_INSTANCES)
+            .get_mut_slice(0..MAX_DYNAMIC_TLAS_INSTANCES)
             .unwrap();
-        for (i, instance) in blas_instances.into_iter().enumerate() {
+        for (i, instance) in dynamic_blas_instances.into_iter().enumerate() {
             tlas_package_instances[i] = Some(instance);
         }
         for instance in tlas_package_instances
             .iter_mut()
-            .take(MAX_TLAS_INSTANCES)
+            .take(MAX_DYNAMIC_TLAS_INSTANCES)
             .skip(num_blas_instances)
         {
             *instance = None;
+        }
+
+        if self.static_dirty {
+            let num_blas_instances = static_blas_instances.len();
+            let tlas_package_instances = self
+                .tlas_package
+                .get_mut_slice(MAX_DYNAMIC_TLAS_INSTANCES..MAX_STATIC_TLAS_INSTANCES)
+                .unwrap();
+            for (i, instance) in static_blas_instances.into_iter().enumerate() {
+                tlas_package_instances[i] = Some(instance);
+            }
+            for instance in tlas_package_instances
+                .iter_mut()
+                .take(MAX_DYNAMIC_TLAS_INSTANCES)
+                .skip(MAX_STATIC_TLAS_INSTANCES + num_blas_instances)
+            {
+                *instance = None;
+            }
+
+            self.static_dirty = false;
         }
 
         self.vertex_pool.write_slices(queue);
