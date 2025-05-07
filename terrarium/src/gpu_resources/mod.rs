@@ -15,7 +15,6 @@ use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 use crate::{
     wgpu_util,
     world::components::{MeshComponent, TransformComponent},
-    xr::XrCameraState,
 };
 
 const MAX_STATIC_INSTANCES: usize = 1024 * 128;
@@ -244,7 +243,6 @@ impl GpuResources {
 
     pub fn update(
         &mut self,
-        xr_camera_state: &XrCameraState,
         world: &specs::World,
         command_encoder: &mut wgpu::CommandEncoder,
         queue: &wgpu::Queue,
@@ -329,7 +327,7 @@ impl GpuResources {
 
         self.vertex_pool.write_slices(queue);
         self.material_pool.write_materials(queue);
-        self.debug_lines.write_lines(xr_camera_state, queue);
+        self.debug_lines.write_lines(queue);
 
         command_encoder
             .build_acceleration_structures(iter::empty(), iter::once(&self.tlas_package));

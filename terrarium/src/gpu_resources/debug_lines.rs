@@ -1,7 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{Vec3, Vec4, Vec4Swizzles};
-
-use crate::xr::XrCameraState;
+use glam::{Vec3, Vec4};
 
 const MAX_LINES: u64 = 1024 * 1024 * 16;
 
@@ -60,7 +58,7 @@ impl DebugLines {
         });
     }
 
-    pub fn write_lines(&mut self, xr_camera_state: &XrCameraState, queue: &wgpu::Queue) {
+    pub fn write_lines(&mut self, queue: &wgpu::Queue) {
         queue.write_buffer(
             &self.vertex_buffer,
             0,

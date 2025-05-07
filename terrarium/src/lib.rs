@@ -254,12 +254,9 @@ impl Renderer {
             parameters.render_settings.atmosphere;
         parameters.gpu_resources.sky_mut().constants.world_up = parameters.render_settings.world_up;
 
-        parameters.gpu_resources.update(
-            parameters.xr_camera_state,
-            parameters.world,
-            command_encoder,
-            &ctx.queue,
-        );
+        parameters
+            .gpu_resources
+            .update(parameters.world, command_encoder, &ctx.queue);
 
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {

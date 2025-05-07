@@ -88,6 +88,7 @@ pub fn encode(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn encode_downsample(
     parameters: &BloomPassParameters,
     src_resolution: UVec2,
@@ -233,6 +234,7 @@ fn encode_downsample(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn encode_upsample(
     parameters: &BloomPassParameters,
     src_resolution: UVec2,

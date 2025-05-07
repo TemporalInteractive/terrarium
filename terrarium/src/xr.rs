@@ -105,7 +105,7 @@ impl XrCameraState {
             //self.camera_rotation_offset * (view_translation - head_position) + head_position;
             let rotated_view_rotation = self.stage_rotation * view_rotation;
 
-            let mut center = rotated_view_translation + self.stage_translation;
+            let center = rotated_view_translation + self.stage_translation;
             let forward = rotated_view_rotation * FORWARD;
             let up = rotated_view_rotation * UP;
 
