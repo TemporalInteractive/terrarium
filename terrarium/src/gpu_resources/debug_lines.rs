@@ -61,13 +61,6 @@ impl DebugLines {
     }
 
     pub fn write_lines(&mut self, xr_camera_state: &XrCameraState, queue: &wgpu::Queue) {
-        for vertex in &mut self.vertices {
-            vertex.position = Vec4::from((
-                vertex.position.xyz() - xr_camera_state.stage_translation,
-                1.0,
-            ));
-        }
-
         queue.write_buffer(
             &self.vertex_buffer,
             0,

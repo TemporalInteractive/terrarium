@@ -1,5 +1,8 @@
 use std::num::NonZeroU32;
 
+use bytemuck::{Pod, Zeroable};
+use glam::UVec2;
+use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
@@ -7,7 +10,16 @@ use crate::{
     wgpu_util::PipelineDatabase,
 };
 
+#[derive(Pod, Clone, Copy, Zeroable)]
+#[repr(C)]
+struct Constants {
+    resolution: UVec2,
+    _padding0: u32,
+    _padding1: u32,
+}
+
 pub struct DebugLinePassParameters<'a> {
+    pub resolution: UVec2,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub dst_view: &'a wgpu::TextureView,
@@ -59,16 +71,28 @@ pub fn encode(
                 bind_group_layouts: &[&device.create_bind_group_layout(
                     &wgpu::BindGroupLayoutDescriptor {
                         label: None,
-                        entries: &[wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::VERTEX,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::VERTEX,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
                             },
-                            count: None,
-                        }],
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::VERTEX,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
                     },
                 )],
                 push_constant_ranges: &[],
@@ -76,14 +100,30 @@ pub fn encode(
         },
     );
 
+    let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("terrarium::gizmo constants"),
+        contents: bytemuck::bytes_of(&Constants {
+            resolution: parameters.resolution,
+            _padding0: 0,
+            _padding1: 0,
+        }),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
     let bind_group_layout = pipeline.get_bind_group_layout(0);
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
         layout: &bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: parameters.xr_camera_buffer.as_entire_binding(),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: constants.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: parameters.xr_camera_buffer.as_entire_binding(),
+            },
+        ],
     });
 
     let vertex_count = parameters.gpu_resources.debug_lines().vertex_count();

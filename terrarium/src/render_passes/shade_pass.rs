@@ -20,6 +20,7 @@ pub enum ShadingMode {
     Normals,
     Texcoords,
     Emission,
+    Velocity,
     SimpleLighting,
 }
 
@@ -32,6 +33,7 @@ impl fmt::Display for ShadingMode {
             Self::Normals => "Normals",
             Self::Texcoords => "Texcoords",
             Self::Emission => "Emission",
+            Self::Velocity => "Velocity",
             Self::SimpleLighting => "Simple Lighting",
         };
         write!(f, "{}", name)

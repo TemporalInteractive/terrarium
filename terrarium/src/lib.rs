@@ -163,6 +163,7 @@ impl RenderSettings {
                     ShadingMode::Normals,
                     ShadingMode::Texcoords,
                     ShadingMode::Emission,
+                    ShadingMode::Velocity,
                     ShadingMode::SimpleLighting,
                 ] {
                     ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());
@@ -365,6 +366,7 @@ impl Renderer {
         if parameters.render_settings.enable_debug_lines {
             debug_line_pass::encode(
                 &DebugLinePassParameters {
+                    resolution: self.sized_resources.resolution,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     dst_view: &rt_view,

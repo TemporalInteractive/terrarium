@@ -12,7 +12,8 @@ const SHADING_MODE_ALBEDO: u32 = 2;
 const SHADING_MODE_NORMALS: u32 = 3;
 const SHADING_MODE_TEX_COORDS: u32 = 4;
 const SHADING_MODE_EMISSION: u32 = 5;
-const SHADING_MODE_SIMPLE_LIGHTING: u32 = 6;
+const SHADING_MODE_VELOCITY: u32 = 6;
+const SHADING_MODE_SIMPLE_LIGHTING: u32 = 7;
 
 struct Constants {
     resolution: vec2<u32>,
@@ -116,6 +117,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     color = vec3<f32>(gbuffer_texel.tex_coord, 0.0);
                 } else if (constants.shading_mode == SHADING_MODE_EMISSION) {
                     color = material.emission;
+                } else if (constants.shading_mode == SHADING_MODE_VELOCITY) {
+                    color = vec3<f32>(abs(gbuffer_texel.velocity) * 10.0, 0.0);
                 }
             }
         } else {
