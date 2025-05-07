@@ -61,29 +61,12 @@ fn mitchellNetravali(x: f32) -> f32 {
     }
 }
 
-fn fetchCenterFiltered(id: vec2<u32>, view_index: u32) -> vec3<f32> {
-    var result = vec4<f32>(0.0);
-
-    for (var y: i32 = -1; y <= 1; y += 1) {
-        for (var x: i32 = -1; x <= 1; x += 1) {
-            let neigh_pixel: vec2<i32> = vec2<i32>(id) + vec2<i32>(x, y) + vec2<i32>(1);
-            let neigh = vec4<f32>(linear_to_ycbcr(textureLoad(color, neigh_pixel, view_index).rgb), 1.0);
-            let dist: f32 = length(-xr_camera.jitter - vec2<f32>(f32(x), f32(y)));
-            let weight: f32 = mitchellNetravali(dist);
-
-            result += neigh * weight;
-        }
-    }
-
-    return result.rgb / result.a;
-}
-
 fn fetchHistoryPixel(id: vec2<i32>, view_index: u32) -> vec3<f32> {
     if(any(id < vec2<i32>(0)) || any(id >= vec2<i32>(constants.resolution))) {
         return vec3<f32>(0.0);
     }
 
-    return textureLoad(prev_color, id, view_index, 0).rgb;
+    return max(textureLoad(prev_color, id, view_index, 0).rgb, vec3<f32>(0.0));
 }
 
 fn bicubicHermiteHistorySample(uv: vec2<f32>, view_index: u32) -> vec3<f32> {
@@ -120,16 +103,63 @@ fn bicubicHermiteHistorySample(uv: vec2<f32>, view_index: u32) -> vec3<f32> {
     return cubicHermite(cp0x, cp1x, cp2x, cp3x, px_frac.y);
 }
 
+const SQUARE_GROUP_SIDE: u32 = 8;
+const NUM_THREADS_IN_GROUP: u32 = SQUARE_GROUP_SIDE * SQUARE_GROUP_SIDE;
+const BORDER_SIZE: i32 = 1;
+const SQUARE_GROUPSHARED_SIDE: u32 = SQUARE_GROUP_SIDE + 2 * u32(BORDER_SIZE);
+
+var<workgroup> gs_inputs: array<array<vec3<f32>, SQUARE_GROUPSHARED_SIDE>, SQUARE_GROUPSHARED_SIDE>;
+
+fn load_inputs(local_thread_index: u32, group_id: vec2<u32>, view_index: u32) {
+    let group_top_left_corner: vec2<i32> = vec2<i32>(group_id * SQUARE_GROUP_SIDE) - vec2<i32>(BORDER_SIZE);
+
+    for (var i: u32 = local_thread_index; i < SQUARE_GROUPSHARED_SIDE * SQUARE_GROUPSHARED_SIDE; i += NUM_THREADS_IN_GROUP) {
+        let group_thread_id = vec2<u32>(i % SQUARE_GROUPSHARED_SIDE, i / SQUARE_GROUPSHARED_SIDE);
+        let dispatch_thread_id: vec2<i32> = group_top_left_corner + vec2<i32>(group_thread_id);
+        let input: vec3<f32> = linear_to_ycbcr(max(textureLoad(color, dispatch_thread_id, view_index).rgb, vec3<f32>(0.0)));
+        gs_inputs[group_thread_id.x][group_thread_id.y] = input;
+    }
+
+    workgroupBarrier();
+}
+
+fn loaded_input(id: vec2<u32>) -> vec3<f32> {
+    return gs_inputs[id.x][id.y];
+}
+
+fn fetchCenterFiltered(group_thread_id: vec2<u32>) -> vec3<f32> {
+    var result = vec4<f32>(0.0);
+
+    for (var y: i32 = -BORDER_SIZE; y <= BORDER_SIZE; y += 1) {
+        for (var x: i32 = -BORDER_SIZE; x <= BORDER_SIZE; x += 1) {
+            let neigh_pixel = vec2<u32>(vec2<i32>(group_thread_id) + vec2<i32>(x, y) + BORDER_SIZE);
+            let neigh = vec4<f32>(loaded_input(neigh_pixel), 1.0);
+            let dist: f32 = length(-xr_camera.jitter - vec2<f32>(f32(x), f32(y)));
+            let weight: f32 = mitchellNetravali(dist);
+
+            result += neigh * weight;
+        }
+    }
+
+    return result.rgb / result.a;
+}
+
 @compute
-@workgroup_size(16, 16)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(num_workgroups) dispatch_size: vec3<u32>) {
-    let id: vec2<u32> = global_id.xy;
+@workgroup_size(SQUARE_GROUP_SIDE, SQUARE_GROUP_SIDE)
+fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
+    @builtin(local_invocation_index) local_thread_index: u32,
+    @builtin(workgroup_id) group_id: vec3<u32>) {
+    let id: vec2<u32> = global_thread_id.xy;
     if (any(id >= constants.resolution)) { return; }
     let i: u32 = id.y * constants.resolution.x + id.x;
+    let uv: vec2<f32> = (vec2<f32>(id) + 0.5) / vec2<f32>(constants.resolution);
+
+    let group_thread_id = vec2<u32>(local_thread_index % SQUARE_GROUP_SIDE, local_thread_index / SQUARE_GROUP_SIDE);
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
-        var center: vec3<f32> = linear_to_ycbcr(textureLoad(color, id, view_index).rgb);
+        load_inputs(local_thread_index, group_id.xy, view_index);
+
+        var center: vec3<f32> = loaded_input(group_thread_id + vec2<u32>(BORDER_SIZE));
 
         var gbuffer_texel: GBufferTexel;
         if (view_index == 0) {
@@ -142,11 +172,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             continue;
         }
 
-        var history_uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution) - gbuffer_texel.velocity;
-        // let history: vec3<f32> = linear_to_ycbcr(bicubicHermiteHistorySample(history_uv, view_index));
+        var history_uv: vec2<f32> = uv - gbuffer_texel.velocity;
+        //let history: vec3<f32> = linear_to_ycbcr(bicubicHermiteHistorySample(history_uv, view_index));
 
         let history_g: f32 = bicubicHermiteHistorySample(history_uv, view_index).g;
-        var history: vec3<f32> = textureSampleLevel(prev_color, color_sampler, history_uv, view_index, 0.0).rgb;
+        var history: vec3<f32> = max(textureSampleLevel(prev_color, color_sampler, history_uv, view_index, 0.0).rgb, vec3<f32>(0.0));
         if (history.g > 1e-5) {
             history *= history_g / history.g;
         }
@@ -156,14 +186,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var variance = vec3<f32>(0.0);
         var accum_weights: f32 = 0.0;
 
-        for (var y: i32 = -1; y <= 1; y += 1) {
-            for (var x: i32 = -1; x <= 1; x += 1) {
-                let neigh_pixel: vec2<i32> = vec2<i32>(id) + vec2<i32>(x, y);
-                if (any(neigh_pixel < vec2<i32>(0)) || any(neigh_pixel >= vec2<i32>(constants.resolution))) {
-                    continue;
-                }
-
-                let neigh: vec3<f32> = linear_to_ycbcr(textureLoad(color, neigh_pixel, view_index).rgb);
+        for (var y: i32 = -BORDER_SIZE; y <= BORDER_SIZE; y += 1) {
+            for (var x: i32 = -BORDER_SIZE; x <= BORDER_SIZE; x += 1) {
+                let neigh_pixel = vec2<u32>(vec2<i32>(group_thread_id) + vec2<i32>(x, y) + BORDER_SIZE);
+                let neigh: vec3<f32> = loaded_input(neigh_pixel);
 
                 let w: f32 = exp(-3.0 * f32(x * x + y * y) / 4.0);
                 mean += neigh * w;
@@ -185,7 +211,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         box_size *= mix(0.5, 1.0, smoothstep(-0.1, 0.3, local_contrast));
         box_size *= mix(0.5, 1.0, clamp(1.0 - texel_center_distance, 0.0, 1.0));
 
-        let filtered_unjittered_center: vec3<f32> = fetchCenterFiltered(id, view_index);
+        let filtered_unjittered_center: vec3<f32> = fetchCenterFiltered(group_thread_id);
 
         const N_DEVIATIONS: f32 = 1.5;
         let nmin: vec3<f32> = mix(filtered_unjittered_center, ex, sqr(box_size)) - std_dev * box_size * N_DEVIATIONS;

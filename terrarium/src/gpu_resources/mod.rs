@@ -1,7 +1,7 @@
 use std::{iter, sync::Arc};
 
 use debug_lines::DebugLines;
-use glam::{Vec3, Vec4};
+use glam::Vec3;
 use material_pool::MaterialPool;
 use sky::Sky;
 use specs::Join;
@@ -18,8 +18,8 @@ use crate::{
     xr::XrCameraState,
 };
 
-const MAX_STATIC_TLAS_INSTANCES: usize = 1024 * 512;
-const MAX_DYNAMIC_TLAS_INSTANCES: usize = 1024 * 2;
+const MAX_STATIC_INSTANCES: usize = 1024 * 128;
+const MAX_DYNAMIC_INSTANCES: usize = 1024 * 2;
 
 pub mod debug_lines;
 mod linear_block_allocator;
@@ -90,7 +90,7 @@ impl GpuResources {
 
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
             label: Some("terrarium::gpu_resources tlas"),
-            max_instances: (MAX_STATIC_TLAS_INSTANCES + MAX_DYNAMIC_TLAS_INSTANCES) as u32,
+            max_instances: (MAX_STATIC_INSTANCES + MAX_DYNAMIC_INSTANCES) as u32,
             flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
             update_mode: wgpu::AccelerationStructureUpdateMode::Build,
         });
@@ -260,18 +260,18 @@ impl GpuResources {
         let mut static_blas_instances: Vec<wgpu::TlasInstance> = vec![];
 
         for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            if !mesh_component.enabled || (transform_component.is_static() && !self.static_dirty) {
+            let is_static = transform_component.is_static();
+            if !mesh_component.enabled || (is_static && !self.static_dirty) {
                 continue;
             }
 
-            let mut transform = transform_component.get_local_to_world_matrix(&transform_storage);
-            //transform.w_axis -= Vec4::from((xr_camera_state.stage_translation, 0.0));
+            let transform = transform_component.get_local_to_world_matrix(&transform_storage);
             let transform4x3 = transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap();
 
             self.vertex_pool
-                .submit_slice_instance(transform, &mesh_component.materials);
+                .submit_slice_instance(transform, is_static, &mesh_component.materials);
 
             let gpu_mesh = &mesh_component.mesh;
             let blas = &gpu_mesh.blas;
@@ -280,7 +280,7 @@ impl GpuResources {
             let blas_instance =
                 wgpu::TlasInstance::new(blas, transform4x3, vertex_slice_index, 0xff);
 
-            if transform_component.is_static() {
+            if is_static {
                 static_blas_instances.push(blas_instance);
             } else {
                 dynamic_blas_instances.push(blas_instance);
@@ -288,16 +288,17 @@ impl GpuResources {
         }
 
         let num_blas_instances = dynamic_blas_instances.len();
+        assert!(num_blas_instances < MAX_DYNAMIC_INSTANCES);
         let tlas_package_instances = self
             .tlas_package
-            .get_mut_slice(0..MAX_DYNAMIC_TLAS_INSTANCES)
+            .get_mut_slice(0..MAX_DYNAMIC_INSTANCES)
             .unwrap();
         for (i, instance) in dynamic_blas_instances.into_iter().enumerate() {
             tlas_package_instances[i] = Some(instance);
         }
         for instance in tlas_package_instances
             .iter_mut()
-            .take(MAX_DYNAMIC_TLAS_INSTANCES)
+            .take(MAX_DYNAMIC_INSTANCES)
             .skip(num_blas_instances)
         {
             *instance = None;
@@ -305,17 +306,20 @@ impl GpuResources {
 
         if self.static_dirty {
             let num_blas_instances = static_blas_instances.len();
+            assert!(num_blas_instances < MAX_STATIC_INSTANCES);
             let tlas_package_instances = self
                 .tlas_package
-                .get_mut_slice(MAX_DYNAMIC_TLAS_INSTANCES..MAX_STATIC_TLAS_INSTANCES)
+                .get_mut_slice(
+                    MAX_DYNAMIC_INSTANCES..(MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES),
+                )
                 .unwrap();
             for (i, instance) in static_blas_instances.into_iter().enumerate() {
                 tlas_package_instances[i] = Some(instance);
             }
             for instance in tlas_package_instances
                 .iter_mut()
-                .take(MAX_DYNAMIC_TLAS_INSTANCES)
-                .skip(MAX_STATIC_TLAS_INSTANCES + num_blas_instances)
+                .take(MAX_STATIC_INSTANCES)
+                .skip(MAX_DYNAMIC_INSTANCES + num_blas_instances)
             {
                 *instance = None;
             }

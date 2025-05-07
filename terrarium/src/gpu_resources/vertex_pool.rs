@@ -6,13 +6,12 @@ use ugm::mesh::PackedVertex;
 
 use super::{
     linear_block_allocator::{LinearBlockAllocation, LinearBlockAllocator},
-    GpuMaterial,
+    GpuMaterial, MAX_DYNAMIC_INSTANCES, MAX_STATIC_INSTANCES,
 };
 
 const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
 const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 256;
 const MAX_VERTEX_POOL_SLICES: usize = 1024 * 8;
-const MAX_VERTEX_POOL_INSTANCES: usize = 1024 * 512;
 const MAX_MATERIALS_PER_INSTANCE: usize = 8 * 10;
 
 pub struct VertexPoolWriteData<'a> {
@@ -72,8 +71,9 @@ pub struct VertexPool {
     vertex_allocator: LinearBlockAllocator,
     index_allocator: LinearBlockAllocator,
     slices: Box<[VertexPoolSlice]>,
-    object_to_world: Vec<Mat4>,
-    material_indices: Vec<u32>,
+    dynamic_object_to_world: Vec<[f32; 12]>,
+    static_material_indices: Vec<u32>,
+    dynamic_material_indices: Vec<u32>,
     frame_idx: u32,
 
     bind_group_layout: wgpu::BindGroupLayout,
@@ -119,7 +119,8 @@ impl VertexPool {
             device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(&format!("terrarium::vertex_pool object_to_world {}", i)),
                 mapped_at_creation: false,
-                size: (std::mem::size_of::<Mat4>() * MAX_VERTEX_POOL_INSTANCES) as u64,
+                size: (std::mem::size_of::<[f32; 12]>()
+                    * (MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES)) as u64,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             })
         });
@@ -128,7 +129,7 @@ impl VertexPool {
             label: Some("terrarium::vertex_pool material_indices"),
             mapped_at_creation: false,
             size: (std::mem::size_of::<u32>()
-                * MAX_VERTEX_POOL_INSTANCES
+                * (MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES)
                 * MAX_MATERIALS_PER_INSTANCE) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
@@ -214,8 +215,9 @@ impl VertexPool {
             index_allocator,
             slices: vec![VertexPoolSlice::new_unallocated(); MAX_VERTEX_POOL_SLICES]
                 .into_boxed_slice(),
-            object_to_world: Vec::new(),
-            material_indices: Vec::new(),
+            dynamic_object_to_world: Vec::new(),
+            static_material_indices: Vec::new(),
+            dynamic_material_indices: Vec::new(),
             frame_idx: 0,
             bind_group_layout,
         }
@@ -254,32 +256,60 @@ impl VertexPool {
         queue.write_buffer(
             &self.object_to_world_buffer[self.frame_idx as usize % 2],
             0,
-            bytemuck::cast_slice(&self.object_to_world),
+            bytemuck::cast_slice(&self.dynamic_object_to_world),
         );
-
         queue.write_buffer(
             &self.material_index_buffer,
             0,
-            bytemuck::cast_slice(&self.material_indices),
+            bytemuck::cast_slice(&self.dynamic_material_indices),
         );
+
+        if !self.static_material_indices.is_empty() {
+            queue.write_buffer(
+                &self.material_index_buffer,
+                (size_of::<u32>() * MAX_MATERIALS_PER_INSTANCE * MAX_DYNAMIC_INSTANCES) as u64,
+                bytemuck::cast_slice(&self.static_material_indices),
+            );
+        }
     }
 
-    pub fn submit_slice_instance(&mut self, transform: Mat4, materials: &[Arc<GpuMaterial>]) {
-        self.object_to_world.push(transform);
-
+    pub fn submit_slice_instance(
+        &mut self,
+        transform: Mat4,
+        is_static: bool,
+        materials: &[Arc<GpuMaterial>],
+    ) {
         assert!(materials.len() < MAX_MATERIALS_PER_INSTANCE);
-        assert!(self.object_to_world.len() < MAX_VERTEX_POOL_INSTANCES);
-        for material in materials {
-            self.material_indices.push(material.material_idx);
-        }
-        for _ in 0..(MAX_MATERIALS_PER_INSTANCE - materials.len()) {
-            self.material_indices.push(0);
+
+        if is_static {
+            for material in materials {
+                self.static_material_indices.push(material.material_idx);
+            }
+            for _ in 0..(MAX_MATERIALS_PER_INSTANCE - materials.len()) {
+                self.static_material_indices.push(0);
+            }
+        } else {
+            self.dynamic_object_to_world.push(
+                transform.transpose().to_cols_array()[..12]
+                    .try_into()
+                    .unwrap(),
+            );
+
+            assert!(self.dynamic_object_to_world.len() < MAX_DYNAMIC_INSTANCES);
+            for material in materials {
+                self.dynamic_material_indices.push(material.material_idx);
+            }
+            for _ in 0..(MAX_MATERIALS_PER_INSTANCE - materials.len()) {
+                self.dynamic_material_indices.push(0);
+            }
         }
     }
 
     pub fn end_frame(&mut self) {
-        self.object_to_world.clear();
-        self.material_indices.clear();
+        self.dynamic_object_to_world.clear();
+        self.static_material_indices.clear();
+        self.dynamic_material_indices.clear();
+
         self.frame_idx += 1;
     }
 

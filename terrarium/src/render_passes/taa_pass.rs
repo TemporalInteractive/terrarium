@@ -227,8 +227,8 @@ pub fn encode(
         cpass.set_bind_group(0, &bind_group, &[]);
         cpass.insert_debug_marker("terrarium::taa");
         cpass.dispatch_workgroups(
-            parameters.resolution.x.div_ceil(16),
-            parameters.resolution.y.div_ceil(16),
+            parameters.resolution.x.div_ceil(8),
+            parameters.resolution.y.div_ceil(8),
             1,
         );
     }
