@@ -98,7 +98,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
             geometric_normal_ws = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
             let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
-            let prev_hit_point_ws: vec3<f32> = (VertexPoolBindings::prev_object_to_world(intersection) * vec4<f32>(hit_point, 1.0)).xyz;
+            let prev_hit_point_ws: vec3<f32> = VertexPoolBindings::reproject_point(intersection.instance_id, hit_point_ws);
 
             let hit_tangent_to_world = mat3x3<f32>(
                 hit_tangent_ws,

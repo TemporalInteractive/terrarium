@@ -65,13 +65,14 @@ pub struct VertexPool {
     index_buffer: wgpu::Buffer,
     triangle_material_index_buffer: wgpu::Buffer,
     slices_buffer: wgpu::Buffer,
-    object_to_world_buffer: [wgpu::Buffer; 2],
+    object_to_world_buffer: wgpu::Buffer,
     material_index_buffer: wgpu::Buffer,
 
     vertex_allocator: LinearBlockAllocator,
     index_allocator: LinearBlockAllocator,
     slices: Box<[VertexPoolSlice]>,
-    dynamic_object_to_world: Vec<[f32; 12]>,
+    delta_object_to_world_inv: Vec<Mat4>,
+    prev_object_to_world: Vec<Mat4>,
     static_material_indices: Vec<u32>,
     dynamic_material_indices: Vec<u32>,
     frame_idx: u32,
@@ -115,14 +116,12 @@ impl VertexPool {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let object_to_world_buffer = std::array::from_fn(|i| {
-            device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(&format!("terrarium::vertex_pool object_to_world {}", i)),
-                mapped_at_creation: false,
-                size: (std::mem::size_of::<[f32; 12]>()
-                    * (MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES)) as u64,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            })
+        let object_to_world_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::vertex_pool object_to_world"),
+            mapped_at_creation: false,
+            size: (std::mem::size_of::<Mat4>() * (MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES))
+                as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
         let material_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -215,7 +214,8 @@ impl VertexPool {
             index_allocator,
             slices: vec![VertexPoolSlice::new_unallocated(); MAX_VERTEX_POOL_SLICES]
                 .into_boxed_slice(),
-            dynamic_object_to_world: Vec::new(),
+            delta_object_to_world_inv: Vec::new(),
+            prev_object_to_world: vec![Mat4::IDENTITY; MAX_DYNAMIC_INSTANCES],
             static_material_indices: Vec::new(),
             dynamic_material_indices: Vec::new(),
             frame_idx: 0,
@@ -254,16 +254,16 @@ impl VertexPool {
         queue.write_buffer(&self.slices_buffer, 0, bytemuck::cast_slice(&self.slices));
 
         queue.write_buffer(
-            &self.object_to_world_buffer[self.frame_idx as usize % 2],
+            &self.object_to_world_buffer,
             0,
-            bytemuck::cast_slice(&self.dynamic_object_to_world),
+            bytemuck::cast_slice(&self.delta_object_to_world_inv),
         );
+
         queue.write_buffer(
             &self.material_index_buffer,
             0,
             bytemuck::cast_slice(&self.dynamic_material_indices),
         );
-
         if !self.static_material_indices.is_empty() {
             queue.write_buffer(
                 &self.material_index_buffer,
@@ -289,13 +289,12 @@ impl VertexPool {
                 self.static_material_indices.push(0);
             }
         } else {
-            self.dynamic_object_to_world.push(
-                transform.transpose().to_cols_array()[..12]
-                    .try_into()
-                    .unwrap(),
-            );
+            let i = self.delta_object_to_world_inv.len();
+            let delta = transform * self.prev_object_to_world[i].inverse();
+            self.delta_object_to_world_inv.push(delta.inverse());
+            self.prev_object_to_world[i] = transform;
 
-            assert!(self.dynamic_object_to_world.len() < MAX_DYNAMIC_INSTANCES);
+            assert!(self.delta_object_to_world_inv.len() < MAX_DYNAMIC_INSTANCES);
             for material in materials {
                 self.dynamic_material_indices.push(material.material_idx);
             }
@@ -306,7 +305,7 @@ impl VertexPool {
     }
 
     pub fn end_frame(&mut self) {
-        self.dynamic_object_to_world.clear();
+        self.delta_object_to_world_inv.clear();
         self.static_material_indices.clear();
         self.dynamic_material_indices.clear();
 
@@ -385,8 +384,7 @@ impl VertexPool {
                 },
                 wgpu::BindGroupEntry {
                     binding: 5,
-                    resource: self.object_to_world_buffer[(self.frame_idx as usize + 1) % 2]
-                        .as_entire_binding(),
+                    resource: self.object_to_world_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 6,
