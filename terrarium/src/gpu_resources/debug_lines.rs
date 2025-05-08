@@ -59,11 +59,13 @@ impl DebugLines {
     }
 
     pub fn write_lines(&mut self, queue: &wgpu::Queue) {
-        queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(self.vertices.as_slice()),
-        );
+        if !self.vertices.is_empty() {
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(self.vertices.as_slice()),
+            );
+        }
     }
 
     pub fn end_frame(&mut self) {

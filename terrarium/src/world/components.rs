@@ -6,6 +6,12 @@ use crate::gpu_resources::{GpuMaterial, GpuMesh};
 
 use super::transform::Transform;
 
+#[derive(Default)]
+pub struct DynamicComponent;
+impl specs::Component for DynamicComponent {
+    type Storage = specs::NullStorage<Self>;
+}
+
 pub struct TransformComponent {
     global_transform: Mutex<(Mat4, bool)>,
     local_transform: Transform,

@@ -1,4 +1,4 @@
-use std::{iter, sync::Arc};
+use std::{hint::black_box, iter, sync::Arc};
 
 use debug_lines::DebugLines;
 use glam::Vec3;
@@ -14,7 +14,7 @@ use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 
 use crate::{
     wgpu_util,
-    world::components::{MeshComponent, TransformComponent},
+    world::components::{DynamicComponent, MeshComponent, TransformComponent},
 };
 
 const MAX_STATIC_INSTANCES: usize = 1024 * 128;
@@ -77,6 +77,9 @@ pub struct GpuResources {
     static_dirty: bool,
     sky: Sky,
 
+    dynamic_blas_instances: Vec<wgpu::TlasInstance>,
+    static_blas_instances: Vec<wgpu::TlasInstance>,
+
     gpu_meshes: Vec<Arc<GpuMesh>>,
     gpu_materials: Vec<Arc<GpuMaterial>>,
 }
@@ -90,7 +93,7 @@ impl GpuResources {
         let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
             label: Some("terrarium::gpu_resources tlas"),
             max_instances: (MAX_STATIC_INSTANCES + MAX_DYNAMIC_INSTANCES) as u32,
-            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
+            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_BUILD,
             update_mode: wgpu::AccelerationStructureUpdateMode::Build,
         });
 
@@ -103,6 +106,8 @@ impl GpuResources {
             tlas_package: wgpu::TlasPackage::new(tlas),
             static_dirty: true,
             sky,
+            dynamic_blas_instances: Vec::new(),
+            static_blas_instances: Vec::new(),
             gpu_meshes: Vec::new(),
             gpu_materials: Vec::new(),
         }
@@ -249,53 +254,85 @@ impl GpuResources {
     ) {
         self.cleanup();
 
-        let (transform_storage, mesh_storage): (
-            specs::ReadStorage<'_, TransformComponent>,
-            specs::ReadStorage<'_, MeshComponent>,
-        ) = world.system_data();
+        self.static_blas_instances.clear();
+        if self.static_dirty {
+            let (transform_storage, mesh_storage): (
+                specs::ReadStorage<'_, TransformComponent>,
+                specs::ReadStorage<'_, MeshComponent>,
+            ) = world.system_data();
+            for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join()
+            {
+                if !mesh_component.enabled || !transform_component.is_static() {
+                    continue;
+                }
 
-        let mut dynamic_blas_instances: Vec<wgpu::TlasInstance> = vec![];
-        let mut static_blas_instances: Vec<wgpu::TlasInstance> = vec![];
+                let transform = transform_component.get_local_to_world_matrix(&transform_storage);
+                let transform4x3 = transform.transpose().to_cols_array()[..12]
+                    .try_into()
+                    .unwrap();
 
-        for (transform_component, mesh_component) in (&transform_storage, &mesh_storage).join() {
-            let is_static = transform_component.is_static();
-            if !mesh_component.enabled || (is_static && !self.static_dirty) {
-                continue;
-            }
+                let gpu_mesh = &mesh_component.mesh;
+                let blas = &gpu_mesh.blas;
+                let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
 
-            let transform = transform_component.get_local_to_world_matrix(&transform_storage);
-            let transform4x3 = transform.transpose().to_cols_array()[..12]
-                .try_into()
-                .unwrap();
+                let instance_idx = self.vertex_pool.submit_slice_instance(
+                    transform,
+                    true,
+                    vertex_slice_index,
+                    &mesh_component.materials,
+                );
 
-            let gpu_mesh = &mesh_component.mesh;
-            let blas = &gpu_mesh.blas;
-            let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
+                let blas_instance = wgpu::TlasInstance::new(blas, transform4x3, instance_idx, 0xff);
 
-            let instance_idx = self.vertex_pool.submit_slice_instance(
-                transform,
-                is_static,
-                vertex_slice_index,
-                &mesh_component.materials,
-            );
-
-            let blas_instance = wgpu::TlasInstance::new(blas, transform4x3, instance_idx, 0xff);
-
-            if is_static {
-                static_blas_instances.push(blas_instance);
-            } else {
-                dynamic_blas_instances.push(blas_instance);
+                self.static_blas_instances.push(blas_instance);
             }
         }
 
-        let num_blas_instances = dynamic_blas_instances.len();
+        self.dynamic_blas_instances.clear();
+        {
+            let (transform_storage, mesh_storage, dynamic_storage): (
+                specs::ReadStorage<'_, TransformComponent>,
+                specs::ReadStorage<'_, MeshComponent>,
+                specs::ReadStorage<'_, DynamicComponent>,
+            ) = world.system_data();
+            for (transform_component, mesh_component, _) in
+                (&transform_storage, &mesh_storage, &dynamic_storage).join()
+            {
+                assert!(!transform_component.is_static(), "Detected a static TransformComponent on an entity containing the DynamicComponent!");
+                if !mesh_component.enabled {
+                    continue;
+                }
+
+                let transform = transform_component.get_local_to_world_matrix(&transform_storage);
+                let transform4x3 = transform.transpose().to_cols_array()[..12]
+                    .try_into()
+                    .unwrap();
+
+                let gpu_mesh = &mesh_component.mesh;
+                let blas = &gpu_mesh.blas;
+                let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
+
+                let instance_idx = self.vertex_pool.submit_slice_instance(
+                    transform,
+                    false,
+                    vertex_slice_index,
+                    &mesh_component.materials,
+                );
+
+                let blas_instance = wgpu::TlasInstance::new(blas, transform4x3, instance_idx, 0xff);
+
+                self.dynamic_blas_instances.push(blas_instance);
+            }
+        }
+
+        let num_blas_instances = self.dynamic_blas_instances.len();
         assert!(num_blas_instances <= MAX_DYNAMIC_INSTANCES);
         let tlas_package_instances = self
             .tlas_package
             .get_mut_slice(0..MAX_DYNAMIC_INSTANCES)
             .unwrap();
-        for (i, instance) in dynamic_blas_instances.into_iter().enumerate() {
-            tlas_package_instances[i] = Some(instance);
+        for (i, instance) in self.dynamic_blas_instances.iter().enumerate() {
+            tlas_package_instances[i] = Some(instance.clone());
         }
         for instance in tlas_package_instances
             .iter_mut()
@@ -306,7 +343,7 @@ impl GpuResources {
         }
 
         if self.static_dirty {
-            let num_blas_instances = static_blas_instances.len();
+            let num_blas_instances = self.static_blas_instances.len();
             assert!(num_blas_instances <= MAX_STATIC_INSTANCES);
             let tlas_package_instances = self
                 .tlas_package
@@ -314,8 +351,8 @@ impl GpuResources {
                     MAX_DYNAMIC_INSTANCES..(MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES),
                 )
                 .unwrap();
-            for (i, instance) in static_blas_instances.into_iter().enumerate() {
-                tlas_package_instances[i] = Some(instance);
+            for (i, instance) in self.static_blas_instances.iter().enumerate() {
+                tlas_package_instances[i] = Some(instance.clone());
             }
             for instance in tlas_package_instances
                 .iter_mut()
