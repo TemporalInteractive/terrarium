@@ -65,7 +65,14 @@ impl AppLoop for ExampleApp {
         }
     }
 
-    fn egui(&mut self, ui: &mut egui::Context, xr_camera_state: &XrCameraState) {
+    fn egui(
+        &mut self,
+        ui: &mut egui::Context,
+        _xr_camera_state: &XrCameraState,
+        _command_encoder: &mut wgpu::CommandEncoder,
+        _ctx: &wgpu_util::Context,
+        _pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) {
         egui::Window::new("Terrarium - Massive").show(ui, |ui| {
             self.render_settings.egui(ui);
         });
@@ -77,9 +84,10 @@ impl AppLoop for ExampleApp {
         xr_camera_buffer: &wgpu::Buffer,
         render_target: &wgpu::Texture,
         prev_render_target: &wgpu::Texture,
+        command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
-    ) -> wgpu::CommandEncoder {
+    ) {
         let delta_time = self.frame_timer.elapsed();
         self.frame_timer.reset();
 
@@ -91,40 +99,39 @@ impl AppLoop for ExampleApp {
             xr_camera_state,
         );
 
-        let mut command_encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
         if self.first_frame {
             self.first_frame = false;
 
             let model = ugm::Model::read_from_buffer(
-                &std::fs::read("examples/massive/assets/TestSceneBig.ugm")
+                &std::fs::read("examples/massive/assets/TestScene.ugm")
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )
             .unwrap();
             self.world.spawn_model(
                 &model,
                 Transform::default(),
+                true,
                 None,
                 &mut self.gpu_resources,
-                &mut command_encoder,
+                command_encoder,
                 ctx,
             );
 
-            let model = ugm::Model::read_from_buffer(
-                &std::fs::read("examples/massive/assets/DamagedHelmet.ugm")
-                .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
-            )
-            .unwrap();
-            self.world.spawn_model(
-                &model,
-                Transform::from_translation(Vec3::new(2.0, 1.0, 0.0)),
-                None,
-                &mut self.gpu_resources,
-                &mut command_encoder,
-                ctx,
-            );
+            self.gpu_resources.mark_statics_dirty();
+
+            // let model = ugm::Model::read_from_buffer(
+            //     &std::fs::read("examples/massive/assets/DamagedHelmet.ugm")
+            //     .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
+            // )
+            // .unwrap();
+            // self.world.spawn_model(
+            //     &model,
+            //     Transform::from_translation(Vec3::new(2.0, 1.0, 0.0)),
+            //     None,
+            //     &mut self.gpu_resources,
+            //     command_encoder,
+            //     ctx,
+            // );
         }
 
         self.gpu_resources.debug_lines_mut().submit_line(
@@ -153,7 +160,7 @@ impl AppLoop for ExampleApp {
                 prev_render_target,
                 gpu_resources: &mut self.gpu_resources,
             },
-            &mut command_encoder,
+            command_encoder,
             ctx,
             pipeline_database,
         );
@@ -163,8 +170,6 @@ impl AppLoop for ExampleApp {
         self.fps_counter.end_frame();
 
         println!("FPS {}", self.fps_counter.fps());
-
-        command_encoder
     }
 
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {

@@ -316,7 +316,6 @@ impl GpuResources {
             }
             for instance in tlas_package_instances
                 .iter_mut()
-                .take(MAX_STATIC_INSTANCES)
                 .skip(MAX_DYNAMIC_INSTANCES + num_blas_instances)
             {
                 *instance = None;

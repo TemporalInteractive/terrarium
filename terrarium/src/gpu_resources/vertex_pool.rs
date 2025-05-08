@@ -293,8 +293,8 @@ impl VertexPool {
             let delta = transform * self.prev_object_to_world[i].inverse();
             self.delta_object_to_world_inv.push(delta.inverse());
             self.prev_object_to_world[i] = transform;
-
             assert!(self.delta_object_to_world_inv.len() < MAX_DYNAMIC_INSTANCES);
+
             for material in materials {
                 self.dynamic_material_indices.push(material.material_idx);
             }

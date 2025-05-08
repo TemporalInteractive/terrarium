@@ -23,11 +23,11 @@ pub struct EntityBuilder<'a> {
 }
 
 impl<'a> EntityBuilder<'a> {
-    fn new(ecs: &'a mut specs::World, transform: Transform) -> Self {
+    fn new(ecs: &'a mut specs::World, transform: Transform, is_static: bool) -> Self {
         let entity_info_component = EntityInfoComponent {
             marked_for_destroy: false,
         };
-        let transform_component = TransformComponent::new(transform);
+        let transform_component = TransformComponent::new(transform, is_static);
 
         let builder = ecs
             .create_entity()
@@ -71,6 +71,7 @@ impl World {
     pub fn create_entity<F>(
         &mut self,
         transform: Transform,
+        is_static: bool,
         parent: Option<specs::Entity>,
         mut builder_pattern: F,
     ) -> specs::Entity
@@ -78,7 +79,7 @@ impl World {
         F: FnMut(EntityBuilder<'_>) -> EntityBuilder<'_>,
     {
         let entity = {
-            let builder = builder_pattern(EntityBuilder::new(&mut self.ecs, transform));
+            let builder = builder_pattern(EntityBuilder::new(&mut self.ecs, transform, is_static));
             builder.builder.build()
         };
 
@@ -117,6 +118,7 @@ impl World {
     fn spawn_model_recursive(
         &mut self,
         model: &Model,
+        is_static: bool,
         node: u32,
         parent: specs::Entity,
         gpu_meshes: &[Arc<GpuMesh>],
@@ -125,19 +127,31 @@ impl World {
         let node = &model.nodes[node as usize];
         let transform = Mat4::from_cols_array(&node.transform);
 
-        let entity = self.create_entity(Transform::from(transform), Some(parent), |builder| {
-            if let Some(mesh_idx) = node.mesh_idx {
-                builder.with(MeshComponent::new(
-                    gpu_meshes[mesh_idx as usize].clone(),
-                    gpu_materials.clone(),
-                ))
-            } else {
-                builder
-            }
-        });
+        let entity = self.create_entity(
+            Transform::from(transform),
+            is_static,
+            Some(parent),
+            |builder| {
+                if let Some(mesh_idx) = node.mesh_idx {
+                    builder.with(MeshComponent::new(
+                        gpu_meshes[mesh_idx as usize].clone(),
+                        gpu_materials.clone(),
+                    ))
+                } else {
+                    builder
+                }
+            },
+        );
 
         for child_node in &node.child_node_indices {
-            self.spawn_model_recursive(model, *child_node, entity, gpu_meshes, gpu_materials);
+            self.spawn_model_recursive(
+                model,
+                is_static,
+                *child_node,
+                entity,
+                gpu_meshes,
+                gpu_materials,
+            );
         }
     }
 
@@ -145,6 +159,7 @@ impl World {
         &mut self,
         model: &Model,
         root_transform: Transform,
+        is_static: bool,
         parent: Option<specs::Entity>,
         gpu_resources: &mut GpuResources,
         command_encoder: &mut wgpu::CommandEncoder,
@@ -162,10 +177,17 @@ impl World {
             .map(|material| gpu_resources.create_gpu_material(model, material, ctx))
             .collect();
 
-        let root = self.create_entity(root_transform, parent, |builder| builder);
+        let root = self.create_entity(root_transform, is_static, parent, |builder| builder);
 
         for root_node in &model.root_node_indices {
-            self.spawn_model_recursive(model, *root_node, root, &gpu_meshes, &gpu_materials);
+            self.spawn_model_recursive(
+                model,
+                is_static,
+                *root_node,
+                root,
+                &gpu_meshes,
+                &gpu_materials,
+            );
         }
 
         root
