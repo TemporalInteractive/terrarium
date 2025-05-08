@@ -268,15 +268,18 @@ impl GpuResources {
                 .try_into()
                 .unwrap();
 
-            self.vertex_pool
-                .submit_slice_instance(transform, is_static, &mesh_component.materials);
-
             let gpu_mesh = &mesh_component.mesh;
             let blas = &gpu_mesh.blas;
             let vertex_slice_index = gpu_mesh.vertex_pool_alloc.index;
 
-            let blas_instance =
-                wgpu::TlasInstance::new(blas, transform4x3, vertex_slice_index, 0xff);
+            let instance_idx = self.vertex_pool.submit_slice_instance(
+                transform,
+                is_static,
+                vertex_slice_index,
+                &mesh_component.materials,
+            );
+
+            let blas_instance = wgpu::TlasInstance::new(blas, transform4x3, instance_idx, 0xff);
 
             if is_static {
                 static_blas_instances.push(blas_instance);
@@ -286,7 +289,7 @@ impl GpuResources {
         }
 
         let num_blas_instances = dynamic_blas_instances.len();
-        assert!(num_blas_instances < MAX_DYNAMIC_INSTANCES);
+        assert!(num_blas_instances <= MAX_DYNAMIC_INSTANCES);
         let tlas_package_instances = self
             .tlas_package
             .get_mut_slice(0..MAX_DYNAMIC_INSTANCES)
@@ -304,7 +307,7 @@ impl GpuResources {
 
         if self.static_dirty {
             let num_blas_instances = static_blas_instances.len();
-            assert!(num_blas_instances < MAX_STATIC_INSTANCES);
+            assert!(num_blas_instances <= MAX_STATIC_INSTANCES);
             let tlas_package_instances = self
                 .tlas_package
                 .get_mut_slice(
