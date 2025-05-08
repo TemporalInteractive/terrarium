@@ -93,15 +93,13 @@ impl Context {
 
         let trace_dir = std::env::var("WGPU_TRACE");
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: (optional_features & adapter_features) | required_features,
-                    required_limits,
-                    memory_hints: wgpu::MemoryHints::Performance,
-                },
-                trace_dir.ok().as_ref().map(std::path::Path::new),
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: (optional_features & adapter_features) | required_features,
+                required_limits,
+                memory_hints: wgpu::MemoryHints::Performance,
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("Unable to find a suitable GPU adapter!");
 
@@ -322,8 +320,8 @@ impl Context {
                     required_features,
                     required_limits,
                     memory_hints: wgpu::MemoryHints::Performance,
+                    trace: wgpu::Trace::Off,
                 },
-                None,
             )
         }?;
 
@@ -569,8 +567,7 @@ impl XrContext {
                             sample_count: 1,
                             dimension: wgpu::TextureDimension::D2,
                             format: xr::WGPU_COLOR_FORMAT,
-                            usage: wgpu_hal::TextureUses::COLOR_TARGET
-                                | wgpu_hal::TextureUses::COPY_DST,
+                            usage: wgpu::TextureUses::COLOR_TARGET | wgpu::TextureUses::COPY_DST,
                             memory_flags: wgpu_hal::MemoryFlags::empty(),
                             view_formats: vec![],
                         },

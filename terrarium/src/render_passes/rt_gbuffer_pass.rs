@@ -69,7 +69,9 @@ pub fn encode(
                             wgpu::BindGroupLayoutEntry {
                                 binding: 2,
                                 visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::AccelerationStructure,
+                                ty: wgpu::BindingType::AccelerationStructure {
+                                    vertex_return: false,
+                                },
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {

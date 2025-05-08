@@ -60,7 +60,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         rayQueryProceed(&rq);
         let intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
         if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
-            let vertex_slice_index: u32 = vertex_pool_vertex_slice_indices[intersection.instance_custom_index];
+            let vertex_slice_index: u32 = vertex_pool_vertex_slice_indices[intersection.instance_custom_data];
             let vertex_pool_slice: VertexPoolSlice = vertex_pool_slices[vertex_slice_index];
 
             let barycentrics = vec3<f32>(1.0 - intersection.barycentrics.x - intersection.barycentrics.y, intersection.barycentrics);
@@ -76,7 +76,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
             let hit_point: vec3<f32> = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
 
-            material_descriptor_idx = VertexPoolBindings::material_idx(intersection.instance_custom_index, vertex_pool_slice.first_index / 3 + intersection.primitive_index);
+            material_descriptor_idx = VertexPoolBindings::material_idx(intersection.instance_custom_data, vertex_pool_slice.first_index / 3 + intersection.primitive_index);
             let material_descriptor: MaterialDescriptor = material_descriptors[material_descriptor_idx];
 
             // Load tangent, bitangent and normal in local space
@@ -99,7 +99,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
             geometric_normal_ws = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
             let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
-            let prev_hit_point_ws: vec3<f32> = VertexPoolBindings::reproject_point(intersection.instance_custom_index, hit_point_ws);
+            let prev_hit_point_ws: vec3<f32> = VertexPoolBindings::reproject_point(intersection.instance_custom_data, hit_point_ws);
 
             let hit_tangent_to_world = mat3x3<f32>(
                 hit_tangent_ws,

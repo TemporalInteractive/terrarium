@@ -205,6 +205,7 @@ impl AppLoop for ExampleApp {
             max_bind_groups: 8,
             max_texture_dimension_1d: 4096,
             max_texture_dimension_2d: 4096,
+            max_binding_array_elements_per_shader_stage: 1024,
             ..wgpu::Limits::default()
         }
     }

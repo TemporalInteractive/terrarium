@@ -35,8 +35,8 @@ pub fn encode(
     command_encoder: &mut wgpu::CommandEncoder,
     pipeline_database: &mut PipelineDatabase,
 ) {
-    let shader = pipeline_database
-        .shader_from_src(device, include_wgsl!("../../shaders/shadow_pass.wgsl"));
+    let shader =
+        pipeline_database.shader_from_src(device, include_wgsl!("../../shaders/shadow_pass.wgsl"));
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {
@@ -73,7 +73,9 @@ pub fn encode(
                             wgpu::BindGroupLayoutEntry {
                                 binding: 2,
                                 visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::AccelerationStructure,
+                                ty: wgpu::BindingType::AccelerationStructure {
+                                    vertex_return: false,
+                                },
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {

@@ -30,10 +30,10 @@ ugm = { path = "../ugm", default-features = false, features = ["wgpu"] }
 # ugm = { version = "0.0.1", default-features = false, features = ["wgpu"] }
 # ugm = { git = "https://github.com/TemporalInteractive/ugm.git", rev = "17ee945", default-features = false, features = ["wgpu"] }
 uuid = { version = "1.12.1", default-features = false, features = ["std", "v4", "bytemuck"]}
-wgpu = { version = "24.0.3", default-features = true }
-wgpu-hal = { version = "24.0.4", default-features = true }
-# wgsl-includes = { version = "0.0.2", default-features = false }
-wgsl-includes = { git = "https://github.com/TemporalInteractive/wgsl-includes.git", rev = "335b2f9", default-features = false }
+wgpu = { version = "25.0.0", default-features = true }
+wgpu-hal = { version = "25.0.1", default-features = true }
+wgsl-includes = { path = "../wgsl-includes", default-features = false }
+# wgsl-includes = { git = "https://github.com/TemporalInteractive/wgsl-includes.git", rev = "335b2f9", default-features = false }
 winit = { version = "0.30.5", default-features = false, features = ["rwh_06"] }
 xshell = { version = "0.2.7", default-features = true }
 
