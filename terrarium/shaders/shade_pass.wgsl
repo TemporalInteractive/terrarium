@@ -31,10 +31,6 @@ var<uniform> constants: Constants;
 var<uniform> xr_camera: XrCamera;
 
 @group(0)
-@binding(2)
-var scene: acceleration_structure;
-
-@group(0)
 @binding(3)
 var<storage, read> gbuffer_left: array<PackedGBufferTexel>;
 @group(0)

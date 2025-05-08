@@ -73,7 +73,8 @@ pub struct GpuResources {
     vertex_pool: VertexPool,
     material_pool: MaterialPool,
     debug_lines: DebugLines,
-    tlas_package: wgpu::TlasPackage,
+    static_tlas_package: wgpu::TlasPackage,
+    dynamic_tlas_package: wgpu::TlasPackage,
     static_dirty: bool,
     sky: Sky,
 
@@ -90,10 +91,17 @@ impl GpuResources {
         let material_pool = MaterialPool::new(device);
         let debug_lines = DebugLines::new(device);
 
-        let tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
-            label: Some("terrarium::gpu_resources tlas"),
-            max_instances: (MAX_STATIC_INSTANCES + MAX_DYNAMIC_INSTANCES) as u32,
-            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_BUILD,
+        let static_tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
+            label: Some("terrarium::gpu_resources static_tlas"),
+            max_instances: (MAX_STATIC_INSTANCES) as u32,
+            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
+            update_mode: wgpu::AccelerationStructureUpdateMode::Build,
+        });
+
+        let dynamic_tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
+            label: Some("terrarium::gpu_resources dynamic_tlas"),
+            max_instances: (MAX_DYNAMIC_INSTANCES) as u32,
+            flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
             update_mode: wgpu::AccelerationStructureUpdateMode::Build,
         });
 
@@ -103,7 +111,8 @@ impl GpuResources {
             vertex_pool,
             material_pool,
             debug_lines,
-            tlas_package: wgpu::TlasPackage::new(tlas),
+            static_tlas_package: wgpu::TlasPackage::new(static_tlas),
+            dynamic_tlas_package: wgpu::TlasPackage::new(dynamic_tlas),
             static_dirty: true,
             sky,
             dynamic_blas_instances: Vec::new(),
@@ -211,8 +220,12 @@ impl GpuResources {
         &mut self.debug_lines
     }
 
-    pub fn tlas(&self) -> &wgpu::Tlas {
-        self.tlas_package.tlas()
+    pub fn static_tlas(&self) -> &wgpu::Tlas {
+        self.static_tlas_package.tlas()
+    }
+
+    pub fn dynamic_tlas(&self) -> &wgpu::Tlas {
+        self.dynamic_tlas_package.tlas()
     }
 
     pub fn sky(&self) -> &Sky {
@@ -328,17 +341,13 @@ impl GpuResources {
         let num_blas_instances = self.dynamic_blas_instances.len();
         assert!(num_blas_instances <= MAX_DYNAMIC_INSTANCES);
         let tlas_package_instances = self
-            .tlas_package
+            .dynamic_tlas_package
             .get_mut_slice(0..MAX_DYNAMIC_INSTANCES)
             .unwrap();
         for (i, instance) in self.dynamic_blas_instances.iter().enumerate() {
             tlas_package_instances[i] = Some(instance.clone());
         }
-        for instance in tlas_package_instances
-            .iter_mut()
-            .take(MAX_DYNAMIC_INSTANCES)
-            .skip(num_blas_instances)
-        {
+        for instance in tlas_package_instances.iter_mut().skip(num_blas_instances) {
             *instance = None;
         }
 
@@ -346,30 +355,27 @@ impl GpuResources {
             let num_blas_instances = self.static_blas_instances.len();
             assert!(num_blas_instances <= MAX_STATIC_INSTANCES);
             let tlas_package_instances = self
-                .tlas_package
-                .get_mut_slice(
-                    MAX_DYNAMIC_INSTANCES..(MAX_DYNAMIC_INSTANCES + MAX_STATIC_INSTANCES),
-                )
+                .static_tlas_package
+                .get_mut_slice(0..MAX_STATIC_INSTANCES)
                 .unwrap();
             for (i, instance) in self.static_blas_instances.iter().enumerate() {
                 tlas_package_instances[i] = Some(instance.clone());
             }
-            for instance in tlas_package_instances
-                .iter_mut()
-                .skip(MAX_DYNAMIC_INSTANCES + num_blas_instances)
-            {
+            for instance in tlas_package_instances.iter_mut().skip(num_blas_instances) {
                 *instance = None;
             }
-
-            self.static_dirty = false;
         }
 
         self.vertex_pool.write_slices(queue);
         self.material_pool.write_materials(queue);
         self.debug_lines.write_lines(queue);
 
-        command_encoder
-            .build_acceleration_structures(iter::empty(), iter::once(&self.tlas_package));
+        let mut tlases = vec![&self.dynamic_tlas_package];
+        if self.static_dirty {
+            tlases.push(&self.static_tlas_package);
+            self.static_dirty = false;
+        }
+        command_encoder.build_acceleration_structures(iter::empty(), tlases);
     }
 
     pub fn end_frame(&mut self) {

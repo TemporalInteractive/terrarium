@@ -318,7 +318,7 @@ impl VertexPool {
         vertex_slice_index: u32,
         materials: &[Arc<GpuMaterial>],
     ) -> u32 {
-        assert!(materials.len() < MAX_MATERIALS_PER_INSTANCE);
+        assert!(materials.len() <= MAX_MATERIALS_PER_INSTANCE);
 
         if is_static {
             for material in materials {
@@ -336,7 +336,7 @@ impl VertexPool {
             let delta = transform * self.prev_object_to_world[i].inverse();
             self.delta_object_to_world_inv.push(delta.inverse());
             self.prev_object_to_world[i] = transform;
-            assert!(self.delta_object_to_world_inv.len() < MAX_DYNAMIC_INSTANCES);
+            assert!(self.delta_object_to_world_inv.len() <= MAX_DYNAMIC_INSTANCES);
 
             for material in materials {
                 self.dynamic_material_indices.push(material.material_idx);

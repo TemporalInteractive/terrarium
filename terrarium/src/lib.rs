@@ -9,7 +9,6 @@ use render_passes::{
     debug_line_pass::{self, DebugLinePassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
-    shadow_pass::{self, ShadowPassParameters},
     ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
 };
@@ -273,27 +272,27 @@ impl Renderer {
             pipeline_database,
         );
 
-        if parameters.render_settings.enable_shadows {
-            shadow_pass::encode(
-                &ShadowPassParameters {
-                    resolution: self.sized_resources.resolution,
-                    shadow_resolution: self.sized_resources.shadow_resolution,
-                    seed: self.frame_idx,
-                    gpu_resources: parameters.gpu_resources,
-                    xr_camera_buffer: parameters.xr_camera_buffer,
-                    gbuffer: &self.sized_resources.gbuffer,
-                    shadow_texture_view: &self.sized_resources.shadow_texture_view,
-                },
-                &ctx.device,
-                command_encoder,
-                pipeline_database,
-            );
-        } else {
-            command_encoder.clear_texture(
-                &self.sized_resources.shadow_texture,
-                &wgpu::ImageSubresourceRange::default(),
-            );
-        }
+        // if parameters.render_settings.enable_shadows {
+        //     shadow_pass::encode(
+        //         &ShadowPassParameters {
+        //             resolution: self.sized_resources.resolution,
+        //             shadow_resolution: self.sized_resources.shadow_resolution,
+        //             seed: self.frame_idx,
+        //             gpu_resources: parameters.gpu_resources,
+        //             xr_camera_buffer: parameters.xr_camera_buffer,
+        //             gbuffer: &self.sized_resources.gbuffer,
+        //             shadow_texture_view: &self.sized_resources.shadow_texture_view,
+        //         },
+        //         &ctx.device,
+        //         command_encoder,
+        //         pipeline_database,
+        //     );
+        // } else {
+        command_encoder.clear_texture(
+            &self.sized_resources.shadow_texture,
+            &wgpu::ImageSubresourceRange::default(),
+        );
+        //}
 
         if parameters.render_settings.enable_ssao {
             ssao_pass::encode(

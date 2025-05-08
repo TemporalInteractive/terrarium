@@ -77,6 +77,14 @@ pub fn encode(
                             wgpu::BindGroupLayoutEntry {
                                 binding: 3,
                                 visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::AccelerationStructure {
+                                    vertex_return: false,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 4,
+                                visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
                                     ty: wgpu::BufferBindingType::Storage { read_only: false },
                                     has_dynamic_offset: false,
@@ -85,7 +93,7 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 4,
+                                binding: 5,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
                                     ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -130,15 +138,21 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 2,
                 resource: wgpu::BindingResource::AccelerationStructure(
-                    parameters.gpu_resources.tlas(),
+                    parameters.gpu_resources.static_tlas(),
                 ),
             },
             wgpu::BindGroupEntry {
                 binding: 3,
-                resource: parameters.gbuffer[0].as_entire_binding(),
+                resource: wgpu::BindingResource::AccelerationStructure(
+                    parameters.gpu_resources.dynamic_tlas(),
+                ),
             },
             wgpu::BindGroupEntry {
                 binding: 4,
+                resource: parameters.gbuffer[0].as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
                 resource: parameters.gbuffer[1].as_entire_binding(),
             },
         ],

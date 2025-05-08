@@ -21,14 +21,44 @@ var<uniform> xr_camera: XrCamera;
 
 @group(0)
 @binding(2)
-var scene: acceleration_structure;
+var static_scene: acceleration_structure;
 
 @group(0)
 @binding(3)
-var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
+var dynamic_scene: acceleration_structure;
+
 @group(0)
 @binding(4)
+var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
+@group(0)
+@binding(5)
 var<storage, read_write> gbuffer_right: array<PackedGBufferTexel>;
+
+fn trace_ray(origin: vec3<f32>, direction: vec3<f32>) -> RayIntersection {
+    var rq: ray_query;
+
+    rayQueryInitialize(&rq, static_scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
+    rayQueryProceed(&rq);
+    let static_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
+    var static_t: f32 = 10000.0;
+    if (static_intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+        static_t = static_intersection.t;
+    }
+
+    rayQueryInitialize(&rq, dynamic_scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
+    rayQueryProceed(&rq);
+    let dynamic_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
+    var dynamic_t: f32 = 10000.0;
+    if (dynamic_intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+        dynamic_t = dynamic_intersection.t;
+    }
+    
+    if (static_t < dynamic_t) {
+        return static_intersection;
+    } else {
+        return dynamic_intersection;
+    }
+}
 
 @compute
 @workgroup_size(16, 16)
@@ -55,10 +85,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         var normal_roughness: f32 = 0.0;
         var geometric_normal_ws = vec3<f32>(0.0);
 
-        var rq: ray_query;
-        rayQueryInitialize(&rq, scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
-        rayQueryProceed(&rq);
-        let intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
+        let intersection: RayIntersection = trace_ray(origin, direction);
         if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
             let vertex_slice_index: u32 = vertex_pool_vertex_slice_indices[intersection.instance_custom_data];
             let vertex_pool_slice: VertexPoolSlice = vertex_pool_slices[vertex_slice_index];

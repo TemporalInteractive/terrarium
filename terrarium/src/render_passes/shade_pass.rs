@@ -102,14 +102,6 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 2,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::AccelerationStructure {
-                                    vertex_return: false,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
                                 binding: 3,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
@@ -196,12 +188,6 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::AccelerationStructure(
-                    parameters.gpu_resources.tlas(),
-                ),
             },
             wgpu::BindGroupEntry {
                 binding: 3,
