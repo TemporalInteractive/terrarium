@@ -133,9 +133,14 @@ impl World {
             Some(parent),
             |builder| {
                 if let Some(mesh_idx) = node.mesh_idx {
+                    let mut used_gpu_materials = Vec::new();
+                    for material_idx in &model.meshes[mesh_idx as usize].material_indices {
+                        used_gpu_materials.push(gpu_materials[*material_idx as usize].clone());
+                    }
+
                     builder.with(MeshComponent::new(
                         gpu_meshes[mesh_idx as usize].clone(),
-                        gpu_materials.clone(),
+                        used_gpu_materials.clone(),
                     ))
                 } else {
                     builder

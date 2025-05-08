@@ -1,7 +1,7 @@
 @include vertex_pool.wgsl
 
 const MAX_DYNAMIC_INSTANCES: u32 = 1024 * 2;
-const MAX_MATERIALS_PER_INSTANCE: u32 = 8 * 10;
+const MAX_MATERIALS_PER_INSTANCE: u32 = 4;
 
 @group(1)
 @binding(1)
