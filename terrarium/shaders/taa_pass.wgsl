@@ -113,6 +113,10 @@ var<workgroup> gs_inputs: array<array<vec3<f32>, SQUARE_GROUPSHARED_SIDE>, SQUAR
 fn load_inputs(local_thread_index: u32, group_id: vec2<u32>, view_index: u32) {
     let group_top_left_corner: vec2<i32> = vec2<i32>(group_id * SQUARE_GROUP_SIDE) - vec2<i32>(BORDER_SIZE);
 
+    if (view_index > 0) {
+        workgroupBarrier();
+    }
+
     for (var i: u32 = local_thread_index; i < SQUARE_GROUPSHARED_SIDE * SQUARE_GROUPSHARED_SIDE; i += NUM_THREADS_IN_GROUP) {
         let group_thread_id = vec2<u32>(i % SQUARE_GROUPSHARED_SIDE, i / SQUARE_GROUPSHARED_SIDE);
         let dispatch_thread_id: vec2<i32> = group_top_left_corner + vec2<i32>(group_thread_id);
