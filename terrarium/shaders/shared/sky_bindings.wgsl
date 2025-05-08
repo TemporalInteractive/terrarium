@@ -12,6 +12,10 @@ struct SunInfo {
 struct AtmosphereInfo {
     inscattering_color: vec3<f32>,
     density: f32,
+    density_noise_scale: f32,
+    density_noise_min: f32,
+    density_noise_max: f32,
+    _padding0: u32,
 }
 
 struct SkyConstants {
@@ -57,4 +61,60 @@ fn Sky::inscattering(direction: vec3<f32>, skip_sun: bool) -> vec3<f32> {
     }
 
     return inscattering;
+}
+
+fn random3(c: vec3<f32>) -> vec3<f32> {
+    var j = 4096.0 * sin(dot(c, vec3<f32>(17.0, 59.4, 15.0)));
+    var r: vec3<f32>;
+    r.z = fract(512.0 * j);
+    j *= 0.125;
+    r.x = fract(512.0 * j);
+    j *= 0.125;
+    r.y = fract(512.0 * j);
+    return r - 0.5;
+}
+
+fn simplex3d(p: vec3<f32>) -> f32 {
+    const F3: f32 = 0.3333333;
+    const G3: f32 = 0.1666667;
+
+    let s = floor(p + dot(p, vec3<f32>(F3)));
+    let x = p - s + dot(s, vec3<f32>(G3));
+
+    let e = step(vec3<f32>(0.0), x - x.yzx);
+    let i1 = e * (1.0 - e.zxy);
+    let i2 = 1.0 - e.zxy * (1.0 - e);
+
+    let x1 = x - i1 + vec3<f32>(G3);
+    let x2 = x - i2 + vec3<f32>(2.0 * G3);
+    let x3 = x - vec3<f32>(1.0) + vec3<f32>(3.0 * G3);
+
+    var w: vec4<f32>;
+    var d: vec4<f32>;
+
+    w.x = dot(x, x);
+    w.y = dot(x1, x1);
+    w.z = dot(x2, x2);
+    w.w = dot(x3, x3);
+
+    w = max(vec4<f32>(0.6) - w, vec4<f32>(0.0));
+
+    d.x = dot(random3(s), x);
+    d.y = dot(random3(s + i1), x1);
+    d.z = dot(random3(s + i2), x2);
+    d.w = dot(random3(s + vec3<f32>(1.0)), x3);
+
+    w = w * w;
+    w = w * w;
+    d = d * w;
+
+    return dot(d, vec4<f32>(52.0));
+}
+
+fn Sky::atmosphere_density(point: vec3<f32>) -> f32 {
+    // Currently this is ws mode, try screen space mode where ray direction + camera origin is used as sample position
+
+    let noise_scale: f32 = sky_constants.atmosphere.density_noise_scale / 100.0;
+    let noise: f32 = simplex3d(noise_scale * point) * 0.5 + 0.5;
+    return mix(sky_constants.atmosphere.density_noise_min, sky_constants.atmosphere.density_noise_max, noise);
 }

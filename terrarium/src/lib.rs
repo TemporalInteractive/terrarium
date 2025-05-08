@@ -164,6 +164,7 @@ impl RenderSettings {
                     ShadingMode::Texcoords,
                     ShadingMode::Emission,
                     ShadingMode::Velocity,
+                    ShadingMode::Fog,
                     ShadingMode::SimpleLighting,
                 ] {
                     ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());

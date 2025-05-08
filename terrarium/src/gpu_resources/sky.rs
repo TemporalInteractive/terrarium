@@ -65,6 +65,10 @@ impl Default for SunInfo {
 pub struct AtmosphereInfo {
     pub inscattering_color: Vec3,
     pub density: f32,
+    pub density_noise_scale: f32,
+    pub density_noise_min: f32,
+    pub density_noise_max: f32,
+    pub _padding0: u32,
 }
 
 impl Default for AtmosphereInfo {
@@ -72,6 +76,10 @@ impl Default for AtmosphereInfo {
         Self {
             inscattering_color: Vec3::new(135.0 / 255.0, 206.0 / 255.0, 235.0 / 255.0).normalize(),
             density: 0.005,
+            density_noise_scale: 0.1,
+            density_noise_min: 0.5,
+            density_noise_max: 1.0,
+            _padding0: 0,
         }
     }
 }
@@ -85,6 +93,14 @@ impl AtmosphereInfo {
         self.inscattering_color = Vec3::from_array(inscattering_color);
 
         ui.add(egui::Slider::new(&mut self.density, 0.0..=0.3).text("Density"));
+
+        ui.add(
+            egui::Slider::new(&mut self.density_noise_scale, 0.0..=1.0).text("Density Noise Scale"),
+        );
+        ui.add(egui::Slider::new(&mut self.density_noise_min, 0.0..=1.0).text("Density Noise Min"));
+        ui.add(egui::Slider::new(&mut self.density_noise_max, 0.0..=1.0).text("Density Noise Max"));
+        self.density_noise_min = self.density_noise_min.min(self.density_noise_max - 0.001);
+        self.density_noise_max = self.density_noise_max.max(self.density_noise_min + 0.001);
     }
 }
 
