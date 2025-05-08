@@ -111,10 +111,14 @@ fn simplex3d(p: vec3<f32>) -> f32 {
     return dot(d, vec4<f32>(52.0));
 }
 
-fn Sky::atmosphere_density(point: vec3<f32>) -> f32 {
-    // Currently this is ws mode, try screen space mode where ray direction + camera origin is used as sample position
-
+fn Sky::atmosphere_density(view_origin: vec3<f32>, hit_point_ws: vec3<f32>) -> f32 {
     let noise_scale: f32 = sky_constants.atmosphere.density_noise_scale / 100.0;
-    let noise: f32 = simplex3d(noise_scale * point) * 0.5 + 0.5;
-    return mix(sky_constants.atmosphere.density_noise_min, sky_constants.atmosphere.density_noise_max, noise);
+
+    let noise_ws: f32 = simplex3d(noise_scale * hit_point_ws) * 0.5 + 0.5;
+    let density_ws: f32 = mix(sky_constants.atmosphere.density_noise_min, sky_constants.atmosphere.density_noise_max, noise_ws);
+
+    let noise_vs: f32 = simplex3d(noise_scale * 0.3 * view_origin) * 0.5 + 0.5;
+    let density_vs: f32 = mix(0.5, 1.0, noise_vs);
+    
+    return density_ws * density_vs;
 }

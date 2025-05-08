@@ -76,7 +76,7 @@ impl Default for AtmosphereInfo {
         Self {
             inscattering_color: Vec3::new(135.0 / 255.0, 206.0 / 255.0, 235.0 / 255.0).normalize(),
             density: 0.005,
-            density_noise_scale: 0.1,
+            density_noise_scale: 0.4,
             density_noise_min: 0.5,
             density_noise_max: 1.0,
             _padding0: 0,

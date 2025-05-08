@@ -52,8 +52,8 @@ var shadow_sampler: sampler;
 @binding(7)
 var color_out: texture_storage_2d_array<rgba16float, read_write>;
 
-fn shade_fog(shade_color: vec3<f32>, gbuffer_texel: GBufferTexel, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
-    let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(gbuffer_texel.position_ws);
+fn shade_fog(shade_color: vec3<f32>, gbuffer_texel: GBufferTexel, view_origin: vec3<f32>, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
+    let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(view_origin, gbuffer_texel.position_ws);
     let fog_strength: f32 = 1.0 - exp(-gbuffer_texel.depth_ws * density);
     let inscattering: vec3<f32> = Sky::inscattering(view_dir, true);
     return mix(shade_color, inscattering, fog_strength);
@@ -108,7 +108,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
                     color = reflectance * light_intensity * n_dot_l + ambient + material.emission;
-                    color = shade_fog(color, gbuffer_texel, ray.direction, l);
+                    color = shade_fog(color, gbuffer_texel, ray.origin, ray.direction, l);
                 } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
                     color = vec3<f32>(light_intensity * n_dot_l) + ambient;
                 } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
@@ -122,7 +122,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 } else if (constants.shading_mode == SHADING_MODE_VELOCITY) {
                     color = vec3<f32>(abs(gbuffer_texel.velocity) * 10.0, 0.0);
                 } else if (constants.shading_mode == SHADING_MODE_FOG) {
-                    color = shade_fog(vec3<f32>(1.0), gbuffer_texel, ray.direction, l);
+                    color = shade_fog(vec3<f32>(1.0), gbuffer_texel, ray.origin, ray.direction, l);
                 }
             }
         } else {
