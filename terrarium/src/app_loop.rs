@@ -22,6 +22,13 @@ pub trait AppLoop: 'static + Sized {
         window: Arc<Window>,
     ) -> Self;
 
+    fn update(
+        &mut self,
+        xr_camera_state: &mut XrCameraState,
+        command_encoder: &mut wgpu::CommandEncoder,
+        ctx: &wgpu_util::Context,
+        pipeline_database: &mut wgpu_util::PipelineDatabase,
+    );
     fn render(
         &mut self,
         xr_camera_state: &mut XrCameraState,
@@ -167,6 +174,17 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         .context
                         .device
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+                    state.app_loop.update(
+                        &mut state.xr_camera_state,
+                        &mut command_encoder,
+                        &state.context,
+                        &mut state.pipeline_database,
+                    );
+
+                    if let Some(xr) = &mut state.context.xr {
+                        xr.pre_render().unwrap();
+                    }
 
                     #[cfg(feature = "egui")]
                     {

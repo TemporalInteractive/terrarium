@@ -409,10 +409,15 @@ impl XrContext {
         // Also returns a prediction of when the next frame will be displayed, for use with
         // predicting locations of controllers, viewpoints, etc.
         let xr_frame_state = self.frame_wait.wait()?;
+
+        Ok(Some(xr_frame_state))
+    }
+
+    pub(crate) fn pre_render(&mut self) -> anyhow::Result<()> {
         // Must be called before any rendering is done!
         self.frame_stream.begin()?;
 
-        Ok(Some(xr_frame_state))
+        Ok(())
     }
 
     pub(crate) fn post_frame(
