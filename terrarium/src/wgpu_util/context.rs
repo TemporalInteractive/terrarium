@@ -91,7 +91,6 @@ impl Context {
         required_downlevel_capabilities.flags - downlevel_capabilities.flags
     );
 
-        let trace_dir = std::env::var("WGPU_TRACE");
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
@@ -472,43 +471,45 @@ impl XrContext {
         xr_frame_state: openxr::FrameState,
         views: &[openxr::View],
     ) -> Result<()> {
-        if let Some(swapchain) = &mut self.swapchain {
-            swapchain.handle.release_image().unwrap();
+        if xr_frame_state.should_render {
+            if let Some(swapchain) = &mut self.swapchain {
+                swapchain.handle.release_image().unwrap();
 
-            let rect = openxr::Rect2Di {
-                offset: openxr::Offset2Di { x: 0, y: 0 },
-                extent: openxr::Extent2Di {
-                    width: swapchain.resolution.width as _,
-                    height: swapchain.resolution.height as _,
-                },
-            };
+                let rect = openxr::Rect2Di {
+                    offset: openxr::Offset2Di { x: 0, y: 0 },
+                    extent: openxr::Extent2Di {
+                        width: swapchain.resolution.width as _,
+                        height: swapchain.resolution.height as _,
+                    },
+                };
 
-            self.frame_stream.end(
-                xr_frame_state.predicted_display_time,
-                self.environment_blend_mode,
-                &[&openxr::CompositionLayerProjection::new()
-                    .space(&self.stage)
-                    .views(&[
-                        openxr::CompositionLayerProjectionView::new()
-                            .pose(views[0].pose)
-                            .fov(views[0].fov)
-                            .sub_image(
-                                openxr::SwapchainSubImage::new()
-                                    .swapchain(&swapchain.handle)
-                                    .image_array_index(0)
-                                    .image_rect(rect),
-                            ),
-                        openxr::CompositionLayerProjectionView::new()
-                            .pose(views[1].pose)
-                            .fov(views[1].fov)
-                            .sub_image(
-                                openxr::SwapchainSubImage::new()
-                                    .swapchain(&swapchain.handle)
-                                    .image_array_index(1)
-                                    .image_rect(rect),
-                            ),
-                    ])],
-            )?;
+                self.frame_stream.end(
+                    xr_frame_state.predicted_display_time,
+                    self.environment_blend_mode,
+                    &[&openxr::CompositionLayerProjection::new()
+                        .space(&self.stage)
+                        .views(&[
+                            openxr::CompositionLayerProjectionView::new()
+                                .pose(views[0].pose)
+                                .fov(views[0].fov)
+                                .sub_image(
+                                    openxr::SwapchainSubImage::new()
+                                        .swapchain(&swapchain.handle)
+                                        .image_array_index(0)
+                                        .image_rect(rect),
+                                ),
+                            openxr::CompositionLayerProjectionView::new()
+                                .pose(views[1].pose)
+                                .fov(views[1].fov)
+                                .sub_image(
+                                    openxr::SwapchainSubImage::new()
+                                        .swapchain(&swapchain.handle)
+                                        .image_array_index(1)
+                                        .image_rect(rect),
+                                ),
+                        ])],
+                )?;
+            }
         }
 
         Ok(())
