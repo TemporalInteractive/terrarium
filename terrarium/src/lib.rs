@@ -9,7 +9,6 @@ use render_passes::{
     debug_line_pass::{self, DebugLinePassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
-    ssao_pass::{self, SsaoPassParameters},
     taa_pass::{self, TaaPassParameters},
 };
 use world::transform::UP;
@@ -46,6 +45,7 @@ struct PackedGBufferTexel {
 struct SizedResources {
     resolution: UVec2,
     gbuffer: [wgpu::Buffer; 2],
+    shading_texture: [wgpu::Texture; 2],
     shadow_resolution: UVec2,
     shadow_texture: wgpu::Texture,
     shadow_texture_view: wgpu::TextureView,
@@ -65,6 +65,26 @@ impl SizedResources {
                 size: size_of::<PackedGBufferTexel>() as u64 * (resolution.x * resolution.y) as u64,
                 usage: wgpu::BufferUsages::STORAGE,
                 mapped_at_creation: false,
+            })
+        });
+
+        let shading_texture = std::array::from_fn(|i| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(&format!("terrarium::shading {}", i)),
+                size: wgpu::Extent3d {
+                    width: config.width,
+                    height: config.height,
+                    depth_or_array_layers: 2,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+                view_formats: &[],
             })
         });
 
@@ -99,6 +119,7 @@ impl SizedResources {
         Self {
             resolution,
             gbuffer,
+            shading_texture,
             shadow_resolution,
             shadow_texture,
             shadow_texture_view,
@@ -216,7 +237,6 @@ pub struct RenderParameters<'a> {
     pub xr_camera_state: &'a XrCameraState,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub render_target: &'a wgpu::Texture,
-    pub prev_render_target: &'a wgpu::Texture,
     pub world: &'a specs::World,
     pub gpu_resources: &'a mut GpuResources,
     #[cfg(feature = "transform-gizmo")]
@@ -294,43 +314,41 @@ impl Renderer {
         );
         //}
 
-        if parameters.render_settings.enable_ssao {
-            ssao_pass::encode(
-                &SsaoPassParameters {
-                    resolution: self.sized_resources.resolution,
-                    shadow_resolution: self.sized_resources.shadow_resolution,
-                    seed: self.frame_idx,
-                    sample_count: parameters.render_settings.ssao_sample_count,
-                    radius: 1.0,
-                    intensity: parameters.render_settings.ssao_intensity,
-                    bias: 0.01,
-                    shadow_texture_view: &self.sized_resources.shadow_texture_view,
-                    xr_camera_buffer: parameters.xr_camera_buffer,
-                    gbuffer: &self.sized_resources.gbuffer,
-                },
-                &ctx.device,
-                command_encoder,
-                pipeline_database,
-            );
-        }
+        // if parameters.render_settings.enable_ssao {
+        //     ssao_pass::encode(
+        //         &SsaoPassParameters {
+        //             resolution: self.sized_resources.resolution,
+        //             shadow_resolution: self.sized_resources.shadow_resolution,
+        //             seed: self.frame_idx,
+        //             sample_count: parameters.render_settings.ssao_sample_count,
+        //             radius: 1.0,
+        //             intensity: parameters.render_settings.ssao_intensity,
+        //             bias: 0.01,
+        //             shadow_texture_view: &self.sized_resources.shadow_texture_view,
+        //             xr_camera_buffer: parameters.xr_camera_buffer,
+        //             gbuffer: &self.sized_resources.gbuffer,
+        //         },
+        //         &ctx.device,
+        //         command_encoder,
+        //         pipeline_database,
+        //     );
+        // }
 
-        let rt_view = parameters
-            .render_target
+        let shading_view = self.sized_resources.shading_texture[self.frame_idx as usize % 2]
             .create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 array_layer_count: Some(2),
                 mip_level_count: Some(1),
                 ..Default::default()
             });
-        let prev_rt_view =
-            parameters
-                .prev_render_target
-                .create_view(&wgpu::TextureViewDescriptor {
-                    dimension: Some(wgpu::TextureViewDimension::D2Array),
-                    array_layer_count: Some(2),
-                    mip_level_count: Some(1),
-                    ..Default::default()
-                });
+        let prev_shading_view = self.sized_resources.shading_texture
+            [(self.frame_idx as usize + 1) % 2]
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                array_layer_count: Some(2),
+                mip_level_count: Some(1),
+                ..Default::default()
+            });
 
         shade_pass::encode(
             &ShadePassParameters {
@@ -340,12 +358,58 @@ impl Renderer {
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
                 shadow_texture_view: &self.sized_resources.shadow_texture_view,
-                dst_view: &rt_view,
+                dst_view: &shading_view,
             },
             &ctx.device,
             command_encoder,
             pipeline_database,
         );
+
+        if parameters.render_settings.enable_taa {
+            taa_pass::encode(
+                &TaaPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    history_influence: parameters.render_settings.taa_history_influence,
+                    color_texture_view: &shading_view,
+                    prev_color_texture_view: &prev_shading_view,
+                    gbuffer: &self.sized_resources.gbuffer,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
+
+        command_encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfoBase {
+                texture: &self.sized_resources.shading_texture[self.frame_idx as usize % 2],
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfoBase {
+                texture: parameters.render_target,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: self.sized_resources.resolution.x,
+                height: self.sized_resources.resolution.y,
+                depth_or_array_layers: 2,
+            },
+        );
+
+        let render_target_view =
+            parameters
+                .render_target
+                .create_view(&wgpu::TextureViewDescriptor {
+                    dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    array_layer_count: Some(2),
+                    mip_level_count: Some(1),
+                    ..Default::default()
+                });
 
         if parameters.render_settings.enable_bloom {
             bloom_pass::encode(
@@ -366,7 +430,7 @@ impl Renderer {
                     resolution: self.sized_resources.resolution,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
-                    dst_view: &rt_view,
+                    dst_view: &render_target_view,
                     target_format: wgpu::TextureFormat::Rgba16Float,
                 },
                 &ctx.device,
@@ -383,7 +447,7 @@ impl Renderer {
                 &GizmoPassParameters {
                     resolution: self.sized_resources.resolution,
                     gizmo_draw_data,
-                    dst_view: &rt_view,
+                    dst_view: &render_target_view,
                     target_format: wgpu::TextureFormat::Rgba16Float,
                 },
                 &ctx.device,
@@ -395,28 +459,12 @@ impl Renderer {
         color_correction_pass::encode(
             &ColorCorrectionPassParameters {
                 resolution: self.sized_resources.resolution,
-                color_texture_view: &rt_view,
+                color_texture_view: &render_target_view,
             },
             &ctx.device,
             command_encoder,
             pipeline_database,
         );
-
-        if parameters.render_settings.enable_taa {
-            taa_pass::encode(
-                &TaaPassParameters {
-                    resolution: self.sized_resources.resolution,
-                    history_influence: parameters.render_settings.taa_history_influence,
-                    color_texture_view: &rt_view,
-                    prev_color_texture_view: &prev_rt_view,
-                    gbuffer: &self.sized_resources.gbuffer,
-                    xr_camera_buffer: parameters.xr_camera_buffer,
-                },
-                &ctx.device,
-                command_encoder,
-                pipeline_database,
-            );
-        }
 
         parameters.gpu_resources.end_frame();
         self.frame_idx += 1;

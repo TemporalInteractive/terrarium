@@ -34,7 +34,6 @@ pub trait AppLoop: 'static + Sized {
         xr_camera_state: &mut XrCameraState,
         xr_camera_buffer: &wgpu::Buffer,
         render_target: &wgpu::Texture,
-        prev_render_target: &wgpu::Texture,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
@@ -203,15 +202,14 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                     state.app_loop.render(
                         &mut state.xr_camera_state,
                         &state.xr_camera_buffer,
-                        &state.rt_texture[self.frame_idx as usize % 2],
-                        &state.rt_texture[(self.frame_idx as usize + 1) % 2],
+                        &state.rt_texture,
                         &mut command_encoder,
                         &state.context,
                         &mut state.pipeline_database,
                     );
 
-                    let rt_texture_view = state.rt_texture[self.frame_idx as usize % 2]
-                        .create_view(&wgpu::TextureViewDescriptor {
+                    let rt_texture_view =
+                        state.rt_texture.create_view(&wgpu::TextureViewDescriptor {
                             dimension: Some(wgpu::TextureViewDimension::D2Array),
                             array_layer_count: Some(2),
                             mip_level_count: Some(1),
@@ -315,9 +313,10 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             WindowEvent::Resized(size) => {
                 if let Some(state) = &mut self.state {
                     state.surface.resize(&state.context, size);
-                    state.rt_texture = std::array::from_fn(|_| {
-                        State::<R>::create_rt_texture(state.surface.config(), &state.context.device)
-                    });
+                    state.rt_texture = State::<R>::create_rt_texture(
+                        state.surface.config(),
+                        &state.context.device,
+                    );
 
                     state
                         .app_loop
@@ -350,7 +349,7 @@ struct State<R: AppLoop> {
     xr_camera_state: XrCameraState,
     prev_xr_camera_data: XrCameraData,
     xr_camera_buffer: wgpu::Buffer,
-    rt_texture: [wgpu::Texture; 2],
+    rt_texture: wgpu::Texture,
     app_loop: R,
 
     #[cfg(feature = "egui")]
@@ -391,8 +390,7 @@ impl<R: AppLoop> State<R> {
 
         let app_loop = R::new(surface.config(), &context, window.clone());
 
-        let rt_texture =
-            std::array::from_fn(|_| Self::create_rt_texture(surface.config(), &context.device));
+        let rt_texture = Self::create_rt_texture(surface.config(), &context.device);
 
         let xr_camera_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::xr_camera"),
@@ -451,6 +449,7 @@ impl<R: AppLoop> State<R> {
             format: wgpu::TextureFormat::Rgba16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING,
             view_formats: &[],
