@@ -6,7 +6,7 @@ use glam::Mat4;
 use specs::{Builder, WorldExt};
 use terrarium::gpu_resources::{GpuMaterial, GpuMesh, GpuResources};
 use terrarium::wgpu_util;
-use terrarium::world::components::{MeshComponent, TransformComponent};
+use terrarium::world::components::{DynamicComponent, MeshComponent, TransformComponent};
 use terrarium::world::transform::Transform;
 use ugm::Model;
 
@@ -29,10 +29,14 @@ impl<'a> EntityBuilder<'a> {
         };
         let transform_component = TransformComponent::new(transform, is_static);
 
-        let builder = ecs
+        let mut builder = ecs
             .create_entity()
             .with(entity_info_component)
             .with(transform_component);
+
+        if !is_static {
+            builder = builder.with(DynamicComponent);
+        }
 
         Self { builder }
     }
@@ -61,6 +65,7 @@ impl World {
         ecs.register::<EntityInfoComponent>();
         ecs.register::<MeshComponent>();
         ecs.register::<TransformComponent>();
+        ecs.register::<DynamicComponent>();
 
         Self {
             ecs,
