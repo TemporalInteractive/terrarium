@@ -410,6 +410,8 @@ impl Renderer {
                 &BloomPassParameters {
                     intensity: parameters.render_settings.bloom_intensity,
                     radius: parameters.render_settings.bloom_radius,
+                    initial_color_texture: &self.sized_resources.shading_texture
+                        [self.frame_idx as usize % 2],
                     color_texture: parameters.render_target,
                 },
                 &ctx.device,

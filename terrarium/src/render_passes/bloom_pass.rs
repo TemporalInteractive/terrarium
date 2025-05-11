@@ -19,6 +19,7 @@ struct Constants {
 pub struct BloomPassParameters<'a> {
     pub intensity: f32,
     pub radius: f32,
+    pub initial_color_texture: &'a wgpu::Texture,
     pub color_texture: &'a wgpu::Texture,
 }
 
@@ -65,11 +66,6 @@ pub fn encode(
     }
 
     for i in (1..mip_level_count).rev() {
-        // println!("{} {}", mip_level_count, i);
-        // let dst_resolution = (src_resolution * 2).min(UVec2::new(
-        //     parameters.color_texture.width(),
-        //     parameters.color_texture.height(),
-        // ));
         let src_resolution = mip_resolutions[i as usize];
         let dst_resolution = mip_resolutions[i as usize - 1];
 
@@ -83,8 +79,6 @@ pub fn encode(
             command_encoder,
             pipeline_database,
         );
-
-        //src_resolution = dst_resolution;
     }
 }
 
@@ -175,15 +169,28 @@ fn encode_downsample(
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    let src_view = parameters
-        .color_texture
-        .create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            array_layer_count: Some(2),
-            mip_level_count: Some(1),
-            base_mip_level: src_mip_level,
-            ..Default::default()
-        });
+    let src_view = if src_mip_level == 0 {
+        parameters
+            .initial_color_texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                array_layer_count: Some(2),
+                mip_level_count: Some(1),
+                base_mip_level: src_mip_level,
+                ..Default::default()
+            })
+    } else {
+        parameters
+            .color_texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                array_layer_count: Some(2),
+                mip_level_count: Some(1),
+                base_mip_level: src_mip_level,
+                ..Default::default()
+            })
+    };
+
     let dst_view = parameters
         .color_texture
         .create_view(&wgpu::TextureViewDescriptor {
