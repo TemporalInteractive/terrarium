@@ -78,15 +78,12 @@ impl AppLoop for ExampleApp {
         });
     }
 
-    fn render(
+    fn update(
         &mut self,
         xr_camera_state: &mut XrCameraState,
-        xr_camera_buffer: &wgpu::Buffer,
-        render_target: &wgpu::Texture,
-        prev_render_target: &wgpu::Texture,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
-        pipeline_database: &mut wgpu_util::PipelineDatabase,
+        _pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) {
         let delta_time = self.frame_timer.elapsed();
         self.frame_timer.reset();
@@ -103,7 +100,7 @@ impl AppLoop for ExampleApp {
             self.first_frame = false;
 
             let model = ugm::Model::read_from_buffer(
-                &std::fs::read("examples/massive/assets/TestScene.ugm")
+                &std::fs::read("examples/massive/assets/TestSceneBig.ugm")
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )
             .unwrap();
@@ -118,22 +115,24 @@ impl AppLoop for ExampleApp {
             );
 
             self.gpu_resources.mark_statics_dirty();
-
-            // let model = ugm::Model::read_from_buffer(
-            //     &std::fs::read("examples/massive/assets/DamagedHelmet.ugm")
-            //     .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
-            // )
-            // .unwrap();
-            // self.world.spawn_model(
-            //     &model,
-            //     Transform::from_translation(Vec3::new(2.0, 1.0, 0.0)),
-            //     None,
-            //     &mut self.gpu_resources,
-            //     command_encoder,
-            //     ctx,
-            // );
         }
 
+        self.world.update();
+        self.input_handler.update();
+        self.fps_counter.end_frame();
+
+        println!("FPS {}", self.fps_counter.fps());
+    }
+
+    fn render(
+        &mut self,
+        xr_camera_state: &mut XrCameraState,
+        xr_camera_buffer: &wgpu::Buffer,
+        render_target: &wgpu::Texture,
+        command_encoder: &mut wgpu::CommandEncoder,
+        ctx: &wgpu_util::Context,
+        pipeline_database: &mut wgpu_util::PipelineDatabase,
+    ) {
         self.gpu_resources.debug_lines_mut().submit_line(
             Vec3::ZERO,
             RIGHT * 10000.0,
@@ -157,19 +156,12 @@ impl AppLoop for ExampleApp {
                 xr_camera_state,
                 xr_camera_buffer,
                 render_target,
-                prev_render_target,
                 gpu_resources: &mut self.gpu_resources,
             },
             command_encoder,
             ctx,
             pipeline_database,
         );
-
-        self.world.update();
-        self.input_handler.update();
-        self.fps_counter.end_frame();
-
-        println!("FPS {}", self.fps_counter.fps());
     }
 
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
@@ -206,6 +198,7 @@ impl AppLoop for ExampleApp {
             max_texture_dimension_1d: 4096,
             max_texture_dimension_2d: 4096,
             max_binding_array_elements_per_shader_stage: 1024,
+            max_storage_textures_per_shader_stage: 8,
             ..wgpu::Limits::default()
         }
     }

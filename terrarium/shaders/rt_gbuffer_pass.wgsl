@@ -1,9 +1,9 @@
 @include shared/xr.wgsl
-@include shared/gbuffer.wgsl
 @include shared/trace.wgsl
 
 @include shared/vertex_pool_bindings.wgsl
 @include shared/material_pool_bindings.wgsl
+@include shared/gbuffer_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,
@@ -26,13 +26,6 @@ var static_scene: acceleration_structure;
 @group(0)
 @binding(3)
 var dynamic_scene: acceleration_structure;
-
-@group(0)
-@binding(4)
-var<storage, read_write> gbuffer_left: array<PackedGBufferTexel>;
-@group(0)
-@binding(5)
-var<storage, read_write> gbuffer_right: array<PackedGBufferTexel>;
 
 fn trace_ray(origin: vec3<f32>, direction: vec3<f32>) -> RayIntersection {
     var rq: ray_query;
@@ -75,15 +68,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
         var position_ws = vec3<f32>(0.0);
         var depth_ws: f32 = 0.0;
-        var normal_ws = vec3<f32>(0.0);
-        var tangent_ws = vec3<f32>(0.0);
-        var material_descriptor_idx: u32 = 0;
-        var tex_coord = vec2<f32>(0.0);
-        var velocity = vec2<f32>(0.0);
-        var ddx = vec2<f32>(0.0);
-        var ddy = vec2<f32>(0.0);
-        var normal_roughness: f32 = 0.0;
-        var geometric_normal_ws = vec3<f32>(0.0);
 
         let intersection: RayIntersection = trace_ray(origin, direction);
         if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
@@ -100,10 +84,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let v1: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i1]);
             let v2: Vertex = PackedVertex::unpack(vertices[vertex_pool_slice.first_vertex + i2]);
 
-            tex_coord = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
+            let tex_coord: vec2<f32> = v0.tex_coord * barycentrics.x + v1.tex_coord * barycentrics.y + v2.tex_coord * barycentrics.z;
             let hit_point: vec3<f32> = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
 
-            material_descriptor_idx = VertexPoolBindings::material_idx(intersection.instance_custom_data, vertex_pool_slice.first_index / 3 + intersection.primitive_index);
+            let material_descriptor_idx: u32 = VertexPoolBindings::material_idx(intersection.instance_custom_data, vertex_pool_slice.first_index / 3 + intersection.primitive_index);
             let material_descriptor: MaterialDescriptor = material_descriptors[material_descriptor_idx];
 
             // Load tangent, bitangent and normal in local space
@@ -124,7 +108,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let hit_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(tbn[2], 1.0)).xyz);
 
             let geometric_normal: vec3<f32> = normalize(cross(v1.position - v0.position, v2.position - v0.position));
-            geometric_normal_ws = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
+            var geometric_normal_ws: vec3<f32> = normalize((local_to_world_inv_trans * vec4<f32>(geometric_normal, 1.0)).xyz);
             let hit_point_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(hit_point, 1.0)).xyz;
             let prev_hit_point_ws: vec3<f32> = VertexPoolBindings::reproject_point(intersection.instance_custom_data, hit_point_ws);
 
@@ -134,6 +118,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 hit_normal_ws
             );
 
+            var ddx = vec2<f32>(0.0);
+            var ddy = vec2<f32>(0.0);
             if (constants.mipmapping > 0) {
                 let p0_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(v0.position, 1.0)).xyz;
                 let p1_ws: vec3<f32> = (intersection.object_to_world * vec4<f32>(v1.position, 1.0)).xyz;
@@ -166,6 +152,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 mapped_normal_and_roughness = vec4<f32>(hit_normal_ws, 1.0);
             }
             var front_facing_shading_normal_ws: vec3<f32> = mapped_normal_and_roughness.xyz;
+            let normal_roughness: f32 = mapped_normal_and_roughness.w;
 
             let w_out_worldspace: vec3<f32> = -direction;
 
@@ -176,12 +163,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 front_facing_shading_normal_ws *= -1.0;
             }
 
-            position_ws = hit_point_ws;
-            depth_ws = intersection.t;
-            normal_ws = front_facing_shading_normal_ws;
-            normal_roughness = mapped_normal_and_roughness.w;
-            tangent_ws = hit_tangent_ws;
-
             let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
             let prev_position_cs: vec4<f32> = xr_camera.prev_view_to_clip_space[view_index] * xr_camera.prev_world_to_view_space[view_index] * vec4<f32>(prev_hit_point_ws, 1.0);
             
@@ -189,13 +170,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             position_ss = vec4<f32>(position_ss.x, 1.0 - position_ss.y, position_ss.zw);
             var prev_position_ss: vec4<f32> = (prev_position_cs / prev_position_cs.w + 1.0) / 2.0;
             prev_position_ss = vec4<f32>(prev_position_ss.x, 1.0 - prev_position_ss.y, prev_position_ss.zw);
-            velocity = (position_ss - prev_position_ss).xy;
+            let velocity: vec2<f32> = (position_ss - prev_position_ss).xy;
+
+            position_ws = hit_point_ws;
+            depth_ws = intersection.t;
+            Gbuffer::store_shading_and_geometric_normal(front_facing_shading_normal_ws, geometric_normal_ws, id, view_index);
+            Gbuffer::store_tex_coord_and_derivatives(tex_coord, ddx, ddy, id, view_index);
+            Gbuffer::store_velocity(velocity, id, view_index);
+            Gbuffer::store_material_descriptor_idx_and_normal_roughness(material_descriptor_idx, normal_roughness, id, view_index);
         }
 
-        if (view_index == 0) {
-            gbuffer_left[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness, geometric_normal_ws);
-        } else {
-            gbuffer_right[i] = PackedGBufferTexel::new(position_ws, depth_ws, normal_ws, tangent_ws, material_descriptor_idx, tex_coord, velocity, ddx, ddy, normal_roughness, geometric_normal_ws);
-        }
+        Gbuffer::store_position_and_depth(position_ws, depth_ws, id, view_index);
     }
 }

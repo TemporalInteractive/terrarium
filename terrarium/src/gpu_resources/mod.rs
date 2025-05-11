@@ -21,6 +21,7 @@ const MAX_STATIC_INSTANCES: usize = 1024 * 256;
 const MAX_DYNAMIC_INSTANCES: usize = 1024 * 16;
 
 pub mod debug_lines;
+pub mod gbuffer;
 mod linear_block_allocator;
 pub mod material_pool;
 pub mod sky;

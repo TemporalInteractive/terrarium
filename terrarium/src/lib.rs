@@ -1,5 +1,6 @@
 use glam::{UVec2, Vec2, Vec3};
 use gpu_resources::{
+    gbuffer::Gbuffer,
     sky::{AtmosphereInfo, SunInfo},
     GpuResources,
 };
@@ -44,7 +45,7 @@ struct PackedGBufferTexel {
 
 struct SizedResources {
     resolution: UVec2,
-    gbuffer: [wgpu::Buffer; 2],
+    gbuffer: Gbuffer,
     shading_texture: [wgpu::Texture; 2],
     shadow_resolution: UVec2,
     shadow_texture: wgpu::Texture,
@@ -59,14 +60,7 @@ impl SizedResources {
     ) -> Self {
         let resolution = UVec2::new(config.width, config.height);
 
-        let gbuffer = std::array::from_fn(|i| {
-            device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(&format!("terrarium::gbuffer {}", i)),
-                size: size_of::<PackedGBufferTexel>() as u64 * (resolution.x * resolution.y) as u64,
-                usage: wgpu::BufferUsages::STORAGE,
-                mapped_at_creation: false,
-            })
-        });
+        let gbuffer = Gbuffer::new(resolution, device);
 
         let shading_texture = std::array::from_fn(|i| {
             device.create_texture(&wgpu::TextureDescriptor {
@@ -427,7 +421,6 @@ impl Renderer {
         if parameters.render_settings.enable_debug_lines {
             debug_line_pass::encode(
                 &DebugLinePassParameters {
-                    resolution: self.sized_resources.resolution,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     dst_view: &render_target_view,

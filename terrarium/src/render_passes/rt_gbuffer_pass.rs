@@ -4,8 +4,11 @@ use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
-    gpu_resources::GpuResources,
-    wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
+    gpu_resources::{gbuffer::Gbuffer, GpuResources},
+    wgpu_util::{
+        empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
+        PipelineDatabase,
+    },
 };
 
 #[derive(Pod, Clone, Copy, Zeroable)]
@@ -22,7 +25,7 @@ pub struct RtGbufferPassParameters<'a> {
     pub normal_mapping: bool,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
-    pub gbuffer: &'a [wgpu::Buffer; 2],
+    pub gbuffer: &'a Gbuffer,
 }
 
 pub fn encode(
@@ -82,30 +85,12 @@ pub fn encode(
                                 },
                                 count: None,
                             },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 4,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
                         ],
                     }),
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
                     parameters.gpu_resources.material_pool().bind_group_layout(),
+                    empty_bind_group_layout(device),
+                    parameters.gbuffer.bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
@@ -147,14 +132,6 @@ pub fn encode(
                     parameters.gpu_resources.dynamic_tlas(),
                 ),
             },
-            wgpu::BindGroupEntry {
-                binding: 4,
-                resource: parameters.gbuffer[0].as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
-                resource: parameters.gbuffer[1].as_entire_binding(),
-            },
         ],
     });
 
@@ -177,6 +154,8 @@ pub fn encode(
                 cpass.set_bind_group(2, bind_group, &[]);
             },
         );
+        cpass.set_bind_group(3, empty_bind_group(device), &[]);
+        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
         cpass.insert_debug_marker("terrarium::rt_gbuffer");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(16),

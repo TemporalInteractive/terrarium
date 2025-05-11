@@ -5,7 +5,13 @@ use glam::{UVec2, Vec2};
 use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
-use crate::wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase};
+use crate::{
+    gpu_resources::gbuffer::Gbuffer,
+    wgpu_util::{
+        empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
+        PipelineDatabase,
+    },
+};
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
@@ -20,7 +26,7 @@ pub struct TaaPassParameters<'a> {
     pub history_influence: f32,
     pub color_texture_view: &'a wgpu::TextureView,
     pub prev_color_texture_view: &'a wgpu::TextureView,
-    pub gbuffer: &'a [wgpu::Buffer; 2],
+    pub gbuffer: &'a Gbuffer,
     pub xr_camera_buffer: &'a wgpu::Buffer,
 }
 
@@ -84,8 +90,8 @@ pub fn encode(
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("terrarium::taa"),
-                bind_group_layouts: &[&device.create_bind_group_layout(
-                    &wgpu::BindGroupLayoutDescriptor {
+                bind_group_layouts: &[
+                    &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
                         entries: &[
                             wgpu::BindGroupLayoutEntry {
@@ -130,26 +136,6 @@ pub fn encode(
                                 binding: 4,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 6,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
                                     ty: wgpu::BufferBindingType::Uniform,
                                     has_dynamic_offset: false,
                                     min_binding_size: None,
@@ -157,8 +143,12 @@ pub fn encode(
                                 count: None,
                             },
                         ],
-                    },
-                )],
+                    }),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
+                    parameters.gbuffer.bind_group_layout(),
+                ],
                 push_constant_ranges: &[],
             })
         },
@@ -205,14 +195,6 @@ pub fn encode(
             },
             wgpu::BindGroupEntry {
                 binding: 4,
-                resource: parameters.gbuffer[0].as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
-                resource: parameters.gbuffer[1].as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 6,
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
             },
         ],
@@ -225,6 +207,10 @@ pub fn encode(
         });
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
+        cpass.set_bind_group(1, empty_bind_group(device), &[]);
+        cpass.set_bind_group(2, empty_bind_group(device), &[]);
+        cpass.set_bind_group(3, empty_bind_group(device), &[]);
+        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
         cpass.insert_debug_marker("terrarium::taa");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(8),

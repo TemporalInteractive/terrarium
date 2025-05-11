@@ -1,6 +1,8 @@
 @include shared/color.wgsl
-@include shared/gbuffer.wgsl
 @include shared/math.wgsl
+@include shared/xr.wgsl
+
+@include shared/gbuffer_bindings.wgsl
 
 struct Constants {
     resolution: vec2<u32>,
@@ -25,13 +27,6 @@ var color_sampler: sampler;
 
 @group(0)
 @binding(4)
-var<storage, read> gbuffer_left: array<PackedGBufferTexel>;
-@group(0)
-@binding(5)
-var<storage, read> gbuffer_right: array<PackedGBufferTexel>;
-
-@group(0)
-@binding(6)
 var<uniform> xr_camera: XrCamera;
 
 fn cubicHermite(A: vec3<f32>, B: vec3<f32>, C: vec3<f32>, D: vec3<f32>, t: f32) -> vec3<f32> {
@@ -165,18 +160,19 @@ fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
 
         var center: vec3<f32> = loaded_input(group_thread_id + vec2<u32>(BORDER_SIZE));
 
-        var gbuffer_texel: GBufferTexel;
-        if (view_index == 0) {
-            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
-        } else {
-            gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
-        }
+        // var gbuffer_texel: GBufferTexel;
+        // if (view_index == 0) {
+        //     gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
+        // } else {
+        //     gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
+        // }
 
-        if (GBufferTexel::is_sky(gbuffer_texel)) {
+        let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
+        if (GbufferPositionAndDepth::is_sky(position_and_depth)) {
             continue;
         }
 
-        var history_uv: vec2<f32> = uv - gbuffer_texel.velocity;
+        var history_uv: vec2<f32> = uv - Gbuffer::load_velocity(id, view_index);
         //let history: vec3<f32> = linear_to_ycbcr(bicubicHermiteHistorySample(history_uv, view_index));
 
         let history_g: f32 = bicubicHermiteHistorySample(history_uv, view_index).g;

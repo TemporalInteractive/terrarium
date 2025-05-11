@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
-    gpu_resources::GpuResources,
+    gpu_resources::{gbuffer::Gbuffer, GpuResources},
     wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
 };
 
@@ -55,7 +55,7 @@ pub struct ShadePassParameters<'a> {
     pub shading_mode: ShadingMode,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
-    pub gbuffer: &'a [wgpu::Buffer; 2],
+    pub gbuffer: &'a Gbuffer,
     pub shadow_texture_view: &'a wgpu::TextureView,
     pub dst_view: &'a wgpu::TextureView,
 }
@@ -102,27 +102,7 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 3,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 4,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
+                                binding: 2,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Texture {
                                     sample_type: wgpu::TextureSampleType::Float {
@@ -134,13 +114,13 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 6,
+                                binding: 3,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 7,
+                                binding: 4,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
@@ -154,6 +134,7 @@ pub fn encode(
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
                     parameters.gpu_resources.material_pool().bind_group_layout(),
                     parameters.gpu_resources.sky().bind_group_layout(),
+                    parameters.gbuffer.bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
@@ -190,23 +171,15 @@ pub fn encode(
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 3,
-                resource: parameters.gbuffer[0].as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 4,
-                resource: parameters.gbuffer[1].as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
+                binding: 2,
                 resource: wgpu::BindingResource::TextureView(parameters.shadow_texture_view),
             },
             wgpu::BindGroupEntry {
-                binding: 6,
+                binding: 3,
                 resource: wgpu::BindingResource::Sampler(&sampler),
             },
             wgpu::BindGroupEntry {
-                binding: 7,
+                binding: 4,
                 resource: wgpu::BindingResource::TextureView(parameters.dst_view),
             },
         ],
@@ -232,6 +205,7 @@ pub fn encode(
             },
         );
         cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
+        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
         cpass.insert_debug_marker("terrarium::shade");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(16),
