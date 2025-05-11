@@ -54,7 +54,7 @@ fn trace_ray(origin: vec3<f32>, direction: vec3<f32>) -> RayIntersection {
 }
 
 @compute
-@workgroup_size(16, 16)
+@workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(num_workgroups) dispatch_size: vec3<u32>) {
     var id: vec2<u32> = global_id.xy;
