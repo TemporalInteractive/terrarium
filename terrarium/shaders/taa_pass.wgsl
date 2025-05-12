@@ -160,13 +160,6 @@ fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
 
         var center: vec3<f32> = loaded_input(group_thread_id + vec2<u32>(BORDER_SIZE));
 
-        // var gbuffer_texel: GBufferTexel;
-        // if (view_index == 0) {
-        //     gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_left[i]);
-        // } else {
-        //     gbuffer_texel = PackedGBufferTexel::unpack(gbuffer_right[i]);
-        // }
-
         let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
         if (GbufferPositionAndDepth::is_sky(position_and_depth)) {
             continue;
@@ -218,6 +211,8 @@ fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
         let nmax: vec3<f32> = mix(filtered_unjittered_center, ex, sqr(box_size)) + std_dev * box_size * N_DEVIATIONS;
 
         let valid_reprojection: bool = all(history_uv >= vec2<f32>(0.0)) && all(history_uv <= vec2<f32>(1.0));
+
+        // let emission: f32 = textureLoad(color, id, view_index).a;
 
         let clamped_history: vec3<f32> = clamp(history, nmin, nmax);
         let blend_factor: f32 = mix(1.0, 1.0 / 16.0, f32(valid_reprojection));

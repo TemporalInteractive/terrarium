@@ -60,6 +60,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
 
         let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
+        var emission: f32 = 0.0;
 
         var color: vec3<f32>;
         if (!GbufferPositionAndDepth::is_sky(position_and_depth)) {
@@ -73,6 +74,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             let geometric_roughness: f32 = safe_sqrt(1.0 - material_descriptor_idx_and_normal_roughness.normal_roughness);
             material.roughness = safe_sqrt(sqr(material.roughness) + sqr(geometric_roughness));
+
+            emission = select(0.0, 1.0, dot(material.emission, material.emission) > 0.0);
 
             if (constants.shading_mode == SHADING_MODE_SIMPLE_LIGHTING) {
                 let l: vec3<f32> = sky_constants.world_up;
@@ -118,6 +121,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             color = Sky::inscattering(ray.direction, false);
         }
 
-        textureStore(color_out, id, view_index, vec4<f32>(color, 1.0));
+        textureStore(color_out, id, view_index, vec4<f32>(color, emission));
     }
 }

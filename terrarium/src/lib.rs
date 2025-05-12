@@ -8,6 +8,7 @@ use render_passes::{
     bloom_pass::{self, BloomPassParameters},
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
+    emissive_stabilization_pass::{self, EmissiveStabilisationPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
     taa_pass::{self, TaaPassParameters},
@@ -133,6 +134,7 @@ pub struct RenderSettings {
     pub enable_bloom: bool,
     pub bloom_intensity: f32,
     pub bloom_radius: f32,
+    pub enable_emissive_stabilization: bool,
     pub enable_taa: bool,
     pub taa_history_influence: f32,
     pub sun: SunInfo,
@@ -154,6 +156,7 @@ impl Default for RenderSettings {
             enable_bloom: true,
             bloom_intensity: 0.13,
             bloom_radius: 2.7,
+            enable_emissive_stabilization: true,
             enable_taa: true,
             taa_history_influence: 0.8,
             sun: SunInfo::default(),
@@ -217,6 +220,9 @@ impl RenderSettings {
         ui.add(egui::Slider::new(&mut self.bloom_intensity, 0.0..=1.0).text("Intensity"));
         ui.add(egui::Slider::new(&mut self.bloom_radius, 0.0..=10.0).text("Radius"));
         ui.separator();
+
+        ui.heading("Emissive Stabilisation");
+        ui.checkbox(&mut self.enable_emissive_stabilization, "Enable");
 
         ui.heading("Taa");
         ui.checkbox(&mut self.enable_taa, "Enable");
@@ -358,6 +364,18 @@ impl Renderer {
             command_encoder,
             pipeline_database,
         );
+
+        if parameters.render_settings.enable_emissive_stabilization {
+            emissive_stabilization_pass::encode(
+                &EmissiveStabilisationPassParameters {
+                    resolution: self.sized_resources.resolution,
+                    color_texture_view: &shading_view,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        }
 
         if parameters.render_settings.enable_taa {
             taa_pass::encode(
