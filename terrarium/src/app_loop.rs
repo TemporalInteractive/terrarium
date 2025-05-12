@@ -174,6 +174,20 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         .device
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
+                    #[cfg(feature = "egui")]
+                    {
+                        let mut ui = state.egui_renderer.begin_frame(&state.window);
+
+                        state.app_loop.egui(
+                            &mut ui,
+                            &state.xr_camera_state,
+                            &mut command_encoder,
+                            &state.context,
+                            &mut state.pipeline_database,
+                        );
+                        state.egui_renderer.end_frame(ui);
+                    }
+
                     state.app_loop.update(
                         &mut state.xr_camera_state,
                         &mut command_encoder,
@@ -189,20 +203,6 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         state.surface.config().width == 1 || state.surface.config().height == 1;
 
                     let (xr_views, frame) = if !is_minimized {
-                        #[cfg(feature = "egui")]
-                        {
-                            let mut ui = state.egui_renderer.begin_frame(&state.window);
-
-                            state.app_loop.egui(
-                                &mut ui,
-                                &state.xr_camera_state,
-                                &mut command_encoder,
-                                &state.context,
-                                &mut state.pipeline_database,
-                            );
-                            state.egui_renderer.end_frame(ui);
-                        }
-
                         state.app_loop.render(
                             &mut state.xr_camera_state,
                             &state.xr_camera_buffer,
