@@ -415,7 +415,8 @@ impl<R: AppLoop> State<R> {
             mapped_at_creation: false,
         });
 
-        let xr_camera_state = XrCameraState::new(0.01, 10000.0);
+        let xr_connected = context.xr.is_some();
+        let xr_camera_state = XrCameraState::new(0.01, 10000.0, xr_connected);
 
         let mut pipeline_database = wgpu_util::PipelineDatabase::new();
 

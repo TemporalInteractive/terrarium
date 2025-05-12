@@ -36,10 +36,11 @@ pub struct XrCameraState {
     pub z_near: f32,
     pub z_far: f32,
     pub jitter: Vec2,
+    xr_connected: bool,
 }
 
 impl XrCameraState {
-    pub fn new(z_near: f32, z_far: f32) -> Self {
+    pub fn new(z_near: f32, z_far: f32, xr_connected: bool) -> Self {
         Self {
             stage_to_view_space: [Mat4::IDENTITY; 2],
             view_to_clip_space: [Mat4::IDENTITY; 2],
@@ -49,7 +50,12 @@ impl XrCameraState {
             z_near,
             z_far,
             jitter: Vec2::ZERO,
+            xr_connected,
         }
+    }
+
+    pub fn xr_connected(&self) -> bool {
+        self.xr_connected
     }
 
     pub fn stage_to_view_space_from_openxr_views(&mut self, views: &[openxr::View]) {
