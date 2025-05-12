@@ -5,8 +5,9 @@
 @include shared/gbuffer_bindings.wgsl
 
 struct Constants {
-    prev_resolution: vec2<u32>,
     resolution: vec2<u32>,
+    _padding0: u32,
+    _padding1: u32,
 }
 
 @group(0)
@@ -56,7 +57,7 @@ fn mitchellNetravali(x: f32) -> f32 {
 }
 
 fn fetchHistoryPixel(id: vec2<i32>, view_index: u32) -> vec3<f32> {
-    if(any(id < vec2<i32>(0)) || any(id >= vec2<i32>(constants.prev_resolution))) {
+    if(any(id < vec2<i32>(0)) || any(id >= vec2<i32>(constants.resolution))) {
         return vec3<f32>(0.0);
     }
 
@@ -64,7 +65,7 @@ fn fetchHistoryPixel(id: vec2<i32>, view_index: u32) -> vec3<f32> {
 }
 
 fn bicubicHermiteHistorySample(uv: vec2<f32>, view_index: u32) -> vec3<f32> {
-    let pixel: vec2<f32> = uv * vec2<f32>(constants.prev_resolution) + vec2<f32>(0.5);
+    let pixel: vec2<f32> = uv * vec2<f32>(constants.resolution) + vec2<f32>(0.5);
     let px_frac: vec2<f32> = fract(pixel);
 
     let ipixel: vec2<i32> = vec2<i32>(i32(pixel.x), i32(pixel.y)) - 1;
@@ -196,7 +197,7 @@ fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
 
         let local_contrast: f32 = std_dev.x / (ex.x + 1e-5);
 
-        let history_ss_coords: vec2<f32> = history_uv * vec2<f32>(constants.prev_resolution);
+        let history_ss_coords: vec2<f32> = history_uv * vec2<f32>(constants.resolution);
         let texel_center_distance: f32 = dot(vec2<f32>(1.0), abs(0.5 - fract(history_ss_coords)));
 
         var box_size: f32 = 1.0;
@@ -209,7 +210,7 @@ fn main(@builtin(global_invocation_id) global_thread_id: vec3<u32>,
         let nmin: vec3<f32> = mix(filtered_unjittered_center, ex, sqr(box_size)) - std_dev * box_size * N_DEVIATIONS;
         let nmax: vec3<f32> = mix(filtered_unjittered_center, ex, sqr(box_size)) + std_dev * box_size * N_DEVIATIONS;
 
-        let valid_reprojection: bool = all(history_uv >= vec2<f32>(0.0)) && all(history_uv <= vec2<f32>(1.0)) && all(constants.resolution == constants.prev_resolution);
+        let valid_reprojection: bool = all(history_uv >= vec2<f32>(0.0)) && all(history_uv <= vec2<f32>(1.0));
 
         // let emission: f32 = textureLoad(color, id, view_index).a;
 

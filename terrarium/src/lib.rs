@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use glam::{UVec2, Vec3};
 use gpu_resources::{
     gbuffer::Gbuffer,
@@ -5,6 +7,7 @@ use gpu_resources::{
     GpuResources,
 };
 use render_passes::{
+    blit_pass::{self, BlitPassParameters},
     bloom_pass::{self, BloomPassParameters},
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
@@ -31,29 +34,27 @@ pub use egui;
 
 struct SizedResources {
     resolution: UVec2,
+    shading_resolution: UVec2,
+    shading_resolution_scale: f32,
     gbuffer: Gbuffer,
     shading_texture: [wgpu::Texture; 2],
-    shadow_resolution: UVec2,
-    shadow_texture: wgpu::Texture,
-    shadow_texture_view: wgpu::TextureView,
 }
 
 impl SizedResources {
-    pub fn new(
-        config: &wgpu::SurfaceConfiguration,
-        shadow_resolution_scale: f32,
-        device: &wgpu::Device,
-    ) -> Self {
-        let resolution = UVec2::new(config.width, config.height);
+    pub fn new(resolution: UVec2, shading_resolution_scale: f32, device: &wgpu::Device) -> Self {
+        let shading_resolution = UVec2::new(
+            (resolution.x as f32 * shading_resolution_scale).ceil() as u32,
+            (resolution.y as f32 * shading_resolution_scale).ceil() as u32,
+        );
 
-        let gbuffer = Gbuffer::new(resolution, device);
+        let gbuffer = Gbuffer::new(shading_resolution, device);
 
         let shading_texture = std::array::from_fn(|i| {
             device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(&format!("terrarium::shading {}", i)),
                 size: wgpu::Extent3d {
-                    width: config.width,
-                    height: config.height,
+                    width: shading_resolution.x,
+                    height: shading_resolution.y,
                     depth_or_array_layers: 2,
                 },
                 mip_level_count: 1,
@@ -68,47 +69,19 @@ impl SizedResources {
             })
         });
 
-        let shadow_resolution = UVec2::new(
-            (config.width as f32 * shadow_resolution_scale).ceil() as u32,
-            (config.height as f32 * shadow_resolution_scale).ceil() as u32,
-        );
-
-        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("terrarium::shadow"),
-            size: wgpu::Extent3d {
-                width: shadow_resolution.x,
-                height: shadow_resolution.y,
-                depth_or_array_layers: 2,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-        let shadow_texture_view = shadow_texture.create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            array_layer_count: Some(2),
-            ..Default::default()
-        });
-
         Self {
             resolution,
+            shading_resolution,
+            shading_resolution_scale,
             gbuffer,
             shading_texture,
-            shadow_resolution,
-            shadow_texture,
-            shadow_texture_view,
         }
     }
 }
 
 pub struct RenderSettings {
     pub shading_mode: ShadingMode,
+    pub shading_resolution_scale: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
     pub apply_normal_maps: bool,
@@ -130,6 +103,7 @@ impl Default for RenderSettings {
     fn default() -> Self {
         Self {
             shading_mode: ShadingMode::Full,
+            shading_resolution_scale: 1.0,
             enable_debug_lines: true,
             apply_mipmaps: true,
             apply_normal_maps: true,
@@ -170,6 +144,10 @@ impl RenderSettings {
                     ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());
                 }
             });
+        ui.add(
+            egui::Slider::new(&mut self.shading_resolution_scale, 0.4..=1.0)
+                .text("Resolution Scale"),
+        );
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
         ui.checkbox(&mut self.apply_normal_maps, "Normal Mapping");
@@ -225,21 +203,15 @@ pub struct RenderParameters<'a> {
 
 pub struct Renderer {
     sized_resources: SizedResources,
-    prev_resolution: UVec2,
-    shadow_resolution_scale: f32,
     frame_idx: u32,
 }
 
 impl Renderer {
-    pub fn new(config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) -> Self {
-        let shadow_resolution_scale = 1.0;
-
-        let sized_resources = SizedResources::new(config, shadow_resolution_scale, &ctx.device);
+    pub fn new(resolution: UVec2, ctx: &wgpu_util::Context) -> Self {
+        let sized_resources = SizedResources::new(resolution, 1.0, &ctx.device);
 
         Self {
             sized_resources,
-            prev_resolution: UVec2::new(config.width, config.height),
-            shadow_resolution_scale,
             frame_idx: 0,
         }
     }
@@ -251,6 +223,16 @@ impl Renderer {
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) {
+        if parameters.render_settings.shading_resolution_scale
+            != self.sized_resources.shading_resolution_scale
+        {
+            self.sized_resources = SizedResources::new(
+                self.sized_resources.resolution,
+                parameters.render_settings.shading_resolution_scale,
+                &ctx.device,
+            );
+        }
+
         parameters.gpu_resources.sky_mut().constants.sun = parameters.render_settings.sun;
         parameters.gpu_resources.sky_mut().constants.atmosphere =
             parameters.render_settings.atmosphere;
@@ -262,7 +244,7 @@ impl Renderer {
 
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {
-                resolution: self.sized_resources.resolution,
+                resolution: self.sized_resources.shading_resolution,
                 mipmapping: parameters.render_settings.apply_mipmaps,
                 normal_mapping: parameters.render_settings.apply_normal_maps,
                 gpu_resources: parameters.gpu_resources,
@@ -273,48 +255,6 @@ impl Renderer {
             command_encoder,
             pipeline_database,
         );
-
-        // if parameters.render_settings.enable_shadows {
-        //     shadow_pass::encode(
-        //         &ShadowPassParameters {
-        //             resolution: self.sized_resources.resolution,
-        //             shadow_resolution: self.sized_resources.shadow_resolution,
-        //             seed: self.frame_idx,
-        //             gpu_resources: parameters.gpu_resources,
-        //             xr_camera_buffer: parameters.xr_camera_buffer,
-        //             gbuffer: &self.sized_resources.gbuffer,
-        //             shadow_texture_view: &self.sized_resources.shadow_texture_view,
-        //         },
-        //         &ctx.device,
-        //         command_encoder,
-        //         pipeline_database,
-        //     );
-        // } else {
-        command_encoder.clear_texture(
-            &self.sized_resources.shadow_texture,
-            &wgpu::ImageSubresourceRange::default(),
-        );
-        //}
-
-        // if parameters.render_settings.enable_ssao {
-        //     ssao_pass::encode(
-        //         &SsaoPassParameters {
-        //             resolution: self.sized_resources.resolution,
-        //             shadow_resolution: self.sized_resources.shadow_resolution,
-        //             seed: self.frame_idx,
-        //             sample_count: parameters.render_settings.ssao_sample_count,
-        //             radius: 1.0,
-        //             intensity: parameters.render_settings.ssao_intensity,
-        //             bias: 0.01,
-        //             shadow_texture_view: &self.sized_resources.shadow_texture_view,
-        //             xr_camera_buffer: parameters.xr_camera_buffer,
-        //             gbuffer: &self.sized_resources.gbuffer,
-        //         },
-        //         &ctx.device,
-        //         command_encoder,
-        //         pipeline_database,
-        //     );
-        // }
 
         let shading_view = self.sized_resources.shading_texture[self.frame_idx as usize % 2]
             .create_view(&wgpu::TextureViewDescriptor {
@@ -334,12 +274,11 @@ impl Renderer {
 
         shade_pass::encode(
             &ShadePassParameters {
-                resolution: self.sized_resources.resolution,
+                resolution: self.sized_resources.shading_resolution,
                 shading_mode: parameters.render_settings.shading_mode,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
-                shadow_texture_view: &self.sized_resources.shadow_texture_view,
                 dst_view: &shading_view,
             },
             &ctx.device,
@@ -350,7 +289,7 @@ impl Renderer {
         if parameters.render_settings.enable_emissive_stabilization {
             emissive_stabilization_pass::encode(
                 &EmissiveStabilisationPassParameters {
-                    resolution: self.sized_resources.resolution,
+                    resolution: self.sized_resources.shading_resolution,
                     color_texture_view: &shading_view,
                 },
                 &ctx.device,
@@ -362,8 +301,7 @@ impl Renderer {
         if parameters.render_settings.enable_taa {
             taa_pass::encode(
                 &TaaPassParameters {
-                    prev_resolution: self.prev_resolution,
-                    resolution: self.sized_resources.resolution,
+                    resolution: self.sized_resources.shading_resolution,
                     color_texture_view: &shading_view,
                     prev_color_texture_view: &prev_shading_view,
                     gbuffer: &self.sized_resources.gbuffer,
@@ -375,26 +313,6 @@ impl Renderer {
             );
         }
 
-        command_encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfoBase {
-                texture: &self.sized_resources.shading_texture[self.frame_idx as usize % 2],
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfoBase {
-                texture: parameters.render_target,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: self.sized_resources.resolution.x,
-                height: self.sized_resources.resolution.y,
-                depth_or_array_layers: 2,
-            },
-        );
-
         let render_target_view =
             parameters
                 .render_target
@@ -404,6 +322,18 @@ impl Renderer {
                     mip_level_count: Some(1),
                     ..Default::default()
                 });
+
+        blit_pass::encode(
+            &BlitPassParameters {
+                src_view: &shading_view,
+                dst_view: &render_target_view,
+                multiview: Some(NonZeroU32::new(2).unwrap()),
+                target_format: wgpu::TextureFormat::Rgba16Float,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
 
         if parameters.render_settings.enable_bloom {
             bloom_pass::encode(
@@ -463,12 +393,14 @@ impl Renderer {
 
         parameters.gpu_resources.end_frame();
         self.frame_idx += 1;
-        self.prev_resolution = self.sized_resources.resolution;
     }
 
-    pub fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
-        self.sized_resources =
-            SizedResources::new(config, self.shadow_resolution_scale, &ctx.device);
+    pub fn resize(&mut self, resolution: UVec2, ctx: &wgpu_util::Context) {
+        self.sized_resources = SizedResources::new(
+            resolution,
+            self.sized_resources.shading_resolution_scale,
+            &ctx.device,
+        );
     }
 
     pub fn required_features() -> wgpu::Features {

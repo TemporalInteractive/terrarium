@@ -56,7 +56,6 @@ pub struct ShadePassParameters<'a> {
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
-    pub shadow_texture_view: &'a wgpu::TextureView,
     pub dst_view: &'a wgpu::TextureView,
 }
 
@@ -102,24 +101,6 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 2,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
-                                    },
-                                    view_dimension: wgpu::TextureViewDimension::D2Array,
-                                    multisampled: false,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 3,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
                                 binding: 4,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::StorageTexture {
@@ -151,12 +132,6 @@ pub fn encode(
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
-    });
-
     let bind_group_layout = pipeline.get_bind_group_layout(0);
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
@@ -169,14 +144,6 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::TextureView(parameters.shadow_texture_view),
-            },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: wgpu::BindingResource::Sampler(&sampler),
             },
             wgpu::BindGroupEntry {
                 binding: 4,

@@ -31,13 +31,6 @@ var<uniform> constants: Constants;
 var<uniform> xr_camera: XrCamera;
 
 @group(0)
-@binding(2)
-var shadow: texture_2d_array<f32>;
-@group(0)
-@binding(3)
-var shadow_sampler: sampler;
-
-@group(0)
 @binding(4)
 var color_out: texture_storage_2d_array<rgba16float, read_write>;
 
@@ -87,12 +80,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
                 color = reflectance * n_dot_l + ambient + material.emission;
             } else {
-                let shadow: f32 = 1.0 - textureSampleLevel(shadow, shadow_sampler, (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution), view_index, 0.0).r;
-
                 let l: vec3<f32> = -sky_constants.sun.direction;
                 let n_dot_l: f32 = max(dot(shading_and_geometric_normal.shading_normal, l), 0.0);
 
-                let light_intensity: f32 = shadow * Sky::sun_intensity(l);
+                let light_intensity: f32 = Sky::sun_intensity(l);
                 let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, shading_and_geometric_normal.shading_normal);
 
                 let ambient: vec3<f32> = material.color * 0.1;
