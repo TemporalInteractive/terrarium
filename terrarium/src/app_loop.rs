@@ -185,133 +185,149 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         xr.pre_render().unwrap();
                     }
 
-                    #[cfg(feature = "egui")]
-                    {
-                        let mut ui = state.egui_renderer.begin_frame(&state.window);
+                    let is_minimized =
+                        state.surface.config().width == 1 || state.surface.config().height == 1;
 
-                        state.app_loop.egui(
-                            &mut ui,
-                            &state.xr_camera_state,
+                    let (xr_views, frame) = if !is_minimized {
+                        #[cfg(feature = "egui")]
+                        {
+                            let mut ui = state.egui_renderer.begin_frame(&state.window);
+
+                            state.app_loop.egui(
+                                &mut ui,
+                                &state.xr_camera_state,
+                                &mut command_encoder,
+                                &state.context,
+                                &mut state.pipeline_database,
+                            );
+                            state.egui_renderer.end_frame(ui);
+                        }
+
+                        state.app_loop.render(
+                            &mut state.xr_camera_state,
+                            &state.xr_camera_buffer,
+                            &state.rt_texture,
                             &mut command_encoder,
                             &state.context,
                             &mut state.pipeline_database,
                         );
-                        state.egui_renderer.end_frame(ui);
-                    }
 
-                    state.app_loop.render(
-                        &mut state.xr_camera_state,
-                        &state.xr_camera_buffer,
-                        &state.rt_texture,
-                        &mut command_encoder,
-                        &state.context,
-                        &mut state.pipeline_database,
-                    );
+                        let rt_texture_view =
+                            state.rt_texture.create_view(&wgpu::TextureViewDescriptor {
+                                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                                array_layer_count: Some(2),
+                                mip_level_count: Some(1),
+                                ..Default::default()
+                            });
 
-                    let rt_texture_view =
-                        state.rt_texture.create_view(&wgpu::TextureViewDescriptor {
-                            dimension: Some(wgpu::TextureViewDimension::D2Array),
-                            array_layer_count: Some(2),
-                            mip_level_count: Some(1),
-                            ..Default::default()
+                        #[cfg(feature = "egui")]
+                        {
+                            let screen_descriptor = crate::egui_renderer::ScreenDescriptor {
+                                size_in_pixels: [
+                                    state.window.inner_size().width,
+                                    state.window.inner_size().height,
+                                ],
+                                pixels_per_point: state.window.scale_factor() as f32,
+                            };
+
+                            state.egui_renderer.draw(
+                                &state.window,
+                                &rt_texture_view,
+                                screen_descriptor,
+                                &state.context.device,
+                                &state.context.queue,
+                                &mut command_encoder,
+                            );
+                        }
+
+                        let frame = state.surface.acquire(&state.context);
+                        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+                            format: Some(state.surface.config().view_formats[0]),
+                            ..wgpu::TextureViewDescriptor::default()
                         });
-
-                    #[cfg(feature = "egui")]
-                    {
-                        let screen_descriptor = crate::egui_renderer::ScreenDescriptor {
-                            size_in_pixels: [
-                                state.window.inner_size().width,
-                                state.window.inner_size().height,
-                            ],
-                            pixels_per_point: state.window.scale_factor() as f32,
-                        };
-
-                        state.egui_renderer.draw(
-                            &state.window,
-                            &rt_texture_view,
-                            screen_descriptor,
+                        blit_pass::encode(
+                            &BlitPassParameters {
+                                src_view: &rt_texture_view,
+                                dst_view: &view,
+                                multiview: None,
+                                target_format: state.surface.config().view_formats[0],
+                            },
                             &state.context.device,
-                            &state.context.queue,
                             &mut command_encoder,
+                            &mut state.pipeline_database,
                         );
-                    }
 
-                    let frame = state.surface.acquire(&state.context);
-                    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
-                        format: Some(state.surface.config().view_formats[0]),
-                        ..wgpu::TextureViewDescriptor::default()
-                    });
-                    blit_pass::encode(
-                        &BlitPassParameters {
-                            src_view: &rt_texture_view,
-                            dst_view: &view,
-                            multiview: None,
-                            target_format: state.surface.config().view_formats[0],
-                        },
-                        &state.context.device,
-                        &mut command_encoder,
-                        &mut state.pipeline_database,
-                    );
+                        let xr_views = if let Some(xr) = &mut state.context.xr {
+                            if let Some(xr_frame_state) = xr_frame_state {
+                                state.app_loop.xr_post_frame(&xr_frame_state, xr);
 
-                    let xr_views = if let Some(xr) = &mut state.context.xr {
-                        if let Some(xr_frame_state) = xr_frame_state {
-                            state.app_loop.xr_post_frame(&xr_frame_state, xr);
+                                let xr_views = xr
+                                    .post_frame(
+                                        &rt_texture_view,
+                                        xr_frame_state,
+                                        &state.context.device,
+                                        &mut command_encoder,
+                                        &mut state.pipeline_database,
+                                    )
+                                    .unwrap();
 
-                            let xr_views = xr
-                                .post_frame(
-                                    &rt_texture_view,
-                                    xr_frame_state,
-                                    &state.context.device,
-                                    &mut command_encoder,
-                                    &mut state.pipeline_database,
-                                )
-                                .unwrap();
-
-                            Some(xr_views)
+                                Some(xr_views)
+                            } else {
+                                None
+                            }
                         } else {
                             None
+                        };
+
+                        if let Some(xr_views) = &xr_views {
+                            state
+                                .xr_camera_state
+                                .stage_to_view_space_from_openxr_views(xr_views);
+                            state
+                                .xr_camera_state
+                                .view_to_clip_space_from_openxr_views(xr_views);
                         }
+
+                        let xr_camera_data = [
+                            state.xr_camera_state.calculate_camera_data(),
+                            state.prev_xr_camera_data,
+                        ];
+                        state.context.queue.write_buffer(
+                            &state.xr_camera_buffer,
+                            0,
+                            bytemuck::bytes_of(&xr_camera_data),
+                        );
+                        state.prev_xr_camera_data = xr_camera_data[0];
+
+                        (xr_views, Some(frame))
                     } else {
-                        None
+                        (None, None)
                     };
-
-                    if let Some(xr_views) = &xr_views {
-                        state
-                            .xr_camera_state
-                            .stage_to_view_space_from_openxr_views(xr_views);
-                        state
-                            .xr_camera_state
-                            .view_to_clip_space_from_openxr_views(xr_views);
-                    }
-
-                    let xr_camera_data = [
-                        state.xr_camera_state.calculate_camera_data(),
-                        state.prev_xr_camera_data,
-                    ];
-                    state.context.queue.write_buffer(
-                        &state.xr_camera_buffer,
-                        0,
-                        bytemuck::bytes_of(&xr_camera_data),
-                    );
-                    state.prev_xr_camera_data = xr_camera_data[0];
 
                     state.context.queue.submit(Some(command_encoder.finish()));
 
-                    if let Some(xr) = &mut state.context.xr {
-                        if let (Some(xr_frame_state), Some(xr_views)) = (xr_frame_state, xr_views) {
-                            xr.post_frame_submit(xr_frame_state, &xr_views).unwrap();
+                    if !is_minimized {
+                        if let Some(xr) = &mut state.context.xr {
+                            if let (Some(xr_frame_state), Some(xr_views)) =
+                                (xr_frame_state, xr_views)
+                            {
+                                xr.post_frame_submit(xr_frame_state, &xr_views).unwrap();
+                            }
                         }
-                    }
 
-                    frame.present();
+                        frame.unwrap().present();
+                    }
 
                     state.window.request_redraw();
                 }
 
                 self.frame_idx += 1;
             }
-            WindowEvent::Resized(size) => {
+            WindowEvent::Resized(mut size) => {
                 if let Some(state) = &mut self.state {
+                    size.width = size.width.max(1);
+                    size.height = size.height.max(1);
+
                     state.surface.resize(&state.context, size);
                     state.rt_texture = State::<R>::create_rt_texture(
                         state.surface.config(),

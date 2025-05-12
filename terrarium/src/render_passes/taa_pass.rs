@@ -16,14 +16,13 @@ use crate::{
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Constants {
+    prev_resolution: UVec2,
     resolution: UVec2,
-    history_influence: f32,
-    _padding0: u32,
 }
 
 pub struct TaaPassParameters<'a> {
+    pub prev_resolution: UVec2,
     pub resolution: UVec2,
-    pub history_influence: f32,
     pub color_texture_view: &'a wgpu::TextureView,
     pub prev_color_texture_view: &'a wgpu::TextureView,
     pub gbuffer: &'a Gbuffer,
@@ -157,9 +156,8 @@ pub fn encode(
     let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("terrarium::taa constants"),
         contents: bytemuck::bytes_of(&Constants {
+            prev_resolution: parameters.prev_resolution,
             resolution: parameters.resolution,
-            history_influence: parameters.history_influence,
-            _padding0: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

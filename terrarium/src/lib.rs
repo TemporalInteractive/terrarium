@@ -1,4 +1,4 @@
-use glam::{UVec2, Vec2, Vec3};
+use glam::{UVec2, Vec3};
 use gpu_resources::{
     gbuffer::Gbuffer,
     sky::{AtmosphereInfo, SunInfo},
@@ -28,21 +28,6 @@ pub mod xr;
 mod egui_renderer;
 #[cfg(feature = "egui")]
 pub use egui;
-
-#[repr(C)]
-struct PackedGBufferTexel {
-    position_ws: Vec3,
-    depth_ws: f32,
-    normal_ws: u32,
-    tangent_ws: u32,
-    material_descriptor_idx: u32,
-    tex_coord: u32,
-    velocity: Vec2,
-    ddx: Vec2,
-    ddy: Vec2,
-    normal_roughness: f32,
-    geometric_normal_ws: u32,
-}
 
 struct SizedResources {
     resolution: UVec2,
@@ -136,7 +121,6 @@ pub struct RenderSettings {
     pub bloom_radius: f32,
     pub enable_emissive_stabilization: bool,
     pub enable_taa: bool,
-    pub taa_history_influence: f32,
     pub sun: SunInfo,
     pub atmosphere: AtmosphereInfo,
     pub world_up: Vec3,
@@ -158,7 +142,6 @@ impl Default for RenderSettings {
             bloom_radius: 2.7,
             enable_emissive_stabilization: true,
             enable_taa: true,
-            taa_history_influence: 0.8,
             sun: SunInfo::default(),
             atmosphere: AtmosphereInfo::default(),
             world_up: UP,
@@ -226,9 +209,6 @@ impl RenderSettings {
 
         ui.heading("Taa");
         ui.checkbox(&mut self.enable_taa, "Enable");
-        ui.add(
-            egui::Slider::new(&mut self.taa_history_influence, 0.0..=1.0).text("History Influence"),
-        );
     }
 }
 
@@ -245,6 +225,7 @@ pub struct RenderParameters<'a> {
 
 pub struct Renderer {
     sized_resources: SizedResources,
+    prev_resolution: UVec2,
     shadow_resolution_scale: f32,
     frame_idx: u32,
 }
@@ -257,6 +238,7 @@ impl Renderer {
 
         Self {
             sized_resources,
+            prev_resolution: UVec2::new(config.width, config.height),
             shadow_resolution_scale,
             frame_idx: 0,
         }
@@ -380,8 +362,8 @@ impl Renderer {
         if parameters.render_settings.enable_taa {
             taa_pass::encode(
                 &TaaPassParameters {
+                    prev_resolution: self.prev_resolution,
                     resolution: self.sized_resources.resolution,
-                    history_influence: parameters.render_settings.taa_history_influence,
                     color_texture_view: &shading_view,
                     prev_color_texture_view: &prev_shading_view,
                     gbuffer: &self.sized_resources.gbuffer,
@@ -481,6 +463,7 @@ impl Renderer {
 
         parameters.gpu_resources.end_frame();
         self.frame_idx += 1;
+        self.prev_resolution = self.sized_resources.resolution;
     }
 
     pub fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
