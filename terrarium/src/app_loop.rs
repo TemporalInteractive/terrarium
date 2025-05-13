@@ -163,12 +163,6 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(state) = &mut self.state {
-                    let xr_frame_state = if let Some(xr) = &mut state.context.xr {
-                        xr.pre_frame().unwrap()
-                    } else {
-                        None
-                    };
-
                     let mut command_encoder = state
                         .context
                         .device
@@ -195,14 +189,10 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         &mut state.pipeline_database,
                     );
 
-                    if let Some(xr) = &mut state.context.xr {
-                        xr.pre_render().unwrap();
-                    }
-
                     let is_minimized =
                         state.surface.config().width == 1 || state.surface.config().height == 1;
 
-                    let (xr_views, frame) = if !is_minimized {
+                    let (xr_views, frame, xr_frame_state) = if !is_minimized {
                         state.app_loop.render(
                             &mut state.xr_camera_state,
                             &state.xr_camera_buffer,
@@ -257,6 +247,15 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                             &mut state.pipeline_database,
                         );
 
+                        let xr_frame_state = if let Some(xr) = &mut state.context.xr {
+                            xr.pre_frame().unwrap()
+                        } else {
+                            None
+                        };
+                        if let Some(xr) = &mut state.context.xr {
+                            xr.pre_render().unwrap();
+                        }
+
                         let xr_views = if let Some(xr) = &mut state.context.xr {
                             if let Some(xr_frame_state) = xr_frame_state {
                                 state.app_loop.xr_post_frame(&xr_frame_state, xr);
@@ -299,9 +298,9 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                         );
                         state.prev_xr_camera_data = xr_camera_data[0];
 
-                        (xr_views, Some(frame))
+                        (xr_views, Some(frame), xr_frame_state)
                     } else {
-                        (None, None)
+                        (None, None, None)
                     };
 
                     state.context.queue.submit(Some(command_encoder.finish()));
