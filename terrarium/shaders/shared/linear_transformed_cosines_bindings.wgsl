@@ -1,16 +1,32 @@
 @include material_pool.wgsl
+@include linear_transformed_cosines.wgsl
+
+struct LtcConstants {
+    instance_count: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
+}
 
 @group(5)
 @binding(0)
-var ltc_1: texture_2d<f32>;
+var<uniform> ltc_constants: LtcConstants;
 
 @group(5)
 @binding(1)
-var ltc_2: texture_2d<f32>;
+var ltc_1: texture_2d<f32>;
 
 @group(5)
 @binding(2)
+var ltc_2: texture_2d<f32>;
+
+@group(5)
+@binding(3)
 var ltc_sampler: sampler;
+
+@group(5)
+@binding(4)
+var<storage, read> ltc_instances: array<LtcInstance>;
 
 const LTC_LUT_SIZE: f32 = 64.0;
 const LTC_LUT_SCALE: f32 = (LTC_LUT_SIZE - 1.0) / LTC_LUT_SIZE;
@@ -75,7 +91,7 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
     return vec3<f32>(sum);
 }
 
-fn LtcBindings::shade(material: Material, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
+fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
     let n_dot_v: f32 = clamp(dot(normal, view_dir), 0.0, 1.0);
     let tex_coord = vec2<f32>(material.roughness, sqrt(1.0 - n_dot_v)) * LTC_LUT_SCALE + LTC_LUT_BIAS;
 
@@ -88,11 +104,11 @@ fn LtcBindings::shade(material: Material, normal: vec3<f32>, view_dir: vec3<f32>
         vec3<f32>(t1.z, 0.0, t1.w)
     );
 
-    let double_sided: bool = true;
-    let point0 = vec3<f32>(1.0, 1.0, 0.0);
-    let point1 = vec3<f32>(-1.0, 1.0, 0.0);
-    let point2 = vec3<f32>(-1.0, -1.0, 0.0);
-    let point3 = vec3<f32>(1.0, -1.0, 0.0);
+    let double_sided: bool = instance.double_sided > 0;
+    let point0 = LtcInstance::point0(instance);
+    let point1 = LtcInstance::point1(instance);
+    let point2 = LtcInstance::point2(instance);
+    let point3 = LtcInstance::point3(instance);
 
     let diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided,
         point0, point1, point2, point3);
@@ -102,5 +118,5 @@ fn LtcBindings::shade(material: Material, normal: vec3<f32>, view_dir: vec3<f32>
     let mspec = vec3<f32>(0.23);
     specular *= mspec * t2.x + (1.0 - mspec) * t2.y;
 
-    return 10.0 * (specular + material.color * diffuse);
+    return instance.color * (specular + material.color * diffuse);
 }

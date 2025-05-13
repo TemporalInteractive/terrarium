@@ -2,6 +2,7 @@ use std::{iter, sync::Arc};
 
 use debug_lines::DebugLines;
 use glam::Vec3;
+use linear_transformed_cosines::LinearTransformedCosines;
 use material_pool::MaterialPool;
 use sky::Sky;
 use specs::Join;
@@ -14,7 +15,7 @@ use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 
 use crate::{
     wgpu_util,
-    world::components::{DynamicComponent, MeshComponent, TransformComponent},
+    world::components::{AreaLightComponent, DynamicComponent, MeshComponent, TransformComponent},
 };
 
 const MAX_STATIC_INSTANCES: usize = 1024 * 256;
@@ -74,6 +75,7 @@ pub struct GpuMaterial {
 pub struct GpuResources {
     vertex_pool: VertexPool,
     material_pool: MaterialPool,
+    linear_transformed_cosines: LinearTransformedCosines,
     debug_lines: DebugLines,
     static_tlas_package: wgpu::TlasPackage,
     dynamic_tlas_package: wgpu::TlasPackage,
@@ -88,9 +90,10 @@ pub struct GpuResources {
 }
 
 impl GpuResources {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let vertex_pool = VertexPool::new(device);
         let material_pool = MaterialPool::new(device);
+        let linear_transformed_cosines = LinearTransformedCosines::new(device, queue);
         let debug_lines = DebugLines::new(device);
 
         let static_tlas = device.create_tlas(&wgpu::CreateTlasDescriptor {
@@ -112,6 +115,7 @@ impl GpuResources {
         Self {
             vertex_pool,
             material_pool,
+            linear_transformed_cosines,
             debug_lines,
             static_tlas_package: wgpu::TlasPackage::new(static_tlas),
             dynamic_tlas_package: wgpu::TlasPackage::new(dynamic_tlas),
@@ -214,6 +218,10 @@ impl GpuResources {
         &self.material_pool
     }
 
+    pub fn linear_transformed_cosines(&self) -> &LinearTransformedCosines {
+        &self.linear_transformed_cosines
+    }
+
     pub fn debug_lines(&self) -> &DebugLines {
         &self.debug_lines
     }
@@ -268,6 +276,25 @@ impl GpuResources {
         queue: &wgpu::Queue,
     ) {
         self.cleanup();
+
+        {
+            let (transform_storage, area_light_storage): (
+                specs::ReadStorage<'_, TransformComponent>,
+                specs::ReadStorage<'_, AreaLightComponent>,
+            ) = world.system_data();
+            for (transform_component, area_light_component) in
+                (&transform_storage, &area_light_storage).join()
+            {
+                let transform = transform_component.get_local_to_world_matrix(&transform_storage);
+                let color = area_light_component.color * area_light_component.intensity;
+
+                self.linear_transformed_cosines.submit_instance(
+                    transform,
+                    color,
+                    area_light_component.double_sided,
+                );
+            }
+        }
 
         self.static_blas_instances.clear();
         if self.static_dirty {
@@ -370,6 +397,7 @@ impl GpuResources {
 
         self.vertex_pool.write_slices(queue);
         self.material_pool.write_materials(queue);
+        self.linear_transformed_cosines.write_instances(queue);
         self.debug_lines.write_lines(queue);
 
         let mut tlases = vec![&self.dynamic_tlas_package];
@@ -382,6 +410,7 @@ impl GpuResources {
 
     pub fn end_frame(&mut self) {
         self.vertex_pool.end_frame();
+        self.linear_transformed_cosines.end_frame();
         self.debug_lines.end_frame();
     }
 }

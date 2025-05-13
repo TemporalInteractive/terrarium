@@ -2,11 +2,13 @@
 
 use std::sync::Arc;
 
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use specs::{Builder, WorldExt};
 use terrarium::gpu_resources::{GpuMaterial, GpuMesh, GpuResources};
 use terrarium::wgpu_util;
-use terrarium::world::components::{DynamicComponent, MeshComponent, TransformComponent};
+use terrarium::world::components::{
+    AreaLightComponent, DynamicComponent, MeshComponent, TransformComponent,
+};
 use terrarium::world::transform::Transform;
 use ugm::Model;
 
@@ -64,6 +66,7 @@ impl World {
         let mut ecs = specs::World::new();
         ecs.register::<EntityInfoComponent>();
         ecs.register::<MeshComponent>();
+        ecs.register::<AreaLightComponent>();
         ecs.register::<TransformComponent>();
         ecs.register::<DynamicComponent>();
 
@@ -143,10 +146,16 @@ impl World {
                         used_gpu_materials.push(gpu_materials[*material_idx as usize].clone());
                     }
 
-                    builder.with(MeshComponent::new(
+                    let mut builder = builder.with(MeshComponent::new(
                         gpu_meshes[mesh_idx as usize].clone(),
                         used_gpu_materials.clone(),
-                    ))
+                    ));
+
+                    if model.meshes[mesh_idx as usize].is_emissive {
+                        builder = builder.with(AreaLightComponent::new(Vec3::ONE, 10.0, true));
+                    }
+
+                    builder
                 } else {
                     builder
                 }

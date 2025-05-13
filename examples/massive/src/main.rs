@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use camera_controller::CameraController;
 use clap::Parser;
-use glam::{UVec2, Vec3};
+use glam::{Quat, UVec2, Vec3};
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     egui,
@@ -13,7 +13,10 @@ use terrarium::{
         timer::{FpsCounter, Timer},
     },
     wgpu_util,
-    world::transform::{Transform, FORWARD, RIGHT, UP},
+    world::{
+        components::TransformComponent,
+        transform::{Transform, FORWARD, RIGHT, UP},
+    },
     xr::XrCameraState,
     RenderParameters, RenderSettings, Renderer,
 };
@@ -35,6 +38,8 @@ pub struct ExampleApp {
     frame_timer: Timer,
     fps_counter: FpsCounter,
     first_frame: bool,
+
+    emitter_entity: Option<specs::Entity>,
 }
 
 impl AppLoop for ExampleApp {
@@ -47,7 +52,7 @@ impl AppLoop for ExampleApp {
         let world = World::new();
 
         let renderer = Renderer::new(UVec2::new(config.width, config.height), ctx);
-        let gpu_resources = GpuResources::new(&ctx.device);
+        let gpu_resources = GpuResources::new(&ctx.device, &ctx.queue);
 
         let aspect_ratio = config.width as f32 / config.height as f32;
 
@@ -62,6 +67,7 @@ impl AppLoop for ExampleApp {
             frame_timer: Timer::new(),
             fps_counter: FpsCounter::new(),
             first_frame: true,
+            emitter_entity: None,
         }
     }
 
@@ -114,7 +120,45 @@ impl AppLoop for ExampleApp {
                 ctx,
             );
 
+            let model = ugm::Model::read_from_buffer(
+                &std::fs::read("examples/massive/assets/Emitter.ugm")
+                .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
+            )
+            .unwrap();
+
+            for x in 0..10 {
+                for y in 0..10 {
+                    self.emitter_entity = Some(self.world.spawn_model(
+                        &model,
+                        Transform::from_translation(
+                            UP * 1.0 + RIGHT * x as f32 + FORWARD * y as f32,
+                        ),
+                        false,
+                        None,
+                        &mut self.gpu_resources,
+                        command_encoder,
+                        ctx,
+                    ));
+                }
+            }
+
             self.gpu_resources.mark_statics_dirty();
+        }
+
+        {
+            self.world
+                .entities_mut::<TransformComponent>()
+                .get_mut(self.emitter_entity.unwrap())
+                .unwrap()
+                .rotate_local(Quat::from_axis_angle(
+                    RIGHT,
+                    (delta_time * 10.0).to_radians(),
+                ));
+            self.world
+                .entities::<TransformComponent>()
+                .get(self.emitter_entity.unwrap())
+                .unwrap()
+                .mark_dirty(&self.world.entities::<TransformComponent>());
         }
 
         self.world.update();

@@ -160,3 +160,24 @@ impl MeshComponent {
 impl specs::Component for MeshComponent {
     type Storage = specs::VecStorage<Self>;
 }
+
+#[derive(Debug)]
+pub struct AreaLightComponent {
+    pub color: Vec3,
+    pub intensity: f32,
+    pub double_sided: bool,
+}
+
+impl AreaLightComponent {
+    pub fn new(color: Vec3, intensity: f32, double_sided: bool) -> Self {
+        Self {
+            color,
+            intensity,
+            double_sided,
+        }
+    }
+}
+
+impl specs::Component for AreaLightComponent {
+    type Storage = specs::VecStorage<Self>;
+}

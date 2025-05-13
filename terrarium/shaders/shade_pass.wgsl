@@ -93,8 +93,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     // color = reflectance * light_intensity * n_dot_l + ambient + material.emission;
                     // color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
 
-                    let ltc_shading: vec3<f32> = LtcBindings::shade(material, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
-                    color = ltc_shading;
+                    var ltc_shading = vec3<f32>(0.0);
+                    for (var light_index: u32 = 0; light_index < min(ltc_constants.instance_count, 4); light_index += 1) {
+                        ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
+                    }
+
+                    color = ltc_shading + ambient + material.emission;
+                    color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
                 } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
                     color = vec3<f32>(light_intensity * n_dot_l) + ambient;
                 } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {

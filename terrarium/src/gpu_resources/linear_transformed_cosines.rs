@@ -1,9 +1,34 @@
 use std::io::Cursor;
 
+use bytemuck::{Pod, Zeroable};
 use ddsfile::Dds;
+use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
+const MAX_INSTANCES: usize = 1024 * 4;
+
+#[derive(Pod, Clone, Copy, Zeroable)]
+#[repr(C)]
+struct Constants {
+    instance_count: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
+}
+
+#[derive(Pod, Clone, Copy, Zeroable)]
+#[repr(C)]
+struct LtcInstance {
+    transform: Mat4,
+    color: Vec3,
+    double_sided: u32,
+}
+
 pub struct LinearTransformedCosines {
+    constants_buffer: wgpu::Buffer,
+    instances_buffer: wgpu::Buffer,
+    instances: Vec<LtcInstance>,
+
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
 }
@@ -16,12 +41,11 @@ impl LinearTransformedCosines {
             assert_eq!(dds.get_width(), 64);
             assert_eq!(dds.get_height(), 64);
             assert_eq!(dds.get_num_array_layers(), 1);
-            //println!("{:?}", dds.get_d3d_format());
 
             let ltc1_texture = device.create_texture_with_data(
                 queue,
                 &wgpu::TextureDescriptor {
-                    label: Some("terrarium::ltc"),
+                    label: Some("terrarium::linear_transformed_cosines lut"),
                     size: wgpu::Extent3d {
                         width: 64,
                         height: 64,
@@ -52,16 +76,30 @@ impl LinearTransformedCosines {
             ..Default::default()
         });
 
+        let constants_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::linear_transformed_cosines constants"),
+            size: size_of::<Constants>() as u64,
+            mapped_at_creation: false,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let instances_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::linear_transformed_cosines instances"),
+            mapped_at_creation: false,
+            size: (std::mem::size_of::<LtcInstance>() * MAX_INSTANCES) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -78,7 +116,27 @@ impl LinearTransformedCosines {
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
                     count: None,
                 },
             ],
@@ -90,23 +148,65 @@ impl LinearTransformedCosines {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&ltc1_texture_view),
+                    resource: constants_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&ltc2_texture_view),
+                    resource: wgpu::BindingResource::TextureView(&ltc1_texture_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&ltc2_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: instances_buffer.as_entire_binding(),
                 },
             ],
         });
 
         Self {
+            constants_buffer,
+            instances_buffer,
+            instances: Vec::new(),
             bind_group_layout,
             bind_group,
         }
+    }
+
+    pub fn write_instances(&mut self, queue: &wgpu::Queue) {
+        queue.write_buffer(
+            &self.constants_buffer,
+            0,
+            bytemuck::bytes_of(&Constants {
+                instance_count: self.instances.len() as u32,
+                _padding0: 0,
+                _padding1: 0,
+                _padding2: 0,
+            }),
+        );
+
+        queue.write_buffer(
+            &self.instances_buffer,
+            0,
+            bytemuck::cast_slice(&self.instances),
+        );
+    }
+
+    pub fn submit_instance(&mut self, transform: Mat4, color: Vec3, double_sided: bool) {
+        self.instances.push(LtcInstance {
+            transform,
+            color,
+            double_sided: double_sided as u32,
+        });
+    }
+
+    pub fn end_frame(&mut self) {
+        self.instances.clear();
     }
 
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {

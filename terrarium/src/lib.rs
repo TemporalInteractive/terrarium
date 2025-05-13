@@ -3,7 +3,6 @@ use std::num::NonZeroU32;
 use glam::{UVec2, Vec3};
 use gpu_resources::{
     gbuffer::Gbuffer,
-    linear_transformed_cosines::LinearTransformedCosines,
     sky::{AtmosphereInfo, SunInfo},
     GpuResources,
 };
@@ -113,8 +112,8 @@ impl Default for RenderSettings {
             ssao_intensity: 1.0,
             ssao_sample_count: 8,
             enable_bloom: true,
-            bloom_intensity: 0.13,
-            bloom_radius: 2.7,
+            bloom_intensity: 0.04,
+            bloom_radius: 1.0,
             enable_emissive_stabilization: true,
             enable_taa: true,
             sun: SunInfo::default(),
@@ -204,18 +203,15 @@ pub struct RenderParameters<'a> {
 
 pub struct Renderer {
     sized_resources: SizedResources,
-    linear_transformed_cosines: LinearTransformedCosines,
     frame_idx: u32,
 }
 
 impl Renderer {
     pub fn new(resolution: UVec2, ctx: &wgpu_util::Context) -> Self {
         let sized_resources = SizedResources::new(resolution, 1.0, &ctx.device);
-        let linear_transformed_cosines = LinearTransformedCosines::new(&ctx.device, &ctx.queue);
 
         Self {
             sized_resources,
-            linear_transformed_cosines,
             frame_idx: 0,
         }
     }
@@ -283,7 +279,6 @@ impl Renderer {
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
-                linear_transformed_cosines: &self.linear_transformed_cosines,
                 dst_view: &shading_view,
             },
             &ctx.device,
