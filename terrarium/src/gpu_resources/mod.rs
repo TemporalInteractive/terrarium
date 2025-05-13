@@ -23,6 +23,7 @@ const MAX_DYNAMIC_INSTANCES: usize = 1024 * 16;
 pub mod debug_lines;
 pub mod gbuffer;
 mod linear_block_allocator;
+pub mod linear_transformed_cosines;
 pub mod material_pool;
 pub mod sky;
 pub mod vertex_pool;

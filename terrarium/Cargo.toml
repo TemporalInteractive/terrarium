@@ -15,6 +15,7 @@ egui = { workspace = true, optional = true }
 egui-winit = { workspace = true, optional = true }
 futures.workspace = true
 glam.workspace = true
+ddsfile.workspace = true
 openxr.workspace = true
 specs.workspace = true
 transform-gizmo = { workspace = true, optional = true }

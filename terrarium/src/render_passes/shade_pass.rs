@@ -6,7 +6,9 @@ use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
-    gpu_resources::{gbuffer::Gbuffer, GpuResources},
+    gpu_resources::{
+        gbuffer::Gbuffer, linear_transformed_cosines::LinearTransformedCosines, GpuResources,
+    },
     wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
 };
 
@@ -56,6 +58,7 @@ pub struct ShadePassParameters<'a> {
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
+    pub linear_transformed_cosines: &'a LinearTransformedCosines,
     pub dst_view: &'a wgpu::TextureView,
 }
 
@@ -116,6 +119,7 @@ pub fn encode(
                     parameters.gpu_resources.material_pool().bind_group_layout(),
                     parameters.gpu_resources.sky().bind_group_layout(),
                     parameters.gbuffer.bind_group_layout(),
+                    parameters.linear_transformed_cosines.bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
@@ -173,6 +177,7 @@ pub fn encode(
         );
         cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
         cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
+        cpass.set_bind_group(5, parameters.linear_transformed_cosines.bind_group(), &[]);
         cpass.insert_debug_marker("terrarium::shade");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(16),

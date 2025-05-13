@@ -17,6 +17,12 @@ const RIGHT: vec3<f32> = vec3<f32>(1.0, 0.0, 0.0);
 const UP: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const FORWARD: vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
 
+const IDENTITY_MAT3X3: mat3x3<f32> = mat3x3<f32>(
+    vec3<f32>(1.0, 0.0, 0.0),
+    vec3<f32>(0.0, 1.0, 0.0),
+    vec3<f32>(0.0, 0.0, 1.0)
+);
+
 fn sqr(x: f32) -> f32 {
     return x * x;
 }

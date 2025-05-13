@@ -1,12 +1,6 @@
 use glam::UVec2;
 
 pub struct Gbuffer {
-    position_and_depth_texture: wgpu::Texture,
-    shading_and_geometric_normal_texture: wgpu::Texture,
-    tex_coord_and_derivatives_texture: wgpu::Texture,
-    velocity_texture: wgpu::Texture,
-    material_descriptor_idx_and_normal_roughness_texture: wgpu::Texture,
-
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
 }
@@ -29,13 +23,11 @@ impl Gbuffer {
                 view_formats: &[],
             });
 
-            let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
+            texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 array_layer_count: Some(2),
                 ..Default::default()
-            });
-
-            (texture, texture_view)
+            })
         };
 
         let position_and_depth_texture =
@@ -116,41 +108,34 @@ impl Gbuffer {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&position_and_depth_texture.1),
+                    resource: wgpu::BindingResource::TextureView(&position_and_depth_texture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::TextureView(
-                        &shading_and_geometric_normal_texture.1,
+                        &shading_and_geometric_normal_texture,
                     ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::TextureView(
-                        &tex_coord_and_derivatives_texture.1,
+                        &tex_coord_and_derivatives_texture,
                     ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&velocity_texture.1),
+                    resource: wgpu::BindingResource::TextureView(&velocity_texture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::TextureView(
-                        &material_descriptor_idx_and_normal_roughness_texture.1,
+                        &material_descriptor_idx_and_normal_roughness_texture,
                     ),
                 },
             ],
         });
 
         Self {
-            position_and_depth_texture: position_and_depth_texture.0,
-            shading_and_geometric_normal_texture: shading_and_geometric_normal_texture.0,
-            tex_coord_and_derivatives_texture: tex_coord_and_derivatives_texture.0,
-            velocity_texture: velocity_texture.0,
-            material_descriptor_idx_and_normal_roughness_texture:
-                material_descriptor_idx_and_normal_roughness_texture.0,
-
             bind_group_layout,
             bind_group,
         }

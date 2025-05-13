@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use camera_controller::CameraController;
 use clap::Parser;
-use glam::Vec3;
+use glam::{UVec2, Vec3};
 use terrarium::{
     app_loop::{AppLoop, AppLoopHandler, AppLoopHandlerCreateDesc},
     egui,
@@ -46,7 +46,7 @@ impl AppLoop for ExampleApp {
         let input_handler = InputHandler::new(&ctx.xr);
         let world = World::new();
 
-        let renderer = Renderer::new(config, ctx);
+        let renderer = Renderer::new(UVec2::new(config.width, config.height), ctx);
         let gpu_resources = GpuResources::new(&ctx.device);
 
         let aspect_ratio = config.width as f32 / config.height as f32;
@@ -100,7 +100,7 @@ impl AppLoop for ExampleApp {
             self.first_frame = false;
 
             let model = ugm::Model::read_from_buffer(
-                &std::fs::read("examples/massive/assets/TestSceneBig.ugm")
+                &std::fs::read("examples/massive/assets/TestScene.ugm")
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )
             .unwrap();
@@ -167,7 +167,8 @@ impl AppLoop for ExampleApp {
     fn resize(&mut self, config: &wgpu::SurfaceConfiguration, ctx: &wgpu_util::Context) {
         self.aspect_ratio = config.width as f32 / config.height as f32;
 
-        self.renderer.resize(config, ctx);
+        self.renderer
+            .resize(UVec2::new(config.width, config.height), ctx);
     }
 
     fn window_event(&mut self, event: winit::event::WindowEvent) {
