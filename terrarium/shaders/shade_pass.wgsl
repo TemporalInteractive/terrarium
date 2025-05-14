@@ -1,4 +1,5 @@
 @include shared/brdf.wgsl
+@include shared/frustum.wgsl
 @include shared/xr.wgsl
 
 @include shared/vertex_pool_bindings.wgsl
@@ -35,6 +36,14 @@ var<uniform> xr_camera: XrCamera;
 @binding(4)
 var color_out: texture_storage_2d_array<rgba16float, read_write>;
 
+@group(0)
+@binding(5)
+var<storage, read> light_index_list: array<u32>;
+
+@group(0)
+@binding(6)
+var light_grid: texture_storage_2d_array<rg32uint, read>;
+
 fn shade_fog(shade_color: vec3<f32>, position_and_depth: GbufferPositionAndDepth, view_origin: vec3<f32>, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(view_origin, position_and_depth.position);
     let fog_strength: f32 = 1.0 - exp(-position_and_depth.depth * density);
@@ -43,15 +52,26 @@ fn shade_fog(shade_color: vec3<f32>, position_and_depth: GbufferPositionAndDepth
 }
 
 @compute
-@workgroup_size(16, 16)
+@workgroup_size(FRUSTUM_TILE_SIZE, FRUSTUM_TILE_SIZE)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(num_workgroups) dispatch_size: vec3<u32>) {
+    @builtin(workgroup_id) group_id: vec3<u32>, @builtin(num_workgroups) num_groups: vec3<u32>) {
     var id: vec2<u32> = global_id.xy;
     if (any(id >= constants.resolution)) { return; }
     var i: u32 = id.y * constants.resolution.x + id.x;
 
+    // let group_index: u32 = group_id.y * num_groups.x + group_id.x;
+
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
+
+        // TODO: move to groupshared?
+        let light_offset_and_count: vec2<u32> = textureLoad(light_grid, group_id.xy, view_index).rg;
+        let light_index_start_offset: u32 = light_offset_and_count.x;
+        let light_count: u32 = light_offset_and_count.y;
+
+        // let ltc_instance_count: u32 = ltc_instance_counters[group_index];
+        // let view_index_offset: u32 = num_groups.x * num_groups.y * view_index;
+        // let group_offset: u32 = (view_index_offset + group_index) * constants.max_lights_per_tile;
 
         let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
         var emission: f32 = 0.0;
@@ -94,7 +114,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     // color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
 
                     var ltc_shading = vec3<f32>(0.0);
-                    for (var light_index: u32 = 0; light_index < min(ltc_constants.instance_count, 4); light_index += 1) {
+                    for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
+                        let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
                         ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
                     }
 

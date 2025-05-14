@@ -1,5 +1,3 @@
-use std::fmt;
-
 use bytemuck::{Pod, Zeroable};
 use glam::UVec2;
 use wgpu::util::DeviceExt;
@@ -7,79 +5,94 @@ use wgsl_includes::include_wgsl;
 
 use crate::{
     gpu_resources::{gbuffer::Gbuffer, GpuResources},
-    wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
+    wgpu_util::{
+        empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
+        PipelineDatabase,
+    },
 };
 
 use super::build_frustum_pass;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-pub enum ShadingMode {
-    #[default]
-    Full,
-    LightingOnly,
-    Albedo,
-    Normals,
-    Texcoords,
-    Emission,
-    Velocity,
-    Fog,
-    SimpleLighting,
+const MAX_LTC_INSTANCES_PER_TILE: usize = 320;
+
+pub fn create_ltc_instance_index_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
+    let num_groups = (resolution.x.div_ceil(build_frustum_pass::TILE_SIZE)
+        * resolution.y.div_ceil(build_frustum_pass::TILE_SIZE)) as usize;
+
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("terrarium::ltc_cull_pass ltc_instance_indices"),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        size: (size_of::<u32>() * MAX_LTC_INSTANCES_PER_TILE * num_groups) as u64 * 2,
+        mapped_at_creation: false,
+    })
 }
 
-impl fmt::Display for ShadingMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            Self::Full => "Full",
-            Self::LightingOnly => "Lighting Only",
-            Self::Albedo => "Albedo",
-            Self::Normals => "Normals",
-            Self::Texcoords => "Texcoords",
-            Self::Emission => "Emission",
-            Self::Velocity => "Velocity",
-            Self::Fog => "Fog",
-            Self::SimpleLighting => "Simple Lighting",
-        };
-        write!(f, "{}", name)
-    }
+pub fn create_ltc_instance_grid_texture(
+    resolution: UVec2,
+    device: &wgpu::Device,
+) -> wgpu::TextureView {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("terrarium::ltc_cull_pass ltc_instance_grid"),
+        size: wgpu::Extent3d {
+            width: resolution.x.div_ceil(build_frustum_pass::TILE_SIZE),
+            height: resolution.y.div_ceil(build_frustum_pass::TILE_SIZE),
+            depth_or_array_layers: 2,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rg32Uint,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+        view_formats: &[],
+    });
+
+    texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        array_layer_count: Some(2),
+        ..Default::default()
+    })
+
+    // device.create_buffer(&wgpu::BufferDescriptor {
+    //     label: Some("terrarium::ltc_cull_pass ltc_instance_grid"),
+    //     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+    //     size: (size_of::<u32>() * num_groups) as u64 * 2,
+    //     mapped_at_creation: false,
+    // })
 }
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
-    shading_mode: u32,
-    _padding0: u32,
+    tile_resolution: UVec2,
 }
 
-pub struct ShadePassParameters<'a> {
+pub struct LtcCullPassParameters<'a> {
     pub resolution: UVec2,
-    pub shading_mode: ShadingMode,
     pub gpu_resources: &'a GpuResources,
-    pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
+    pub frustum_buffer: &'a wgpu::Buffer,
     pub ltc_instance_index_buffer: &'a wgpu::Buffer,
     pub ltc_instance_grid_texture_view: &'a wgpu::TextureView,
-    pub dst_view: &'a wgpu::TextureView,
 }
 
 pub fn encode(
-    parameters: &ShadePassParameters,
+    parameters: &LtcCullPassParameters,
     device: &wgpu::Device,
     command_encoder: &mut wgpu::CommandEncoder,
     pipeline_database: &mut PipelineDatabase,
 ) {
-    let shader =
-        pipeline_database.shader_from_src(device, include_wgsl!("../../shaders/shade_pass.wgsl"));
+    let shader = pipeline_database
+        .shader_from_src(device, include_wgsl!("../../shaders/ltc_cull_pass.wgsl"));
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {
-            label: Some("terrarium::shade"),
+            label: Some("terrarium::ltc_cull"),
             ..wgpu::ComputePipelineDescriptor::partial_default(&shader)
         },
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("terrarium::shade"),
+                label: Some("terrarium::ltc_cull"),
                 bind_group_layouts: &[
                     &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
@@ -98,7 +111,27 @@ pub fn encode(
                                 binding: 1,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Uniform,
+                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 3,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
                                     has_dynamic_offset: false,
                                     min_binding_size: None,
                                 },
@@ -109,26 +142,6 @@ pub fn encode(
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
-                                    format: wgpu::TextureFormat::Rgba16Float,
-                                    view_dimension: wgpu::TextureViewDimension::D2Array,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 5,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 6,
-                                visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::StorageTexture {
-                                    access: wgpu::StorageTextureAccess::ReadOnly,
                                     format: wgpu::TextureFormat::Rg32Uint,
                                     view_dimension: wgpu::TextureViewDimension::D2Array,
                                 },
@@ -136,28 +149,45 @@ pub fn encode(
                             },
                         ],
                     }),
-                    parameters.gpu_resources.vertex_pool().bind_group_layout(),
-                    parameters.gpu_resources.material_pool().bind_group_layout(),
-                    parameters.gpu_resources.sky().bind_group_layout(),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
                     parameters.gbuffer.bind_group_layout(),
                     parameters
                         .gpu_resources
                         .linear_transformed_cosines()
                         .bind_group_layout(),
+                    parameters.gpu_resources.debug_lines().bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
         },
     );
 
+    let tile_resolution = UVec2::new(
+        parameters
+            .resolution
+            .x
+            .div_ceil(build_frustum_pass::TILE_SIZE),
+        parameters
+            .resolution
+            .y
+            .div_ceil(build_frustum_pass::TILE_SIZE),
+    );
+
     let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("terrarium::shade constants"),
+        label: Some("terrarium::ltc_cull constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
-            shading_mode: parameters.shading_mode as u32,
-            _padding0: 0,
+            tile_resolution,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    let light_index_counter = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("terrarium::ltc_cull light_index_counter"),
+        contents: bytemuck::bytes_of(&0u32),
+        usage: wgpu::BufferUsages::STORAGE,
     });
 
     let bind_group_layout = pipeline.get_bind_group_layout(0);
@@ -171,18 +201,18 @@ pub fn encode(
             },
             wgpu::BindGroupEntry {
                 binding: 1,
-                resource: parameters.xr_camera_buffer.as_entire_binding(),
+                resource: parameters.frustum_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 4,
-                resource: wgpu::BindingResource::TextureView(parameters.dst_view),
+                binding: 2,
+                resource: light_index_counter.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 5,
+                binding: 3,
                 resource: parameters.ltc_instance_index_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 6,
+                binding: 4,
                 resource: wgpu::BindingResource::TextureView(
                     parameters.ltc_instance_grid_texture_view,
                 ),
@@ -192,24 +222,14 @@ pub fn encode(
 
     {
         let mut cpass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("terrarium::shade"),
+            label: Some("terrarium::ltc_cull"),
             timestamp_writes: None,
         });
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
-        cpass.set_bind_group(
-            1,
-            &parameters.gpu_resources.vertex_pool().bind_group(device),
-            &[],
-        );
-        parameters.gpu_resources.material_pool().bind_group(
-            pipeline.get_bind_group_layout(2),
-            device,
-            |bind_group| {
-                cpass.set_bind_group(2, bind_group, &[]);
-            },
-        );
-        cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
+        cpass.set_bind_group(1, empty_bind_group(device), &[]);
+        cpass.set_bind_group(2, empty_bind_group(device), &[]);
+        cpass.set_bind_group(3, empty_bind_group(device), &[]);
         cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
         cpass.set_bind_group(
             5,
@@ -219,7 +239,8 @@ pub fn encode(
                 .bind_group(),
             &[],
         );
-        cpass.insert_debug_marker("terrarium::shade");
+        cpass.set_bind_group(6, parameters.gpu_resources.debug_lines().bind_group(), &[]);
+        cpass.insert_debug_marker("terrarium::ltc_cull");
         cpass.dispatch_workgroups(
             parameters
                 .resolution

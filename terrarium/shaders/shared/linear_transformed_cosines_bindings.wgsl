@@ -1,5 +1,8 @@
-@include material_pool.wgsl
 @include linear_transformed_cosines.wgsl
+
+@include material_pool.wgsl
+
+const MAX_LTC_INSTANCES_PER_TILE: u32 = 320;
 
 struct LtcConstants {
     instance_count: u32,
@@ -105,10 +108,10 @@ fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f3
     );
 
     let double_sided: bool = instance.double_sided > 0;
-    let point0 = LtcInstance::point0(instance);
-    let point1 = LtcInstance::point1(instance);
-    let point2 = LtcInstance::point2(instance);
-    let point3 = LtcInstance::point3(instance);
+    let point0 = LtcInstance::point0(instance, 1.0);
+    let point1 = LtcInstance::point1(instance, 1.0);
+    let point2 = LtcInstance::point2(instance, 1.0);
+    let point3 = LtcInstance::point3(instance, 1.0);
 
     let diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided,
         point0, point1, point2, point3);

@@ -9,9 +9,11 @@ use gpu_resources::{
 use render_passes::{
     blit_pass::{self, BlitPassParameters},
     bloom_pass::{self, BloomPassParameters},
+    build_frustum_pass::{self, BuildFrustumPassParameters},
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
     emissive_stabilization_pass::{self, EmissiveStabilisationPassParameters},
+    ltc_cull_pass::{self, LtcCullPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
     taa_pass::{self, TaaPassParameters},
@@ -36,6 +38,9 @@ struct SizedResources {
     resolution: UVec2,
     shading_resolution: UVec2,
     shading_resolution_scale: f32,
+    frustum_buffer: wgpu::Buffer,
+    ltc_instance_index_buffer: wgpu::Buffer,
+    ltc_instance_grid_texture_view: wgpu::TextureView,
     gbuffer: Gbuffer,
     shading_texture: [wgpu::Texture; 2],
 }
@@ -69,10 +74,20 @@ impl SizedResources {
             })
         });
 
+        let frustum_buffer = build_frustum_pass::create_frustum_buffer(resolution, device);
+
+        let ltc_instance_index_buffer =
+            ltc_cull_pass::create_ltc_instance_index_buffer(resolution, device);
+        let ltc_instance_grid_texture_view =
+            ltc_cull_pass::create_ltc_instance_grid_texture(resolution, device);
+
         Self {
             resolution,
             shading_resolution,
             shading_resolution_scale,
+            frustum_buffer,
+            ltc_instance_index_buffer,
+            ltc_instance_grid_texture_view,
             gbuffer,
             shading_texture,
         }
@@ -256,6 +271,35 @@ impl Renderer {
             pipeline_database,
         );
 
+        build_frustum_pass::encode(
+            &BuildFrustumPassParameters {
+                resolution: self.sized_resources.shading_resolution,
+                xr_camera_buffer: parameters.xr_camera_buffer,
+                frustum_buffer: &self.sized_resources.frustum_buffer,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        //command_encoder.clear_buffer(&self.sized_resources.ltc_instance_counter_buffer, 0, None);
+
+        ltc_cull_pass::encode(
+            &LtcCullPassParameters {
+                resolution: self.sized_resources.shading_resolution,
+                gpu_resources: parameters.gpu_resources,
+                gbuffer: &self.sized_resources.gbuffer,
+                frustum_buffer: &self.sized_resources.frustum_buffer,
+                ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
+                ltc_instance_grid_texture_view: &self
+                    .sized_resources
+                    .ltc_instance_grid_texture_view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
         let shading_view = self.sized_resources.shading_texture[self.frame_idx as usize % 2]
             .create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
@@ -279,6 +323,10 @@ impl Renderer {
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
+                ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
+                ltc_instance_grid_texture_view: &self
+                    .sized_resources
+                    .ltc_instance_grid_texture_view,
                 dst_view: &shading_view,
             },
             &ctx.device,
@@ -286,17 +334,17 @@ impl Renderer {
             pipeline_database,
         );
 
-        if parameters.render_settings.enable_emissive_stabilization {
-            emissive_stabilization_pass::encode(
-                &EmissiveStabilisationPassParameters {
-                    resolution: self.sized_resources.shading_resolution,
-                    color_texture_view: &shading_view,
-                },
-                &ctx.device,
-                command_encoder,
-                pipeline_database,
-            );
-        }
+        // if parameters.render_settings.enable_emissive_stabilization {
+        //     emissive_stabilization_pass::encode(
+        //         &EmissiveStabilisationPassParameters {
+        //             resolution: self.sized_resources.shading_resolution,
+        //             color_texture_view: &shading_view,
+        //         },
+        //         &ctx.device,
+        //         command_encoder,
+        //         pipeline_database,
+        //     );
+        // }
 
         if parameters.render_settings.enable_taa {
             taa_pass::encode(
@@ -391,7 +439,7 @@ impl Renderer {
             pipeline_database,
         );
 
-        parameters.gpu_resources.end_frame();
+        parameters.gpu_resources.end_frame(command_encoder);
         self.frame_idx += 1;
     }
 

@@ -408,9 +408,9 @@ impl GpuResources {
         command_encoder.build_acceleration_structures(iter::empty(), tlases);
     }
 
-    pub fn end_frame(&mut self) {
+    pub fn end_frame(&mut self, command_encoder: &mut wgpu::CommandEncoder) {
         self.vertex_pool.end_frame();
         self.linear_transformed_cosines.end_frame();
-        self.debug_lines.end_frame();
+        self.debug_lines.end_frame(command_encoder);
     }
 }

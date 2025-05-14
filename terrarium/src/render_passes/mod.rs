@@ -6,9 +6,11 @@ pub mod debug_pass;
 pub mod gbuffer_pass;
 pub mod rt_gbuffer_pass;
 pub mod shade_pass;
-//pub mod shadow_pass;
-//pub mod ssao_pass;
+// pub mod shadow_pass;
+// pub mod ssao_pass;
+pub mod build_frustum_pass;
 pub mod emissive_stabilization_pass;
+pub mod ltc_cull_pass;
 pub mod taa_pass;
 
 #[cfg(feature = "transform-gizmo")]

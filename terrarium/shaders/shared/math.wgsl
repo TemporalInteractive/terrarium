@@ -60,3 +60,12 @@ fn get_perpendicular_vector(u: vec3<f32>) -> vec3<f32> {
 
     return cross(u, vec3<f32>(f32(xm), f32(ym), f32(zm)));
 }
+
+struct Aabb {
+    min: vec3<f32>,
+    max: vec3<f32>,
+}
+
+fn Aabb::new(min: vec3<f32>, max: vec3<f32>) -> Aabb {
+    return Aabb(min, max);
+}

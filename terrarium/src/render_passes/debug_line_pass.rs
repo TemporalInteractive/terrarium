@@ -106,7 +106,6 @@ pub fn encode(
             occlusion_query_set: None,
         });
         rpass.set_pipeline(&pipeline);
-
         rpass.set_bind_group(0, &bind_group, &[]);
 
         rpass.set_vertex_buffer(
@@ -117,7 +116,22 @@ pub fn encode(
                 .vertex_buffer()
                 .slice(..),
         );
-
         rpass.draw(0..vertex_count, 0..1);
+
+        rpass.set_vertex_buffer(
+            0,
+            parameters
+                .gpu_resources
+                .debug_lines()
+                .gpu_vertex_buffer()
+                .slice(..),
+        );
+        rpass.draw_indirect(
+            parameters
+                .gpu_resources
+                .debug_lines()
+                .gpu_vertex_count_buffer(),
+            0,
+        );
     }
 }
