@@ -70,6 +70,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
         let top_left_far_ws: vec3<f32> = eye + top_left_dir * depth_max;
         let top_right_far_ws: vec3<f32> = eye + top_right_dir * depth_max;
         let bottom_left_far_ws: vec3<f32> = eye + bottom_left_dir * depth_max;
+        let bottom_right_far_ws: vec3<f32> = eye + bottom_right_dir * depth_max;
         
         let frustum = Frustum::new(
             Plane::new(eye, bottom_left_near_ws, top_left_near_ws),
@@ -77,7 +78,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
             Plane::new(eye, top_left_near_ws, top_right_near_ws),
             Plane::new(eye, bottom_right_near_ws, bottom_left_near_ws),
             Plane::new(bottom_left_near_ws, top_left_near_ws, top_right_near_ws),
-            Plane::new(top_left_far_ws, top_right_far_ws, bottom_left_far_ws)
+            Plane::new(top_right_far_ws, bottom_left_far_ws, bottom_right_far_ws)
         );
 
         frustums[i] = frustum;
