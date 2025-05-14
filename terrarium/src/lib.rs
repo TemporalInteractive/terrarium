@@ -274,6 +274,7 @@ impl Renderer {
         build_frustum_pass::encode(
             &BuildFrustumPassParameters {
                 resolution: self.sized_resources.shading_resolution,
+                gbuffer: &self.sized_resources.gbuffer,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 frustum_buffer: &self.sized_resources.frustum_buffer,
             },
@@ -282,13 +283,10 @@ impl Renderer {
             pipeline_database,
         );
 
-        //command_encoder.clear_buffer(&self.sized_resources.ltc_instance_counter_buffer, 0, None);
-
         ltc_cull_pass::encode(
             &LtcCullPassParameters {
                 resolution: self.sized_resources.shading_resolution,
                 gpu_resources: parameters.gpu_resources,
-                gbuffer: &self.sized_resources.gbuffer,
                 frustum_buffer: &self.sized_resources.frustum_buffer,
                 ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
                 ltc_instance_grid_texture_view: &self

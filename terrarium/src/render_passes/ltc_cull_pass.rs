@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
-    gpu_resources::{gbuffer::Gbuffer, GpuResources},
+    gpu_resources::GpuResources,
     wgpu_util::{
         empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
         PipelineDatabase,
@@ -51,13 +51,6 @@ pub fn create_ltc_instance_grid_texture(
         array_layer_count: Some(2),
         ..Default::default()
     })
-
-    // device.create_buffer(&wgpu::BufferDescriptor {
-    //     label: Some("terrarium::ltc_cull_pass ltc_instance_grid"),
-    //     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-    //     size: (size_of::<u32>() * num_groups) as u64 * 2,
-    //     mapped_at_creation: false,
-    // })
 }
 
 #[derive(Pod, Clone, Copy, Zeroable)]
@@ -70,7 +63,6 @@ struct Constants {
 pub struct LtcCullPassParameters<'a> {
     pub resolution: UVec2,
     pub gpu_resources: &'a GpuResources,
-    pub gbuffer: &'a Gbuffer,
     pub frustum_buffer: &'a wgpu::Buffer,
     pub ltc_instance_index_buffer: &'a wgpu::Buffer,
     pub ltc_instance_grid_texture_view: &'a wgpu::TextureView,
@@ -152,7 +144,7 @@ pub fn encode(
                     empty_bind_group_layout(device),
                     empty_bind_group_layout(device),
                     empty_bind_group_layout(device),
-                    parameters.gbuffer.bind_group_layout(),
+                    empty_bind_group_layout(device),
                     parameters
                         .gpu_resources
                         .linear_transformed_cosines()
@@ -230,7 +222,7 @@ pub fn encode(
         cpass.set_bind_group(1, empty_bind_group(device), &[]);
         cpass.set_bind_group(2, empty_bind_group(device), &[]);
         cpass.set_bind_group(3, empty_bind_group(device), &[]);
-        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
+        cpass.set_bind_group(4, empty_bind_group(device), &[]);
         cpass.set_bind_group(
             5,
             parameters

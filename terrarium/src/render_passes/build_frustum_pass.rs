@@ -3,7 +3,13 @@ use glam::{UVec2, Vec3};
 use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
-use crate::wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase};
+use crate::{
+    gpu_resources::gbuffer::Gbuffer,
+    wgpu_util::{
+        empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
+        PipelineDatabase,
+    },
+};
 
 pub const TILE_SIZE: u32 = 16;
 
@@ -43,6 +49,7 @@ struct Constants {
 
 pub struct BuildFrustumPassParameters<'a> {
     pub resolution: UVec2,
+    pub gbuffer: &'a Gbuffer,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub frustum_buffer: &'a wgpu::Buffer,
 }
@@ -66,8 +73,8 @@ pub fn encode(
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("terrarium::build_frustum"),
-                bind_group_layouts: &[&device.create_bind_group_layout(
-                    &wgpu::BindGroupLayoutDescriptor {
+                bind_group_layouts: &[
+                    &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
                         entries: &[
                             wgpu::BindGroupLayoutEntry {
@@ -101,8 +108,12 @@ pub fn encode(
                                 count: None,
                             },
                         ],
-                    },
-                )],
+                    }),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
+                    empty_bind_group_layout(device),
+                    parameters.gbuffer.bind_group_layout(),
+                ],
                 push_constant_ranges: &[],
             })
         },
@@ -149,6 +160,10 @@ pub fn encode(
         });
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
+        cpass.set_bind_group(1, empty_bind_group(device), &[]);
+        cpass.set_bind_group(2, empty_bind_group(device), &[]);
+        cpass.set_bind_group(3, empty_bind_group(device), &[]);
+        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
         cpass.insert_debug_marker("terrarium::build_frustum");
         cpass.dispatch_workgroups(
             parameters.resolution.x.div_ceil(TILE_SIZE),

@@ -46,14 +46,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
     let depth_max: f32 = bitcast<f32>(atomicLoad(&gs_depth_max));
 
     if (local_id.x == 0 && local_id.y == 0) {
-        let i: u32 = local_id.y * constants.tile_resolution.x + local_id.x;
+        let i: u32 = group_id.y * constants.tile_resolution.x + group_id.x;
 
-        let top_left_ss = vec2<f32>(local_id * FRUSTUM_TILE_SIZE);
-        let top_right_ss = vec2<f32>(vec2<u32>(local_id.x + 1, local_id.y) * FRUSTUM_TILE_SIZE);
-        let bottom_left_ss = vec2<f32>(vec2<u32>(local_id.x, local_id.y + 1) * FRUSTUM_TILE_SIZE);
-        let bottom_right_ss = vec2<f32>(vec2<u32>(local_id.x + 1, local_id.y + 1) * FRUSTUM_TILE_SIZE);
+        let top_left_ss = vec2<f32>(group_id.xy * FRUSTUM_TILE_SIZE);
+        let top_right_ss = vec2<f32>(vec2<u32>(group_id.x + 1, group_id.y) * FRUSTUM_TILE_SIZE);
+        let bottom_left_ss = vec2<f32>(vec2<u32>(group_id.x, group_id.y + 1) * FRUSTUM_TILE_SIZE);
+        let bottom_right_ss = vec2<f32>(vec2<u32>(group_id.x + 1, group_id.y + 1) * FRUSTUM_TILE_SIZE);
 
-        let eye = XrCamera::origin(xr_camera, 0);
+        let eye: vec3<f32> = XrCamera::origin(xr_camera, 0);
 
         let top_left_dir: vec3<f32> = XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0);
         let top_right_dir: vec3<f32> = XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0);

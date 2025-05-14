@@ -50,7 +50,7 @@ fn Frustum::intersect_aabb(_self: Frustum, aabb: Aabb) -> bool {
     if (Plane::aabb_outside(_self.right, aabb)) { return false; }
     if (Plane::aabb_outside(_self.top, aabb)) { return false; }
     if (Plane::aabb_outside(_self.bottom, aabb)) { return false; }
-    if (Plane::aabb_outside(_self.near, aabb)) { return false; }
-    if (Plane::aabb_outside(_self.far, aabb)) { return false; }
+    // if (Plane::aabb_outside(_self.near, aabb)) { return false; }
+    // if (Plane::aabb_outside(_self.far, aabb)) { return false; }
     return true;
 }
