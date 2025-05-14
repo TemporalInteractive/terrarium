@@ -13,7 +13,7 @@ use crate::{
 
 use super::build_frustum_pass;
 
-const MAX_LTC_INSTANCES_PER_TILE: usize = 320;
+const MAX_LTC_INSTANCES_PER_TILE: usize = 32;
 
 pub fn create_ltc_instance_index_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
     let num_groups = (resolution.x.div_ceil(build_frustum_pass::TILE_SIZE)

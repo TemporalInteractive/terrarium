@@ -71,22 +71,36 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
     let depth_min: f32 = bitcast<f32>(atomicLoad(&gs_depth_min));
     let depth_max: f32 = bitcast<f32>(atomicLoad(&gs_depth_max));
 
+    let eye = XrCamera::origin(xr_camera, 0);
+    let top_left_ss = vec2<f32>(id);
+    let top_right_ss = vec2<f32>(vec2<u32>(id.x + FRUSTUM_TILE_SIZE, id.y));
+    let bottom_left_ss = vec2<f32>(vec2<u32>(id.x, id.y + FRUSTUM_TILE_SIZE));
+    let top_left_dir: vec3<f32> = XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0);
+    let top_right_dir: vec3<f32> = XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0);
+    let bottom_left_dir: vec3<f32> = XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 0);
+
+    let top_left_near_ws = eye + top_left_dir * depth_min;
+    let top_right_near_ws = eye + top_right_dir * depth_min;
+    let bottom_left_near_ws = eye + bottom_left_dir * depth_min;
+    let near_plane = Plane::new(top_left_near_ws, top_right_near_ws, bottom_left_near_ws);
+
+    let top_left_far_ws = eye + top_left_dir * depth_max;
+    let top_right_far_ws = eye + top_right_dir * depth_max;
+    let bottom_left_far_ws = eye + bottom_left_dir * depth_max;
+    let far_plane = Plane::new(top_left_far_ws, top_right_far_ws, bottom_left_far_ws);
+
     for (var i: u32 = local_index; i < ltc_constants.instance_count; i += FRUSTUM_TILE_SIZE * FRUSTUM_TILE_SIZE) {
         let light: LtcInstance = ltc_instances[i];
         let aabb: Aabb = LtcInstance::illuminated_aabb(light);
 
         let culled: bool = !Frustum::intersect_aabb(gs_frustum, aabb);
 
-        if (group_id.x == 0 && group_id.y == 0) {
-            //DebugLines::submit_line(aabb.min, aabb.max, vec3<f32>(1.0, 0.0, 1.0));
-
+        if (group_id.x == 40 && group_id.y == 40) {
             if culled {
                 DebugLines::submit_aabb(aabb, vec3<f32>(1.0, 0.0, 1.0));
             } else {
                 DebugLines::submit_aabb(aabb, vec3<f32>(0.0, 1.0, 0.0));
             }
-
-            //DebugLines::submit_line(LtcInstance::point0(light), LtcInstance::point1(light), vec3<f32>(0.0, 1.0, 0.0));
         }
 
         
@@ -97,7 +111,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
     }
     workgroupBarrier();
 
-    let light_count: u32 = atomicLoad(&gs_light_count);
+    let light_count: u32 = min(atomicLoad(&gs_light_count), MAX_LTC_INSTANCES_PER_TILE);
     if (local_index == 0) {
         let light_index_start_offset: u32 = atomicAdd(&light_index_counter, light_count);
         atomicStore(&gs_light_index_start_offset, light_index_start_offset);

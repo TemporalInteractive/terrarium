@@ -19,6 +19,8 @@ struct Frustum {
     right: Plane,
     top: Plane,
     bottom: Plane,
+    near: Plane,
+    far: Plane,
 }
 
 pub fn create_frustum_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
@@ -149,8 +151,8 @@ pub fn encode(
         cpass.set_bind_group(0, &bind_group, &[]);
         cpass.insert_debug_marker("terrarium::build_frustum");
         cpass.dispatch_workgroups(
-            tile_resolution.x.div_ceil(TILE_SIZE),
-            tile_resolution.y.div_ceil(TILE_SIZE),
+            parameters.resolution.x.div_ceil(TILE_SIZE),
+            parameters.resolution.y.div_ceil(TILE_SIZE),
             1,
         );
     }

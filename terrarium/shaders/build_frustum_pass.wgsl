@@ -1,6 +1,8 @@
 @include shared/frustum.wgsl
 @include shared/xr.wgsl
 
+@include shared/gbuffer_bindings.wgsl
+
 struct Constants {
     resolution: vec2<u32>,
     tile_resolution: vec2<u32>, // tile_resolution = div_ceil(resolution, TILE_SIZE)
@@ -18,31 +20,64 @@ var<uniform> xr_camera: XrCamera;
 @binding(2)
 var<storage, read_write> frustums: array<Frustum>;
 
+var<workgroup> gs_depth_min: atomic<u32>;
+var<workgroup> gs_depth_max: atomic<u32>;
+
 @compute
 @workgroup_size(FRUSTUM_TILE_SIZE, FRUSTUM_TILE_SIZE)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invocation_id) local_id: vec3<u32>,
     @builtin(workgroup_id) group_id: vec3<u32>, @builtin(num_workgroups) num_groups: vec3<u32>) {
     let id: vec2<u32> = global_id.xy;
-    if (any(id >= constants.tile_resolution)) { return; }
-    let i: u32 = id.y * constants.tile_resolution.x + id.x;
+    if (any(id >= constants.resolution)) { return; }
 
-    let top_left_ss = vec2<f32>(id * FRUSTUM_TILE_SIZE);
-    let top_right_ss = vec2<f32>(vec2<u32>(id.x + 1, id.y) * FRUSTUM_TILE_SIZE);
-    let bottom_left_ss = vec2<f32>(vec2<u32>(id.x, id.y + 1) * FRUSTUM_TILE_SIZE);
-    let bottom_right_ss = vec2<f32>(vec2<u32>(id.x + 1, id.y + 1) * FRUSTUM_TILE_SIZE);
+    if (local_id.x == 0 && local_id.y == 0) {
+        atomicStore(&gs_depth_min, U32_MAX);
+        atomicStore(&gs_depth_max, 0u);
+    }
+    workgroupBarrier();
 
-    let top_left_vs: vec3<f32> = XrCamera::screen_to_world_space(xr_camera, top_left_ss, constants.resolution, 0);
-    let top_right_vs: vec3<f32> = XrCamera::screen_to_world_space(xr_camera, top_right_ss, constants.resolution, 0);
-    let bottom_left_vs: vec3<f32> = XrCamera::screen_to_world_space(xr_camera, bottom_left_ss, constants.resolution, 0);
-    let bottom_right_vs: vec3<f32> = XrCamera::screen_to_world_space(xr_camera, bottom_right_ss, constants.resolution, 0);
+    let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, 0);
+    let depth_u32: u32 = bitcast<u32>(position_and_depth.depth);
+    atomicMin(&gs_depth_min, depth_u32);
+    atomicMax(&gs_depth_max, depth_u32);
+    workgroupBarrier();
 
-    let eye = vec3<f32>(0.0);
-    let frustum = Frustum::new(
-        Plane::new(eye, bottom_left_vs, top_left_vs),
-        Plane::new(eye, top_right_vs, bottom_right_vs),
-        Plane::new(eye, top_left_vs, top_right_vs),
-        Plane::new(eye, bottom_right_vs, bottom_left_vs)
-    );
+    let depth_min: f32 = bitcast<f32>(atomicLoad(&gs_depth_min));
+    let depth_max: f32 = bitcast<f32>(atomicLoad(&gs_depth_max));
 
-    frustums[i] = frustum;
+    if (local_id.x == 0 && local_id.y == 0) {
+        let i: u32 = local_id.y * constants.tile_resolution.x + local_id.x;
+
+        let top_left_ss = vec2<f32>(local_id * FRUSTUM_TILE_SIZE);
+        let top_right_ss = vec2<f32>(vec2<u32>(local_id.x + 1, local_id.y) * FRUSTUM_TILE_SIZE);
+        let bottom_left_ss = vec2<f32>(vec2<u32>(local_id.x, local_id.y + 1) * FRUSTUM_TILE_SIZE);
+        let bottom_right_ss = vec2<f32>(vec2<u32>(local_id.x + 1, local_id.y + 1) * FRUSTUM_TILE_SIZE);
+
+        let eye = XrCamera::origin(xr_camera, 0);
+
+        let top_left_dir: vec3<f32> = XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0);
+        let top_right_dir: vec3<f32> = XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0);
+        let bottom_left_dir: vec3<f32> = XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 0);
+        let bottom_right_dir: vec3<f32> = XrCamera::direction(xr_camera, bottom_right_ss, constants.resolution, 0);
+
+        let top_left_near_ws: vec3<f32> = eye + top_left_dir * depth_min;
+        let top_right_near_ws: vec3<f32> = eye + top_right_dir * depth_min;
+        let bottom_left_near_ws: vec3<f32> = eye + bottom_left_dir * depth_min;
+        let bottom_right_near_ws: vec3<f32> = eye + bottom_right_dir * depth_min;
+
+        let top_left_far_ws: vec3<f32> = eye + top_left_dir * depth_max;
+        let top_right_far_ws: vec3<f32> = eye + top_right_dir * depth_max;
+        let bottom_left_far_ws: vec3<f32> = eye + bottom_left_dir * depth_max;
+        
+        let frustum = Frustum::new(
+            Plane::new(eye, bottom_left_near_ws, top_left_near_ws),
+            Plane::new(eye, top_right_near_ws, bottom_right_near_ws),
+            Plane::new(eye, top_left_near_ws, top_right_near_ws),
+            Plane::new(eye, bottom_right_near_ws, bottom_left_near_ws),
+            Plane::new(top_left_near_ws, top_right_near_ws, bottom_left_near_ws),
+            Plane::new(top_left_far_ws, top_right_far_ws, bottom_left_far_ws)
+        );
+
+        frustums[i] = frustum;
+    }
 }
