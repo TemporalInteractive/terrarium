@@ -37,9 +37,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
     workgroupBarrier();
 
     let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, 0);
-    let depth_u32: u32 = bitcast<u32>(position_and_depth.depth);
-    atomicMin(&gs_depth_min, depth_u32);
-    atomicMax(&gs_depth_max, depth_u32);
+    if (!GbufferPositionAndDepth::is_sky(position_and_depth)) {
+        let depth_u32: u32 = bitcast<u32>(position_and_depth.depth);
+        atomicMin(&gs_depth_min, depth_u32);
+        atomicMax(&gs_depth_max, depth_u32);
+    }
     workgroupBarrier();
 
     let depth_min: f32 = bitcast<f32>(atomicLoad(&gs_depth_min));
@@ -74,7 +76,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
             Plane::new(eye, top_right_near_ws, bottom_right_near_ws),
             Plane::new(eye, top_left_near_ws, top_right_near_ws),
             Plane::new(eye, bottom_right_near_ws, bottom_left_near_ws),
-            Plane::new(top_left_near_ws, top_right_near_ws, bottom_left_near_ws),
+            Plane::new(bottom_left_near_ws, top_left_near_ws, top_right_near_ws),
             Plane::new(top_left_far_ws, top_right_far_ws, bottom_left_far_ws)
         );
 

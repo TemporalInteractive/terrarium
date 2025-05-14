@@ -2,7 +2,7 @@
 
 @include material_pool.wgsl
 
-const MAX_LTC_INSTANCES_PER_TILE: u32 = 32;
+const MAX_LTC_INSTANCES_PER_TILE: u32 = 64;
 
 struct LtcConstants {
     instance_count: u32,

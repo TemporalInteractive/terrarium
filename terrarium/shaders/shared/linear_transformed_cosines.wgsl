@@ -23,10 +23,10 @@ fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {
     let intensity: f32 = length(_self.color);
     let illumination_reach: f32 = intensity * 0.1;
 
-    let p0: vec3<f32> = LtcInstance::point0(_self, illumination_reach * 5.0 + 1.0);
-    let p1: vec3<f32> = LtcInstance::point1(_self, illumination_reach * 5.0 + 1.0);
-    let p2: vec3<f32> = LtcInstance::point2(_self, illumination_reach * 5.0 + 1.0);
-    let p3: vec3<f32> = LtcInstance::point3(_self, illumination_reach * 5.0 + 1.0);
+    let p0: vec3<f32> = LtcInstance::point0(_self, illumination_reach * 10.0 + 1.0);
+    let p1: vec3<f32> = LtcInstance::point1(_self, illumination_reach * 10.0 + 1.0);
+    let p2: vec3<f32> = LtcInstance::point2(_self, illumination_reach * 10.0 + 1.0);
+    let p3: vec3<f32> = LtcInstance::point3(_self, illumination_reach * 10.0 + 1.0);
 
     let min_pos: vec3<f32> = min(min(p0, p1), min(p2, p3));
     let max_pos: vec3<f32> = max(max(p0, p1), max(p2, p3));
