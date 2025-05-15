@@ -21,7 +21,7 @@ const SHADING_MODE_SIMPLE_LIGHTING: u32 = 8;
 struct Constants {
     resolution: vec2<u32>,
     shading_mode: u32,
-    _padding0: u32,
+    ambient_factor: f32,
 }
 
 @group(0)
@@ -101,7 +101,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 let light_intensity: f32 = Sky::sun_intensity(l);
                 let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, shading_and_geometric_normal.shading_normal);
 
-                let ambient: vec3<f32> = material.color * 0.1;
+                let ambient: vec3<f32> = material.color * constants.ambient_factor;
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
                     var ltc_shading = vec3<f32>(0.0);

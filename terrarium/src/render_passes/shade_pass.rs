@@ -49,12 +49,13 @@ impl fmt::Display for ShadingMode {
 struct Constants {
     resolution: UVec2,
     shading_mode: u32,
-    _padding0: u32,
+    ambient_factor: f32,
 }
 
 pub struct ShadePassParameters<'a> {
     pub resolution: UVec2,
     pub shading_mode: ShadingMode,
+    pub ambient_factor: f32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
@@ -155,7 +156,7 @@ pub fn encode(
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             shading_mode: parameters.shading_mode as u32,
-            _padding0: 0,
+            ambient_factor: parameters.ambient_factor,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

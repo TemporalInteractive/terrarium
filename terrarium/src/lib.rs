@@ -95,6 +95,7 @@ impl SizedResources {
 
 pub struct RenderSettings {
     pub shading_mode: ShadingMode,
+    pub ambient_factor: f32,
     pub shading_resolution_scale: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
@@ -117,6 +118,7 @@ impl Default for RenderSettings {
     fn default() -> Self {
         Self {
             shading_mode: ShadingMode::Full,
+            ambient_factor: 0.1,
             shading_resolution_scale: 1.0,
             enable_debug_lines: true,
             apply_mipmaps: true,
@@ -158,6 +160,7 @@ impl RenderSettings {
                     ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());
                 }
             });
+        ui.add(egui::Slider::new(&mut self.ambient_factor, 0.0..=1.0).text("Ambient Factor"));
         ui.add(
             egui::Slider::new(&mut self.shading_resolution_scale, 0.4..=1.0)
                 .text("Resolution Scale"),
@@ -320,6 +323,7 @@ impl Renderer {
             &ShadePassParameters {
                 resolution: self.sized_resources.shading_resolution,
                 shading_mode: parameters.render_settings.shading_mode,
+                ambient_factor: parameters.render_settings.ambient_factor,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
