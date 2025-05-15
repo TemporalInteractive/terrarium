@@ -21,14 +21,14 @@ struct TextureTransform {
 #[repr(C)]
 pub struct MaterialDescriptor {
     pub color: Vec3,
-    pub color_texture: u32,
+    color_texture: u32,
     pub metallic: f32,
     pub roughness: f32,
-    pub metallic_roughness_texture: u32,
+    metallic_roughness_texture: u32,
     pub normal_scale: f32,
     pub emission: Vec3,
     pub normal_texture: u32,
-    pub emission_texture: u32,
+    emission_texture: u32,
     pub transmission: f32,
     pub eta: f32,
     pub subsurface: f32,
@@ -37,19 +37,19 @@ pub struct MaterialDescriptor {
     pub specular_tint: Vec3,
     pub anisotropic: f32,
     pub sheen: f32,
-    pub sheen_texture: u32,
+    sheen_texture: u32,
     pub clearcoat: f32,
     pub clearcoat_texture: u32,
     pub clearcoat_roughness: f32,
-    pub clearcoat_roughness_texture: u32,
+    clearcoat_roughness_texture: u32,
     pub alpha_cutoff: f32,
-    pub sheen_tint_texture: u32,
-    pub clearcoat_normal_texture: u32,
-    pub _padding0: u32,
-    pub _padding1: u32,
-    pub _padding2: u32,
+    sheen_tint_texture: u32,
+    clearcoat_normal_texture: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
     pub sheen_tint: Vec3,
-    pub transmission_texture: u32,
+    transmission_texture: u32,
 }
 
 pub struct MaterialPool {
@@ -176,6 +176,10 @@ impl MaterialPool {
 
     pub fn material_count(&self) -> usize {
         self.material_descriptors.len()
+    }
+
+    pub fn material_descriptor(&self, i: u32) -> &MaterialDescriptor {
+        &self.material_descriptors[i as usize]
     }
 
     pub fn alloc_material(
