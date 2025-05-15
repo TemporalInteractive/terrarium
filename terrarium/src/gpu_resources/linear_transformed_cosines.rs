@@ -20,7 +20,6 @@ struct Constants {
 #[repr(C)]
 struct LtcInstance {
     transform: Mat4,
-    inv_transform: Mat4,
     color: Vec3,
     double_sided: u32,
 }
@@ -28,7 +27,9 @@ struct LtcInstance {
 pub struct LinearTransformedCosines {
     constants_buffer: wgpu::Buffer,
     instances_buffer: wgpu::Buffer,
+    instances_inv_transform_buffer: wgpu::Buffer,
     instances: Vec<LtcInstance>,
+    instances_inv_transform: Vec<Mat4>,
 
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
@@ -91,6 +92,13 @@ impl LinearTransformedCosines {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        let instances_inv_transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrarium::linear_transformed_cosines instances_inv_transform"),
+            mapped_at_creation: false,
+            size: (std::mem::size_of::<Mat4>() * MAX_INSTANCES) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -140,6 +148,16 @@ impl LinearTransformedCosines {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -167,13 +185,19 @@ impl LinearTransformedCosines {
                     binding: 4,
                     resource: instances_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: instances_inv_transform_buffer.as_entire_binding(),
+                },
             ],
         });
 
         Self {
             constants_buffer,
             instances_buffer,
+            instances_inv_transform_buffer,
             instances: Vec::new(),
+            instances_inv_transform: Vec::new(),
             bind_group_layout,
             bind_group,
         }
@@ -196,20 +220,26 @@ impl LinearTransformedCosines {
             0,
             bytemuck::cast_slice(&self.instances),
         );
+        queue.write_buffer(
+            &self.instances_inv_transform_buffer,
+            0,
+            bytemuck::cast_slice(&self.instances_inv_transform),
+        );
     }
 
     pub fn submit_instance(&mut self, transform: Mat4, color: Vec3, double_sided: bool) {
         self.instances.push(LtcInstance {
             transform,
-            inv_transform: transform.inverse(),
             color,
             double_sided: double_sided as u32,
         });
+        self.instances_inv_transform.push(transform.inverse());
         assert!(self.instances.len() < MAX_INSTANCES);
     }
 
     pub fn end_frame(&mut self) {
         self.instances.clear();
+        self.instances_inv_transform.clear();
     }
 
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {

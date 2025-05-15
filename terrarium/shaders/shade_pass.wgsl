@@ -107,7 +107,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     var ltc_shading = vec3<f32>(0.0);
                     for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
                         let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
-                        ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
+                        ltc_shading += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
                     }
 
                     color = ltc_shading + ambient + material.emission;
@@ -116,7 +116,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     var ltc_shading = vec3<f32>(0.0);
                     for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
                         let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
-                        ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
+                        ltc_shading += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
                     }
                     
                     color = ltc_shading;

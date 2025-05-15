@@ -2,7 +2,6 @@
 
 struct LtcInstance {
     transform: mat4x4<f32>,
-    inv_transform: mat4x4<f32>, // TODO, make these inv_transforms seperate, not needed in the cull stage
     color: vec3<f32>,
     double_sided: u32,
 }
@@ -27,8 +26,8 @@ fn LtcInstance::area(_self: LtcInstance) -> f32 {
     return width * height;
 }
 
-fn LtcInstance::distance(_self: LtcInstance, point: vec3<f32>) -> f32 {
-    let point_local: vec3<f32> = (_self.inv_transform * vec4<f32>(point, 1.0)).xyz;
+fn LtcInstance::distance(_self: LtcInstance, point: vec3<f32>, inv_transform: mat4x4<f32>) -> f32 {
+    let point_local: vec3<f32> = (inv_transform * vec4<f32>(point, 1.0)).xyz;
 
     let clamped_x: f32 = clamp(point_local.x, -1.0, 1.0);
     let clamped_z: f32 = clamp(point_local.z, -1.0, 1.0);

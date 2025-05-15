@@ -31,6 +31,10 @@ var ltc_sampler: sampler;
 @binding(4)
 var<storage, read> ltc_instances: array<LtcInstance>;
 
+@group(5)
+@binding(5)
+var<storage, read> ltc_instances_inv_transform: array<mat4x4<f32>>;
+
 const LTC_LUT_SIZE: f32 = 64.0;
 const LTC_LUT_SCALE: f32 = (LTC_LUT_SIZE - 1.0) / LTC_LUT_SIZE;
 const LTC_LUT_BIAS: f32 = 0.5 / LTC_LUT_SIZE;
@@ -94,11 +98,13 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
     return vec3<f32>(sum);
 }
 
-fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
+fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
     var n_dot_v: f32 = dot(normal, view_dir);
     if (n_dot_v <= 0.0) {
         return vec3<f32>(0.0);
     }
+
+    let instance: LtcInstance = ltc_instances[instance_idx];
     
     n_dot_v = clamp(n_dot_v, 0.0, 1.0);
     let tex_coord = vec2<f32>(material.roughness, sqrt(1.0 - n_dot_v)) * LTC_LUT_SCALE + LTC_LUT_BIAS;
@@ -126,8 +132,10 @@ fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f3
     let mspec = vec3<f32>(0.23);
     specular *= mspec * t2.x + (1.0 - mspec) * t2.y;
 
+    let inv_transform: mat4x4<f32> = ltc_instances_inv_transform[instance_idx];
+
     let area: f32 = LtcInstance::area(instance);
-    let distance: f32 = LtcInstance::distance(instance, hit_point);
+    let distance: f32 = LtcInstance::distance(instance, hit_point, inv_transform);
     let attenuation: f32 = area / (distance * distance + area);
 
     return attenuation * instance.color * (specular + material.color * diffuse);
