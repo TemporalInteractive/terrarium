@@ -15,6 +15,7 @@ bytemuck.workspace = true
 clap.workspace = true
 glam.workspace = true
 openxr.workspace = true
+rand.workspace = true
 specs.workspace = true
 ugm.workspace = true
 uuid.workspace = true

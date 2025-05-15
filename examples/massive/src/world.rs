@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use glam::{Mat4, Vec3};
+use rand::Rng;
 use specs::{Builder, WorldExt};
 use terrarium::gpu_resources::{GpuMaterial, GpuMesh, GpuResources};
 use terrarium::wgpu_util;
@@ -152,7 +153,9 @@ impl World {
                     ));
 
                     if model.meshes[mesh_idx as usize].is_emissive {
-                        builder = builder.with(AreaLightComponent::new(Vec3::ONE, 10.0, true));
+                        let mut rng = rand::rng();
+                        let color = Vec3::new(rng.random(), rng.random(), rng.random());
+                        builder = builder.with(AreaLightComponent::new(color, 100.0, false));
                     }
 
                     builder

@@ -12,7 +12,6 @@ use render_passes::{
     build_frustum_pass::{self, BuildFrustumPassParameters},
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
-    emissive_stabilization_pass::{self, EmissiveStabilisationPassParameters},
     ltc_cull_pass::{self, LtcCullPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
@@ -253,9 +252,12 @@ impl Renderer {
             parameters.render_settings.atmosphere;
         parameters.gpu_resources.sky_mut().constants.world_up = parameters.render_settings.world_up;
 
-        parameters
-            .gpu_resources
-            .update(parameters.world, command_encoder, &ctx.queue);
+        parameters.gpu_resources.update(
+            parameters.world,
+            parameters.xr_camera_state,
+            command_encoder,
+            &ctx.queue,
+        );
 
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {

@@ -1,7 +1,7 @@
 use std::{iter, sync::Arc};
 
 use debug_lines::DebugLines;
-use glam::Vec3;
+use glam::{Mat4, Vec3, Vec4Swizzles};
 use linear_transformed_cosines::LinearTransformedCosines;
 use material_pool::MaterialPool;
 use sky::Sky;
@@ -16,6 +16,7 @@ use vertex_pool::{VertexPool, VertexPoolAlloc, VertexPoolWriteData};
 use crate::{
     wgpu_util,
     world::components::{AreaLightComponent, DynamicComponent, MeshComponent, TransformComponent},
+    xr::XrCameraState,
 };
 
 const MAX_STATIC_INSTANCES: usize = 1024 * 256;
@@ -272,6 +273,7 @@ impl GpuResources {
     pub fn update(
         &mut self,
         world: &specs::World,
+        xr_camera_state: &XrCameraState,
         command_encoder: &mut wgpu::CommandEncoder,
         queue: &wgpu::Queue,
     ) {
@@ -286,13 +288,19 @@ impl GpuResources {
                 (&transform_storage, &area_light_storage).join()
             {
                 let transform = transform_component.get_local_to_world_matrix(&transform_storage);
-                let color = area_light_component.color * area_light_component.intensity;
+                let translation = transform.w_axis.xyz();
 
-                self.linear_transformed_cosines.submit_instance(
-                    transform,
-                    color,
-                    area_light_component.double_sided,
-                );
+                if translation.distance_squared(xr_camera_state.stage_translation)
+                    < (1500.0 * 1500.0)
+                {
+                    let color = area_light_component.color * area_light_component.intensity;
+
+                    self.linear_transformed_cosines.submit_instance(
+                        transform,
+                        color,
+                        area_light_component.double_sided,
+                    );
+                }
             }
         }
 

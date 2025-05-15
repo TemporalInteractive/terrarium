@@ -118,8 +118,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                         let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
                         ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
                     }
-
-                    color = ltc_shading + ambient;
+                    
+                    color = ltc_shading;
                 } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
                     color = material.color;
                 } else if (constants.shading_mode == SHADING_MODE_NORMALS) {

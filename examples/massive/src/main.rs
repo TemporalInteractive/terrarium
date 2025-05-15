@@ -130,9 +130,11 @@ impl AppLoop for ExampleApp {
                 for y in 0..10 {
                     self.emitter_entity = Some(self.world.spawn_model(
                         &model,
-                        Transform::from_translation(
-                            (UP * 1.0 + RIGHT * x as f32 * 2.0 + FORWARD * y as f32 * 2.0)
+                        Transform::new(
+                            (UP * 4.0 + RIGHT * x as f32 * 2.0 + FORWARD * y as f32 * 2.0)
                                 - Vec3::new(10.0, 0.0, -10.0),
+                            Quat::IDENTITY,
+                            Vec3::splat(5.0),
                         ),
                         false,
                         None,

@@ -48,6 +48,14 @@ fn build_orthonormal_basis(n: vec3<f32>) -> mat3x3<f32> {
     return mat3x3<f32>(t1, t2, n);
 }
 
+fn get_mat4x4_scale(transform: mat4x4<f32>) -> vec3<f32> {
+    return vec3<f32>(
+        length(transform[0].xyz), // X scale (right vector)
+        length(transform[1].xyz), // Y scale (up vector)
+        length(transform[2].xyz)  // Z scale (forward vector)
+    );
+}
+
 // (from "Efficient Construction of Perpendicular Vectors Without Branching", 2009)
 fn get_perpendicular_vector(u: vec3<f32>) -> vec3<f32> {
     let a: vec3<f32> = abs(u);

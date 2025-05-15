@@ -108,10 +108,10 @@ fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f3
     );
 
     let double_sided: bool = instance.double_sided > 0;
-    let point0 = LtcInstance::point0(instance, 1.0);
-    let point1 = LtcInstance::point1(instance, 1.0);
-    let point2 = LtcInstance::point2(instance, 1.0);
-    let point3 = LtcInstance::point3(instance, 1.0);
+    let point0 = LtcInstance::point0(instance);
+    let point1 = LtcInstance::point1(instance);
+    let point2 = LtcInstance::point2(instance);
+    let point3 = LtcInstance::point3(instance);
 
     let diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided,
         point0, point1, point2, point3);
@@ -121,5 +121,9 @@ fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f3
     let mspec = vec3<f32>(0.23);
     specular *= mspec * t2.x + (1.0 - mspec) * t2.y;
 
-    return instance.color * (specular + material.color * diffuse);
+    let area: f32 = LtcInstance::area(instance);
+    let distance: f32 = LtcInstance::distance(instance, hit_point);
+    let attenuation: f32 = area / (distance * distance + area);
+
+    return attenuation * instance.color * (specular + material.color * diffuse);
 }

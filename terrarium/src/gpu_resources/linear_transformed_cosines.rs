@@ -5,7 +5,7 @@ use ddsfile::Dds;
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
-const MAX_INSTANCES: usize = 1024 * 4;
+const MAX_INSTANCES: usize = 1024 * 128;
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
@@ -20,6 +20,7 @@ struct Constants {
 #[repr(C)]
 struct LtcInstance {
     transform: Mat4,
+    inv_transform: Mat4,
     color: Vec3,
     double_sided: u32,
 }
@@ -200,9 +201,11 @@ impl LinearTransformedCosines {
     pub fn submit_instance(&mut self, transform: Mat4, color: Vec3, double_sided: bool) {
         self.instances.push(LtcInstance {
             transform,
+            inv_transform: transform.inverse(),
             color,
             double_sided: double_sided as u32,
         });
+        assert!(self.instances.len() < MAX_INSTANCES);
     }
 
     pub fn end_frame(&mut self) {
