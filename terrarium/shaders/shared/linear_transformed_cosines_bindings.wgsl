@@ -95,7 +95,12 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
 }
 
 fn LtcBindings::shade(material: Material, instance: LtcInstance, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
-    let n_dot_v: f32 = clamp(dot(normal, view_dir), 0.0, 1.0);
+    var n_dot_v: f32 = dot(normal, view_dir);
+    if (n_dot_v <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    
+    n_dot_v = clamp(n_dot_v, 0.0, 1.0);
     let tex_coord = vec2<f32>(material.roughness, sqrt(1.0 - n_dot_v)) * LTC_LUT_SCALE + LTC_LUT_BIAS;
 
     let t1: vec4<f32> = textureSampleLevel(ltc_1, ltc_sampler, tex_coord, 0.0);

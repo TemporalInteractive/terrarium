@@ -2,7 +2,7 @@
 
 struct LtcInstance {
     transform: mat4x4<f32>,
-    inv_transform: mat4x4<f32>,
+    inv_transform: mat4x4<f32>, // TODO, make these inv_transforms seperate, not needed in the cull stage
     color: vec3<f32>,
     double_sided: u32,
 }
