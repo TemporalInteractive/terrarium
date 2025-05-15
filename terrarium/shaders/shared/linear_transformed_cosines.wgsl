@@ -41,7 +41,9 @@ fn LtcInstance::distance(_self: LtcInstance, point: vec3<f32>) -> f32 {
 
 fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {
     let area: f32 = LtcInstance::area(_self);
-    let illumination_reach: f32 = sqrt(area * ((1.0 - 0.01) / 0.01));
+    let intensity: f32 = length(_self.color);
+    let threshold: f32 = mix(0.2, 0.002, clamp(intensity / 3000.0, 0.0, 1.0));
+    let illumination_reach: f32 = sqrt(area * ((1.0 - threshold) / threshold));
 
     var p0: vec3<f32> = LtcInstance::point0(_self);
     var p1: vec3<f32> = LtcInstance::point1(_self);
