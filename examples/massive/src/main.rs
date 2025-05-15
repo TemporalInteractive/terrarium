@@ -131,7 +131,8 @@ impl AppLoop for ExampleApp {
                     self.emitter_entity = Some(self.world.spawn_model(
                         &model,
                         Transform::from_translation(
-                            UP * 1.0 + RIGHT * x as f32 + FORWARD * y as f32,
+                            (UP * 1.0 + RIGHT * x as f32 * 2.0 + FORWARD * y as f32 * 2.0)
+                                - Vec3::new(10.0, 0.0, -10.0),
                         ),
                         false,
                         None,
@@ -262,8 +263,8 @@ fn main() -> Result<()> {
 
     AppLoopHandler::<ExampleApp>::new(&AppLoopHandlerCreateDesc {
         title: "Terrarium".to_owned(),
-        width: 1832,
-        height: 1920,
+        width: 1920,
+        height: 1080,
         resizeable: false,
         maximized: false,
         no_gpu_validation: args.no_gpu_validation,

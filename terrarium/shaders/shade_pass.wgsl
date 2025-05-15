@@ -59,8 +59,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     if (any(id >= constants.resolution)) { return; }
     var i: u32 = id.y * constants.resolution.x + id.x;
 
-    // let group_index: u32 = group_id.y * num_groups.x + group_id.x;
-
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
 
@@ -68,10 +66,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         let light_offset_and_count: vec2<u32> = textureLoad(light_grid, group_id.xy, view_index).rg;
         let light_index_start_offset: u32 = light_offset_and_count.x;
         let light_count: u32 = light_offset_and_count.y;
-
-        // let ltc_instance_count: u32 = ltc_instance_counters[group_index];
-        // let view_index_offset: u32 = num_groups.x * num_groups.y * view_index;
-        // let group_offset: u32 = (view_index_offset + group_index) * constants.max_lights_per_tile;
 
         let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
         var emission: f32 = 0.0;
@@ -110,9 +104,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 let ambient: vec3<f32> = material.color * 0.1;
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
-                    // color = reflectance * light_intensity * n_dot_l + ambient + material.emission;
-                    // color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
-
                     var ltc_shading = vec3<f32>(0.0);
                     for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
                         let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
@@ -122,7 +113,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     color = ltc_shading + ambient + material.emission;
                     color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
                 } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
-                    color = vec3<f32>(light_intensity * n_dot_l) + ambient;
+                    var ltc_shading = vec3<f32>(0.0);
+                    for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
+                        let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
+                        ltc_shading += LtcBindings::shade(material, ltc_instances[light_index], shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
+                    }
+
+                    color = ltc_shading + ambient;
                 } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
                     color = material.color;
                 } else if (constants.shading_mode == SHADING_MODE_NORMALS) {
