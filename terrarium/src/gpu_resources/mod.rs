@@ -302,6 +302,7 @@ impl GpuResources {
                     self.linear_transformed_cosines.submit_instance(
                         transform,
                         color,
+                        area_light_component.range_bias_factor,
                         area_light_component.double_sided,
                     );
                 }

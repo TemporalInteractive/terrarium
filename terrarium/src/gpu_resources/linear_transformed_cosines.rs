@@ -21,7 +21,7 @@ struct Constants {
 struct LtcInstance {
     transform: [f32; 12],
     color: Vec3,
-    double_sided: u32,
+    range_bias_factor_and_double_sided: u32,
 }
 
 pub struct LinearTransformedCosines {
@@ -230,13 +230,23 @@ impl LinearTransformedCosines {
         );
     }
 
-    pub fn submit_instance(&mut self, transform: Mat4, color: Vec3, double_sided: bool) {
+    pub fn submit_instance(
+        &mut self,
+        transform: Mat4,
+        color: Vec3,
+        range_bias_factor: f32,
+        double_sided: bool,
+    ) {
+        let mut range_bias_factor_and_double_sided = range_bias_factor.to_bits();
+        range_bias_factor_and_double_sided &= !1;
+        range_bias_factor_and_double_sided |= double_sided as u32;
+
         self.instances.push(LtcInstance {
             transform: transform.transpose().to_cols_array()[..12]
                 .try_into()
                 .unwrap(),
             color,
-            double_sided: double_sided as u32,
+            range_bias_factor_and_double_sided,
         });
         self.instances_inv_transform.push(
             transform.inverse().transpose().to_cols_array()[..12]

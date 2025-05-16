@@ -90,7 +90,6 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
 fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
     let instance: LtcInstance = PackedLtcInstance::unpack(ltc_instances[instance_idx]);
 
-    let double_sided: bool = instance.double_sided > 0;
     let point0 = LtcInstance::point0(instance);
     let point1 = LtcInstance::point1(instance);
     let point2 = LtcInstance::point2(instance);
@@ -100,7 +99,7 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
     let light_normal: vec3<f32> = cross(point1 - point0, point3 - point0);
     let behind: bool = dot(dir, light_normal) < 0.0;
 
-    if (!double_sided && !behind) {
+    if (!instance.double_sided && !behind) {
         return vec3<f32>(0.0);
     }
     if (dot(normalize(point0 - hit_point), normal) < 0.0
@@ -123,9 +122,9 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         vec3<f32>(t1.z, 0.0, t1.w)
     );
 
-    var diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided, behind,
+    var diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, instance.double_sided, behind,
         point0, point1, point2, point3);
-    var specular: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, min_v, double_sided, behind,
+    var specular: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, min_v, instance.double_sided, behind,
         point0, point1, point2, point3);
 
     let mspec = vec3<f32>(0.23);
@@ -141,7 +140,9 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
 
     let area: f32 = LtcInstance::area(instance);
     let distance: f32 = LtcInstance::distance(instance, hit_point, inv_transform);
-    let attenuation: f32 = max(area / (distance * distance + area) - ltc_constants.range_bias, 0.0);
+
+    let range_bias: f32 = ltc_constants.range_bias * instance.range_bias_factor;
+    let attenuation: f32 = max(area / (distance * distance + area) - range_bias, 0.0);
 
     return attenuation * instance.color * (specular + material.color * diffuse);
 }
@@ -149,8 +150,10 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
 fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {
     let area: f32 = LtcInstance::area(_self);
     let intensity: f32 = length(_self.color);
-    let threshold: f32 = 0.01;// mix(0.1, 0.002, clamp(intensity / 3000.0, 0.0, 1.0));
-    let illumination_reach: f32 = sqrt(area * (1.0 - threshold - ltc_constants.range_bias) / (threshold + ltc_constants.range_bias));//sqrt(area * ((1.0 - threshold) / threshold));
+
+    let threshold: f32 = mix(0.01, 0.003, clamp(intensity / 3000.0, 0.0, 1.0));
+    let range_bias: f32 = ltc_constants.range_bias * _self.range_bias_factor;
+    let illumination_reach: f32 = sqrt(area * (1.0 - threshold - range_bias) / (threshold + range_bias));
 
     var p0: vec3<f32> = LtcInstance::point0(_self);
     var p1: vec3<f32> = LtcInstance::point1(_self);
@@ -172,7 +175,7 @@ fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {
 
     var illumination_min_pos: vec3<f32> = min(min_pos, min_pos + offset);
     var illumination_max_pos: vec3<f32> = max(max_pos, max_pos + offset);
-    if (_self.double_sided > 0) {
+    if (_self.double_sided) {
         illumination_min_pos = min(illumination_min_pos, min_pos - offset);
         illumination_max_pos = max(illumination_max_pos, max_pos - offset);
     }

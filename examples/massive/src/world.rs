@@ -155,7 +155,7 @@ impl World {
                     if model.meshes[mesh_idx as usize].is_emissive {
                         let mut rng = rand::rng();
                         let color = Vec3::new(rng.random(), rng.random(), rng.random());
-                        builder = builder.with(AreaLightComponent::new(color, 100.0, false));
+                        builder = builder.with(AreaLightComponent::new(color, 100.0, 1.0, false));
                     }
 
                     builder

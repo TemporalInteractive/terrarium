@@ -3,16 +3,20 @@
 struct PackedLtcInstance {
     transform: mat3x4<f32>,
     color: vec3<f32>,
-    double_sided: u32,
+    range_bias_factor_and_double_sided: u32,
 }
 
 struct LtcInstance {
     transform: mat4x4<f32>,
     color: vec3<f32>,
-    double_sided: u32,
+    range_bias_factor: f32,
+    double_sided: bool,
 }
 
 fn PackedLtcInstance::unpack(_self: PackedLtcInstance) -> LtcInstance {
+    let double_sided: bool = (_self.range_bias_factor_and_double_sided & 1u) != 0u;
+    let range_bias_factor: f32 = bitcast<f32>(_self.range_bias_factor_and_double_sided & 0xFFFFFFFEu);
+
     return LtcInstance(
         mat4x4<f32>(
             vec4<f32>(_self.transform[0].x, _self.transform[1].x, _self.transform[2].x, 0.0),
@@ -21,7 +25,8 @@ fn PackedLtcInstance::unpack(_self: PackedLtcInstance) -> LtcInstance {
             vec4<f32>(_self.transform[0].w, _self.transform[1].w, _self.transform[2].w, 1.0)
         ),
         _self.color,
-        _self.double_sided
+        range_bias_factor,
+        double_sided
     );
 }
 

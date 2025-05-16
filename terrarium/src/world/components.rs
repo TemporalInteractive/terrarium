@@ -165,14 +165,16 @@ impl specs::Component for MeshComponent {
 pub struct AreaLightComponent {
     pub color: Vec3,
     pub intensity: f32,
+    pub range_bias_factor: f32,
     pub double_sided: bool,
 }
 
 impl AreaLightComponent {
-    pub fn new(color: Vec3, intensity: f32, double_sided: bool) -> Self {
+    pub fn new(color: Vec3, intensity: f32, range_bias_factor: f32, double_sided: bool) -> Self {
         Self {
             color,
             intensity,
+            range_bias_factor,
             double_sided,
         }
     }
