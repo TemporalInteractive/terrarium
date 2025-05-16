@@ -61,13 +61,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
 
         let culled: bool = !Frustum::intersect_aabb(gs_frustum, aabb);
 
-        if (group_id.x == 40 && group_id.y == 40) {
-            if culled {
-                DebugLines::submit_aabb(aabb, vec3<f32>(1.0, 0.0, 1.0));
-            } else {
-                DebugLines::submit_aabb(aabb, vec3<f32>(0.0, 1.0, 0.0));
-            }
-        }
+        // if (group_id.x == 40 && group_id.y == 40) {
+        //     if culled {
+        //         DebugLines::submit_aabb(aabb, vec3<f32>(1.0, 0.0, 1.0));
+        //     } else {
+        //         DebugLines::submit_aabb(aabb, vec3<f32>(0.0, 1.0, 0.0));
+        //     }
+        // }
 
         if (!culled) {
             append_light(i);
