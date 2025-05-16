@@ -59,8 +59,7 @@ pub struct ShadePassParameters<'a> {
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
-    pub ltc_instance_index_buffer: &'a wgpu::Buffer,
-    pub ltc_instance_grid_texture_view: &'a wgpu::TextureView,
+    pub lighting_view: &'a wgpu::TextureView,
     pub dst_view: &'a wgpu::TextureView,
 }
 
@@ -118,21 +117,19 @@ pub fn encode(
                             wgpu::BindGroupLayoutEntry {
                                 binding: 5,
                                 visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                                    multisampled: false,
                                 },
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
                                 binding: 6,
                                 visibility: wgpu::ShaderStages::COMPUTE,
-                                ty: wgpu::BindingType::StorageTexture {
-                                    access: wgpu::StorageTextureAccess::ReadOnly,
-                                    format: wgpu::TextureFormat::Rg32Uint,
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                },
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                                 count: None,
                             },
                         ],
@@ -161,6 +158,15 @@ pub fn encode(
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
+    let lighting_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        min_filter: wgpu::FilterMode::Linear,
+        mag_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+
     let bind_group_layout = pipeline.get_bind_group_layout(0);
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
@@ -180,13 +186,11 @@ pub fn encode(
             },
             wgpu::BindGroupEntry {
                 binding: 5,
-                resource: parameters.ltc_instance_index_buffer.as_entire_binding(),
+                resource: wgpu::BindingResource::TextureView(parameters.lighting_view),
             },
             wgpu::BindGroupEntry {
                 binding: 6,
-                resource: wgpu::BindingResource::TextureView(
-                    parameters.ltc_instance_grid_texture_view,
-                ),
+                resource: wgpu::BindingResource::Sampler(&lighting_sampler),
             },
         ],
     });

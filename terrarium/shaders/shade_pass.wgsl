@@ -38,11 +38,11 @@ var color_out: texture_storage_2d_array<rgba16float, read_write>;
 
 @group(0)
 @binding(5)
-var<storage, read> light_index_list: array<u32>;
+var lighting: texture_2d_array<f32>;
 
 @group(0)
 @binding(6)
-var light_grid: texture_storage_2d<rg32uint, read>;
+var lighting_sampler: sampler;
 
 fn shade_fog(shade_color: vec3<f32>, position_and_depth: GbufferPositionAndDepth, view_origin: vec3<f32>, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(view_origin, position_and_depth.position);
@@ -57,12 +57,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(workgroup_id) group_id: vec3<u32>, @builtin(num_workgroups) num_groups: vec3<u32>) {
     var id: vec2<u32> = global_id.xy;
     if (any(id >= constants.resolution)) { return; }
-    var i: u32 = id.y * constants.resolution.x + id.x;
-
-    // TODO: move to groupshared?
-    let light_offset_and_count: vec2<u32> = textureLoad(light_grid, group_id.xy).rg;
-    let light_index_start_offset: u32 = light_offset_and_count.x;
-    let light_count: u32 = light_offset_and_count.y;
+    let uv: vec2<f32> = (vec2<f32>(id) + vec2<f32>(0.5)) / vec2<f32>(constants.resolution);
 
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
@@ -95,30 +90,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
                 color = reflectance * n_dot_l + ambient + material.emission;
             } else {
-                let l: vec3<f32> = -sky_constants.sun.direction;
-                let n_dot_l: f32 = max(dot(shading_and_geometric_normal.shading_normal, l), 0.0);
-
-                let light_intensity: f32 = Sky::sun_intensity(l);
-                let reflectance: vec3<f32> = Material::eval_brdf(material, l, -ray.direction, shading_and_geometric_normal.shading_normal);
-
+                let l: vec3<f32> = sky_constants.world_up;
                 let ambient: vec3<f32> = material.color * constants.ambient_factor;
+                let ltc_shading: vec3<f32> = textureSampleLevel(lighting, lighting_sampler, uv, view_index, 0.0).rgb;
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
-                    var ltc_shading = vec3<f32>(0.0);
-                    for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
-                        let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
-                        ltc_shading += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
-                    }
-
                     color = ltc_shading + ambient + material.emission;
                     color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
                 } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
-                    var ltc_shading = vec3<f32>(0.0);
-                    for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
-                        let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
-                        ltc_shading += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
-                    }
-                    
                     color = ltc_shading;
                 } else if (constants.shading_mode == SHADING_MODE_ALBEDO) {
                     color = material.color;

@@ -1,82 +1,52 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{UVec2, Vec3};
+use glam::UVec2;
 use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{
-    gpu_resources::gbuffer::Gbuffer,
-    wgpu_util::{
-        empty_bind_group, empty_bind_group_layout, ComputePipelineDescriptorExtensions,
-        PipelineDatabase,
-    },
+    gpu_resources::{gbuffer::Gbuffer, GpuResources},
+    wgpu_util::{ComputePipelineDescriptorExtensions, PipelineDatabase},
 };
 
-pub const TILE_SIZE: u32 = 16;
-
-#[repr(C)]
-struct Plane {
-    normal: Vec3,
-    distance: f32,
-}
-
-#[repr(C)]
-struct Frustum {
-    left: Plane,
-    right: Plane,
-    top: Plane,
-    bottom: Plane,
-    near: Plane,
-    far: Plane,
-}
-
-pub fn create_frustum_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
-    let num_groups = (resolution.x.div_ceil(TILE_SIZE) * resolution.y.div_ceil(TILE_SIZE)) as usize;
-
-    device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("terrarium::build_frustum_pass frustums"),
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        size: (size_of::<Frustum>() * num_groups) as u64 * 2,
-        mapped_at_creation: false,
-    })
-}
+use super::build_frustum_pass;
 
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
     lighting_resolution: UVec2,
-    tile_resolution: UVec2,
-    _padding0: u32,
-    _padding1: u32,
 }
 
-pub struct BuildFrustumPassParameters<'a> {
+pub struct LtcLightingPassParameters<'a> {
     pub resolution: UVec2,
     pub lighting_resolution: UVec2,
-    pub gbuffer: &'a Gbuffer,
+    pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
-    pub frustum_buffer: &'a wgpu::Buffer,
+    pub gbuffer: &'a Gbuffer,
+    pub ltc_instance_index_buffer: &'a wgpu::Buffer,
+    pub ltc_instance_grid_texture_view: &'a wgpu::TextureView,
+    pub dst_view: &'a wgpu::TextureView,
 }
 
 pub fn encode(
-    parameters: &BuildFrustumPassParameters,
+    parameters: &LtcLightingPassParameters,
     device: &wgpu::Device,
     command_encoder: &mut wgpu::CommandEncoder,
     pipeline_database: &mut PipelineDatabase,
 ) {
     let shader = pipeline_database.shader_from_src(
         device,
-        include_wgsl!("../../shaders/build_frustum_pass.wgsl"),
+        include_wgsl!("../../shaders/ltc_lighting_pass.wgsl"),
     );
     let pipeline = pipeline_database.compute_pipeline(
         device,
         wgpu::ComputePipelineDescriptor {
-            label: Some("terrarium::build_frustum"),
+            label: Some("terrarium::ltc_lighting"),
             ..wgpu::ComputePipelineDescriptor::partial_default(&shader)
         },
         || {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("terrarium::build_frustum"),
+                label: Some("terrarium::ltc_lighting"),
                 bind_group_layouts: &[
                     &device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: None,
@@ -102,40 +72,56 @@ pub fn encode(
                                 count: None,
                             },
                             wgpu::BindGroupLayoutEntry {
-                                binding: 2,
+                                binding: 4,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::StorageTexture {
+                                    access: wgpu::StorageTextureAccess::ReadWrite,
+                                    format: wgpu::TextureFormat::Rgba16Float,
+                                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 5,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
                                     has_dynamic_offset: false,
                                     min_binding_size: None,
                                 },
                                 count: None,
                             },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 6,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::StorageTexture {
+                                    access: wgpu::StorageTextureAccess::ReadOnly,
+                                    format: wgpu::TextureFormat::Rg32Uint,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                },
+                                count: None,
+                            },
                         ],
                     }),
-                    empty_bind_group_layout(device),
-                    empty_bind_group_layout(device),
-                    empty_bind_group_layout(device),
+                    parameters.gpu_resources.vertex_pool().bind_group_layout(),
+                    parameters.gpu_resources.material_pool().bind_group_layout(),
+                    parameters.gpu_resources.sky().bind_group_layout(),
                     parameters.gbuffer.bind_group_layout(),
+                    parameters
+                        .gpu_resources
+                        .linear_transformed_cosines()
+                        .bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             })
         },
     );
 
-    let tile_resolution = UVec2::new(
-        parameters.lighting_resolution.x.div_ceil(TILE_SIZE),
-        parameters.lighting_resolution.y.div_ceil(TILE_SIZE),
-    );
-
     let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("terrarium::build_frustum constants"),
+        label: Some("terrarium::ltc_lighting constants"),
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             lighting_resolution: parameters.lighting_resolution,
-            tile_resolution,
-            _padding0: 0,
-            _padding1: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -154,27 +140,61 @@ pub fn encode(
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 2,
-                resource: parameters.frustum_buffer.as_entire_binding(),
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(parameters.dst_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: parameters.ltc_instance_index_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::TextureView(
+                    parameters.ltc_instance_grid_texture_view,
+                ),
             },
         ],
     });
 
     {
         let mut cpass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("terrarium::build_frustum"),
+            label: Some("terrarium::ltc_lighting"),
             timestamp_writes: None,
         });
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
-        cpass.set_bind_group(1, empty_bind_group(device), &[]);
-        cpass.set_bind_group(2, empty_bind_group(device), &[]);
-        cpass.set_bind_group(3, empty_bind_group(device), &[]);
+        cpass.set_bind_group(
+            1,
+            &parameters.gpu_resources.vertex_pool().bind_group(device),
+            &[],
+        );
+        parameters.gpu_resources.material_pool().bind_group(
+            pipeline.get_bind_group_layout(2),
+            device,
+            |bind_group| {
+                cpass.set_bind_group(2, bind_group, &[]);
+            },
+        );
+        cpass.set_bind_group(3, &parameters.gpu_resources.sky().bind_group(device), &[]);
         cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
-        cpass.insert_debug_marker("terrarium::build_frustum");
+        cpass.set_bind_group(
+            5,
+            parameters
+                .gpu_resources
+                .linear_transformed_cosines()
+                .bind_group(),
+            &[],
+        );
+        cpass.insert_debug_marker("terrarium::ltc_lighting");
         cpass.dispatch_workgroups(
-            parameters.lighting_resolution.x.div_ceil(TILE_SIZE),
-            parameters.lighting_resolution.y.div_ceil(TILE_SIZE),
+            parameters
+                .lighting_resolution
+                .x
+                .div_ceil(build_frustum_pass::TILE_SIZE),
+            parameters
+                .lighting_resolution
+                .y
+                .div_ceil(build_frustum_pass::TILE_SIZE),
             1,
         );
     }

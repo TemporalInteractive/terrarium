@@ -13,6 +13,7 @@ use render_passes::{
     color_correction_pass::{self, ColorCorrectionPassParameters},
     debug_line_pass::{self, DebugLinePassParameters},
     ltc_cull_pass::{self, LtcCullPassParameters},
+    ltc_lighting_pass::{self, LtcLightingPassParameters},
     rt_gbuffer_pass::{self, RtGbufferPassParameters},
     shade_pass::{self, ShadePassParameters, ShadingMode},
     taa_pass::{self, TaaPassParameters},
@@ -35,30 +36,43 @@ pub use egui;
 
 struct SizedResources {
     resolution: UVec2,
-    shading_resolution: UVec2,
-    shading_resolution_scale: f32,
+    render_resolution: UVec2,
+    lighting_resolution: UVec2,
+    render_resolution_scale: f32,
+    lighting_resolution_scale: f32,
     frustum_buffer: wgpu::Buffer,
     ltc_instance_index_buffer: wgpu::Buffer,
     ltc_instance_grid_texture_view: wgpu::TextureView,
     gbuffer: Gbuffer,
     shading_texture: [wgpu::Texture; 2],
+    lighting_texture: wgpu::Texture,
 }
 
 impl SizedResources {
-    pub fn new(resolution: UVec2, shading_resolution_scale: f32, device: &wgpu::Device) -> Self {
-        let shading_resolution = UVec2::new(
-            (resolution.x as f32 * shading_resolution_scale).ceil() as u32,
-            (resolution.y as f32 * shading_resolution_scale).ceil() as u32,
+    pub fn new(
+        resolution: UVec2,
+        render_resolution_scale: f32,
+        lighting_resolution_scale: f32,
+        device: &wgpu::Device,
+    ) -> Self {
+        println!("RESIZE");
+        let render_resolution = UVec2::new(
+            (resolution.x as f32 * render_resolution_scale).ceil() as u32,
+            (resolution.y as f32 * render_resolution_scale).ceil() as u32,
+        );
+        let lighting_resolution = UVec2::new(
+            (render_resolution.x as f32 * lighting_resolution_scale).ceil() as u32,
+            (render_resolution.y as f32 * lighting_resolution_scale).ceil() as u32,
         );
 
-        let gbuffer = Gbuffer::new(shading_resolution, device);
+        let gbuffer = Gbuffer::new(render_resolution, device);
 
         let shading_texture = std::array::from_fn(|i| {
             device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(&format!("terrarium::shading {}", i)),
                 size: wgpu::Extent3d {
-                    width: shading_resolution.x,
-                    height: shading_resolution.y,
+                    width: render_resolution.x,
+                    height: render_resolution.y,
                     depth_or_array_layers: 2,
                 },
                 mip_level_count: 1,
@@ -73,22 +87,43 @@ impl SizedResources {
             })
         });
 
-        let frustum_buffer = build_frustum_pass::create_frustum_buffer(resolution, device);
+        let lighting_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("terrarium::lighting"),
+            size: wgpu::Extent3d {
+                width: lighting_resolution.x,
+                height: lighting_resolution.y,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        });
+
+        let frustum_buffer = build_frustum_pass::create_frustum_buffer(lighting_resolution, device);
 
         let ltc_instance_index_buffer =
-            ltc_cull_pass::create_ltc_instance_index_buffer(resolution, device);
+            ltc_cull_pass::create_ltc_instance_index_buffer(lighting_resolution, device);
         let ltc_instance_grid_texture_view =
-            ltc_cull_pass::create_ltc_instance_grid_texture(resolution, device);
+            ltc_cull_pass::create_ltc_instance_grid_texture(lighting_resolution, device);
 
         Self {
             resolution,
-            shading_resolution,
-            shading_resolution_scale,
+            render_resolution,
+            lighting_resolution,
+            render_resolution_scale,
+            lighting_resolution_scale,
             frustum_buffer,
             ltc_instance_index_buffer,
             ltc_instance_grid_texture_view,
             gbuffer,
             shading_texture,
+            lighting_texture,
         }
     }
 }
@@ -97,7 +132,8 @@ pub struct RenderSettings {
     pub shading_mode: ShadingMode,
     pub ambient_factor: f32,
     pub lighting_range_bias: f32,
-    pub shading_resolution_scale: f32,
+    pub render_resolution_scale: f32,
+    pub lighting_resolution_scale: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
     pub apply_normal_maps: bool,
@@ -121,7 +157,8 @@ impl Default for RenderSettings {
             shading_mode: ShadingMode::Full,
             ambient_factor: 0.1,
             lighting_range_bias: 0.0,
-            shading_resolution_scale: 1.0,
+            render_resolution_scale: 1.0,
+            lighting_resolution_scale: 0.9,
             enable_debug_lines: true,
             apply_mipmaps: true,
             apply_normal_maps: true,
@@ -167,8 +204,12 @@ impl RenderSettings {
             egui::Slider::new(&mut self.lighting_range_bias, 0.0..=0.3).text("Lighting Range Bias"),
         );
         ui.add(
-            egui::Slider::new(&mut self.shading_resolution_scale, 0.4..=1.0)
-                .text("Resolution Scale"),
+            egui::Slider::new(&mut self.render_resolution_scale, 0.4..=1.0)
+                .text("Render Resolution Scale"),
+        );
+        ui.add(
+            egui::Slider::new(&mut self.lighting_resolution_scale, 0.4..=1.0)
+                .text("Lighting Resolution Scale"),
         );
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
@@ -230,7 +271,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(resolution: UVec2, ctx: &wgpu_util::Context) -> Self {
-        let sized_resources = SizedResources::new(resolution, 1.0, &ctx.device);
+        let sized_resources = SizedResources::new(resolution, 1.0, 1.0, &ctx.device);
 
         Self {
             sized_resources,
@@ -245,12 +286,15 @@ impl Renderer {
         ctx: &wgpu_util::Context,
         pipeline_database: &mut wgpu_util::PipelineDatabase,
     ) {
-        if parameters.render_settings.shading_resolution_scale
-            != self.sized_resources.shading_resolution_scale
+        if parameters.render_settings.render_resolution_scale
+            != self.sized_resources.render_resolution_scale
+            || parameters.render_settings.lighting_resolution_scale
+                != self.sized_resources.lighting_resolution_scale
         {
             self.sized_resources = SizedResources::new(
                 self.sized_resources.resolution,
-                parameters.render_settings.shading_resolution_scale,
+                parameters.render_settings.render_resolution_scale,
+                parameters.render_settings.lighting_resolution_scale,
                 &ctx.device,
             );
         }
@@ -274,7 +318,7 @@ impl Renderer {
 
         rt_gbuffer_pass::encode(
             &RtGbufferPassParameters {
-                resolution: self.sized_resources.shading_resolution,
+                resolution: self.sized_resources.render_resolution,
                 mipmapping: parameters.render_settings.apply_mipmaps,
                 normal_mapping: parameters.render_settings.apply_normal_maps,
                 gpu_resources: parameters.gpu_resources,
@@ -288,7 +332,8 @@ impl Renderer {
 
         build_frustum_pass::encode(
             &BuildFrustumPassParameters {
-                resolution: self.sized_resources.shading_resolution,
+                resolution: self.sized_resources.render_resolution,
+                lighting_resolution: self.sized_resources.lighting_resolution,
                 gbuffer: &self.sized_resources.gbuffer,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 frustum_buffer: &self.sized_resources.frustum_buffer,
@@ -300,13 +345,39 @@ impl Renderer {
 
         ltc_cull_pass::encode(
             &LtcCullPassParameters {
-                resolution: self.sized_resources.shading_resolution,
+                resolution: self.sized_resources.lighting_resolution,
                 gpu_resources: parameters.gpu_resources,
                 frustum_buffer: &self.sized_resources.frustum_buffer,
                 ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
                 ltc_instance_grid_texture_view: &self
                     .sized_resources
                     .ltc_instance_grid_texture_view,
+            },
+            &ctx.device,
+            command_encoder,
+            pipeline_database,
+        );
+
+        let lighting_view =
+            self.sized_resources
+                .lighting_texture
+                .create_view(&wgpu::TextureViewDescriptor {
+                    dimension: Some(wgpu::TextureViewDimension::D2Array),
+                    ..Default::default()
+                });
+
+        ltc_lighting_pass::encode(
+            &LtcLightingPassParameters {
+                resolution: self.sized_resources.render_resolution,
+                lighting_resolution: self.sized_resources.lighting_resolution,
+                gpu_resources: parameters.gpu_resources,
+                xr_camera_buffer: parameters.xr_camera_buffer,
+                gbuffer: &self.sized_resources.gbuffer,
+                ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
+                ltc_instance_grid_texture_view: &self
+                    .sized_resources
+                    .ltc_instance_grid_texture_view,
+                dst_view: &lighting_view,
             },
             &ctx.device,
             command_encoder,
@@ -331,16 +402,13 @@ impl Renderer {
 
         shade_pass::encode(
             &ShadePassParameters {
-                resolution: self.sized_resources.shading_resolution,
+                resolution: self.sized_resources.render_resolution,
                 shading_mode: parameters.render_settings.shading_mode,
                 ambient_factor: parameters.render_settings.ambient_factor,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
-                ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
-                ltc_instance_grid_texture_view: &self
-                    .sized_resources
-                    .ltc_instance_grid_texture_view,
+                lighting_view: &lighting_view,
                 dst_view: &shading_view,
             },
             &ctx.device,
@@ -348,22 +416,10 @@ impl Renderer {
             pipeline_database,
         );
 
-        // if parameters.render_settings.enable_emissive_stabilization {
-        //     emissive_stabilization_pass::encode(
-        //         &EmissiveStabilisationPassParameters {
-        //             resolution: self.sized_resources.shading_resolution,
-        //             color_texture_view: &shading_view,
-        //         },
-        //         &ctx.device,
-        //         command_encoder,
-        //         pipeline_database,
-        //     );
-        // }
-
         if parameters.render_settings.enable_taa {
             taa_pass::encode(
                 &TaaPassParameters {
-                    resolution: self.sized_resources.shading_resolution,
+                    resolution: self.sized_resources.render_resolution,
                     color_texture_view: &shading_view,
                     prev_color_texture_view: &prev_shading_view,
                     gbuffer: &self.sized_resources.gbuffer,
@@ -460,7 +516,8 @@ impl Renderer {
     pub fn resize(&mut self, resolution: UVec2, ctx: &wgpu_util::Context) {
         self.sized_resources = SizedResources::new(
             resolution,
-            self.sized_resources.shading_resolution_scale,
+            self.sized_resources.render_resolution_scale,
+            self.sized_resources.lighting_resolution_scale,
             &ctx.device,
         );
     }

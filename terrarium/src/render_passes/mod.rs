@@ -11,6 +11,7 @@ pub mod shade_pass;
 pub mod build_frustum_pass;
 pub mod emissive_stabilization_pass;
 pub mod ltc_cull_pass;
+pub mod ltc_lighting_pass;
 pub mod taa_pass;
 
 #[cfg(feature = "transform-gizmo")]

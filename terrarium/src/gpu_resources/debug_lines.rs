@@ -1,13 +1,14 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{Vec3, Vec4};
+use glam::Vec3;
+use ugm::packing::PackedRgb9e5;
 
-const MAX_LINES: u64 = 1024 * 1024 * 16;
+const MAX_LINES: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 struct Vertex {
-    position: Vec4,
-    color: Vec4, // TODO: pack
+    position: Vec3,
+    color: PackedRgb9e5,
 }
 
 pub struct DebugLines {
@@ -26,13 +27,13 @@ impl DebugLines {
         step_mode: wgpu::VertexStepMode::Vertex,
         attributes: &[
             wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
+                format: wgpu::VertexFormat::Float32x3,
                 offset: 0,
                 shader_location: 0,
             },
             wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
-                offset: 4 * 4,
+                format: wgpu::VertexFormat::Uint32,
+                offset: 4 * 3,
                 shader_location: 1,
             },
         ],
@@ -117,12 +118,12 @@ impl DebugLines {
 
     pub fn submit_line(&mut self, start: Vec3, end: Vec3, color: Vec3) {
         self.vertices.push(Vertex {
-            position: Vec4::from((start, 1.0)),
-            color: Vec4::from((color, 1.0)),
+            position: start,
+            color: PackedRgb9e5::new(color),
         });
         self.vertices.push(Vertex {
-            position: Vec4::from((end, 1.0)),
-            color: Vec4::from((color, 1.0)),
+            position: end,
+            color: PackedRgb9e5::new(color),
         });
     }
 

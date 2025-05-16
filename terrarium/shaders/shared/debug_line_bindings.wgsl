@@ -1,8 +1,9 @@
 @include math.wgsl
+@include packing.wgsl
 
 struct DebugLineVertex {
-    position: vec4<f32>,
-    color: vec4<f32>,
+    position: vec3<f32>,
+    color: PackedRgb9e5,
 }
 
 @group(6)
@@ -17,8 +18,8 @@ fn DebugLines::submit_line(start: vec3<f32>, end: vec3<f32>, color: vec3<f32>) {
     atomicStore(&debug_line_counter[1], 1u);
 
     let index: u32 = atomicAdd(&debug_line_counter[0], 2u);
-    debug_line_vertices[index + 0] = DebugLineVertex(vec4<f32>(start, 0.0), vec4<f32>(color, 0.0));
-    debug_line_vertices[index + 1] = DebugLineVertex(vec4<f32>(end, 0.0), vec4<f32>(color, 0.0));
+    debug_line_vertices[index + 0] = DebugLineVertex(start, PackedRgb9e5::new(color));
+    debug_line_vertices[index + 1] = DebugLineVertex(end, PackedRgb9e5::new(color));
 }
 
 fn DebugLines::submit_aabb(aabb: Aabb, color: vec3<f32>) {
