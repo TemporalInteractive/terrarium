@@ -56,7 +56,7 @@ fn LtcBindings::_integrate_edge(v1: vec3<f32>, v2: vec3<f32>) -> vec3<f32> {
     return cross(v1, v2) * theta_sintheta;
 }
 
-fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>, _min_v: mat3x3<f32>, double_sided: bool,
+fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>, _min_v: mat3x3<f32>, double_sided: bool, behind: bool,
     point0: vec3<f32>, point1: vec3<f32>, point2: vec3<f32>, point3: vec3<f32>) -> vec3<f32> {
     let t1: vec3<f32> = normalize(view_dir - normal * dot(view_dir, normal));
     let t2: vec3<f32> = cross(normal, t1);
@@ -67,11 +67,6 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
     let l1: vec3<f32> = normalize(min_v * (point1 - hit_point));
     let l2: vec3<f32> = normalize(min_v * (point2 - hit_point));
     let l3: vec3<f32> = normalize(min_v * (point3 - hit_point));
-    
-    // Opt: can be done once, instead of for both evals
-    let dir: vec3<f32> = point0 - hit_point;
-    let light_normal: vec3<f32> = cross(point1 - point0, point3 - point0);
-    let behind: bool = dot(dir, light_normal) < 0.0;
 
     var vsum = vec3<f32>(0.0);
     vsum += LtcBindings::_integrate_edge(l0, l1);
@@ -87,15 +82,9 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
     }
 
     let uv = vec2<f32>(z * 0.5 + 0.5, len) * LTC_LUT_SCALE + LTC_LUT_BIAS;
-
     let scale: f32 = textureSampleLevel(ltc_2, ltc_sampler, uv, 0.0).w;
 
-    var sum: f32 = len * scale;
-    if (!behind && !double_sided) {
-        sum = 0.0;
-    }
-
-    return vec3<f32>(sum);
+    return vec3<f32>(len * scale);
 }
 
 fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
@@ -105,7 +94,28 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
     }
 
     let instance: LtcInstance = PackedLtcInstance::unpack(ltc_instances[instance_idx]);
-    
+
+    let double_sided: bool = instance.double_sided > 0;
+    let point0 = LtcInstance::point0(instance);
+    let point1 = LtcInstance::point1(instance);
+    let point2 = LtcInstance::point2(instance);
+    let point3 = LtcInstance::point3(instance);
+
+    let dir: vec3<f32> = point0 - hit_point;
+    let light_normal: vec3<f32> = cross(point1 - point0, point3 - point0);
+    let behind: bool = dot(dir, light_normal) < 0.0;
+
+    if (!double_sided && !behind) {
+        return vec3<f32>(0.0);
+    }
+    if (dot(normalize(point0 - hit_point), normal) < 0.0
+        && dot(normalize(point1 - hit_point), normal) < 0.0
+        && dot(normalize(point2 - hit_point), normal) < 0.0
+        && dot(normalize(point3 - hit_point), normal) < 0.0
+    ) {
+        return vec3<f32>(0.0);
+    } 
+
     n_dot_v = clamp(n_dot_v, 0.0, 1.0);
     let tex_coord = vec2<f32>(material.roughness, sqrt(1.0 - n_dot_v)) * LTC_LUT_SCALE + LTC_LUT_BIAS;
 
@@ -118,15 +128,9 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         vec3<f32>(t1.z, 0.0, t1.w)
     );
 
-    let double_sided: bool = instance.double_sided > 0;
-    let point0 = LtcInstance::point0(instance);
-    let point1 = LtcInstance::point1(instance);
-    let point2 = LtcInstance::point2(instance);
-    let point3 = LtcInstance::point3(instance);
-
-    var diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided,
+    var diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, double_sided, behind,
         point0, point1, point2, point3);
-    var specular: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, min_v, double_sided,
+    var specular: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, min_v, double_sided, behind,
         point0, point1, point2, point3);
 
     let mspec = vec3<f32>(0.23);

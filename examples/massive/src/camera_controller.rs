@@ -22,7 +22,7 @@ impl Default for CameraController {
         Self {
             translation_speed: 1.0,
             look_sensitivity: 0.3,
-            stage_translation: Vec3::new(0.0, 2.0, 0.0),
+            stage_translation: Vec3::new(2.0, 2.0, 0.0),
             stage_vertical_rotation: Quat::IDENTITY,
             stage_horizontal_rotation: Quat::IDENTITY,
             locked: true,
