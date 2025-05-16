@@ -17,4 +17,4 @@ Cargo.lock
 *.ugm
 
 # Assets too big to upload
-TestScene.glb
+*.glb
