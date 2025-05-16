@@ -29,11 +29,11 @@ var ltc_sampler: sampler;
 
 @group(5)
 @binding(4)
-var<storage, read> ltc_instances: array<LtcInstance>;
+var<storage, read> ltc_instances: array<PackedLtcInstance>;
 
 @group(5)
 @binding(5)
-var<storage, read> ltc_instances_inv_transform: array<mat4x4<f32>>;
+var<storage, read> ltc_instances_inv_transform: array<mat3x4<f32>>;
 
 const LTC_LUT_SIZE: f32 = 64.0;
 const LTC_LUT_SCALE: f32 = (LTC_LUT_SIZE - 1.0) / LTC_LUT_SIZE;
@@ -104,7 +104,7 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         return vec3<f32>(0.0);
     }
 
-    let instance: LtcInstance = ltc_instances[instance_idx];
+    let instance: LtcInstance = PackedLtcInstance::unpack(ltc_instances[instance_idx]);
     
     n_dot_v = clamp(n_dot_v, 0.0, 1.0);
     let tex_coord = vec2<f32>(material.roughness, sqrt(1.0 - n_dot_v)) * LTC_LUT_SCALE + LTC_LUT_BIAS;
@@ -132,7 +132,13 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
     let mspec = vec3<f32>(0.23);
     specular *= mspec * t2.x + (1.0 - mspec) * t2.y;
 
-    let inv_transform: mat4x4<f32> = ltc_instances_inv_transform[instance_idx];
+    let packed_inv_transform: mat3x4<f32> = ltc_instances_inv_transform[instance_idx];
+    let inv_transform: mat4x4<f32> = mat4x4<f32>(
+        vec4<f32>(packed_inv_transform[0].x, packed_inv_transform[1].x, packed_inv_transform[2].x, 0.0),
+        vec4<f32>(packed_inv_transform[0].y, packed_inv_transform[1].y, packed_inv_transform[2].y, 0.0),
+        vec4<f32>(packed_inv_transform[0].z, packed_inv_transform[1].z, packed_inv_transform[2].z, 0.0),
+        vec4<f32>(packed_inv_transform[0].w, packed_inv_transform[1].w, packed_inv_transform[2].w, 1.0)
+    );
 
     let area: f32 = LtcInstance::area(instance);
     let distance: f32 = LtcInstance::distance(instance, hit_point, inv_transform);

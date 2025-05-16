@@ -56,7 +56,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
     workgroupBarrier();
 
     for (var i: u32 = local_index; i < ltc_constants.instance_count; i += FRUSTUM_TILE_SIZE * FRUSTUM_TILE_SIZE) {
-        let light: LtcInstance = ltc_instances[i];
+        let light: LtcInstance = PackedLtcInstance::unpack(ltc_instances[i]);
         let aabb: Aabb = LtcInstance::illuminated_aabb(light); // TODO: precalculated these aabb's to share between all thread groups
 
         let culled: bool = !Frustum::intersect_aabb(gs_frustum, aabb);

@@ -1,9 +1,28 @@
 @include math.wgsl
 
+struct PackedLtcInstance {
+    transform: mat3x4<f32>,
+    color: vec3<f32>,
+    double_sided: u32,
+}
+
 struct LtcInstance {
     transform: mat4x4<f32>,
     color: vec3<f32>,
     double_sided: u32,
+}
+
+fn PackedLtcInstance::unpack(_self: PackedLtcInstance) -> LtcInstance {
+    return LtcInstance(
+        mat4x4<f32>(
+            vec4<f32>(_self.transform[0].x, _self.transform[1].x, _self.transform[2].x, 0.0),
+            vec4<f32>(_self.transform[0].y, _self.transform[1].y, _self.transform[2].y, 0.0),
+            vec4<f32>(_self.transform[0].z, _self.transform[1].z, _self.transform[2].z, 0.0),
+            vec4<f32>(_self.transform[0].w, _self.transform[1].w, _self.transform[2].w, 1.0)
+        ),
+        _self.color,
+        _self.double_sided
+    );
 }
 
 fn LtcInstance::point0(_self: LtcInstance) -> vec3<f32> {

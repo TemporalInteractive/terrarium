@@ -19,7 +19,7 @@ struct Constants {
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct LtcInstance {
-    transform: Mat4,
+    transform: [f32; 12],
     color: Vec3,
     double_sided: u32,
 }
@@ -31,7 +31,7 @@ pub struct LinearTransformedCosines {
     instances_buffer: wgpu::Buffer,
     instances_inv_transform_buffer: wgpu::Buffer,
     instances: Vec<LtcInstance>,
-    instances_inv_transform: Vec<Mat4>,
+    instances_inv_transform: Vec<[f32; 12]>,
 
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
@@ -97,7 +97,7 @@ impl LinearTransformedCosines {
         let instances_inv_transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("terrarium::linear_transformed_cosines instances_inv_transform"),
             mapped_at_creation: false,
-            size: (std::mem::size_of::<Mat4>() * MAX_INSTANCES) as u64,
+            size: (std::mem::size_of::<[f32; 12]>() * MAX_INSTANCES) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -232,11 +232,17 @@ impl LinearTransformedCosines {
 
     pub fn submit_instance(&mut self, transform: Mat4, color: Vec3, double_sided: bool) {
         self.instances.push(LtcInstance {
-            transform,
+            transform: transform.transpose().to_cols_array()[..12]
+                .try_into()
+                .unwrap(),
             color,
             double_sided: double_sided as u32,
         });
-        self.instances_inv_transform.push(transform.inverse());
+        self.instances_inv_transform.push(
+            transform.inverse().transpose().to_cols_array()[..12]
+                .try_into()
+                .unwrap(),
+        );
         assert!(self.instances.len() < MAX_INSTANCES);
     }
 
