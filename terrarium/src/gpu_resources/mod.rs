@@ -223,6 +223,10 @@ impl GpuResources {
         &self.linear_transformed_cosines
     }
 
+    pub fn linear_transformed_cosines_mut(&mut self) -> &mut LinearTransformedCosines {
+        &mut self.linear_transformed_cosines
+    }
+
     pub fn debug_lines(&self) -> &DebugLines {
         &self.debug_lines
     }

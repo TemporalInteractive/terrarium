@@ -11,9 +11,9 @@ const MAX_INSTANCES: usize = 1024 * 128;
 #[repr(C)]
 struct Constants {
     instance_count: u32,
+    range_bias: f32,
     _padding0: u32,
     _padding1: u32,
-    _padding2: u32,
 }
 
 #[derive(Pod, Clone, Copy, Zeroable)]
@@ -25,6 +25,8 @@ struct LtcInstance {
 }
 
 pub struct LinearTransformedCosines {
+    pub range_bias: f32,
+
     constants_buffer: wgpu::Buffer,
     instances_buffer: wgpu::Buffer,
     instances_inv_transform_buffer: wgpu::Buffer,
@@ -193,6 +195,7 @@ impl LinearTransformedCosines {
         });
 
         Self {
+            range_bias: 0.0,
             constants_buffer,
             instances_buffer,
             instances_inv_transform_buffer,
@@ -209,9 +212,9 @@ impl LinearTransformedCosines {
             0,
             bytemuck::bytes_of(&Constants {
                 instance_count: self.instances.len() as u32,
+                range_bias: self.range_bias,
                 _padding0: 0,
                 _padding1: 0,
-                _padding2: 0,
             }),
         );
 

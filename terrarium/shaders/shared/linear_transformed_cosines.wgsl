@@ -37,37 +37,3 @@ fn LtcInstance::distance(_self: LtcInstance, point: vec3<f32>, inv_transform: ma
 
     return distance(point_local * scale, closest_point * scale); 
 }
-
-fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {
-    let area: f32 = LtcInstance::area(_self);
-    let intensity: f32 = length(_self.color);
-    let threshold: f32 = mix(0.1, 0.002, clamp(intensity / 3000.0, 0.0, 1.0));
-    let illumination_reach: f32 = sqrt(area * ((1.0 - threshold) / threshold));
-
-    var p0: vec3<f32> = LtcInstance::point0(_self);
-    var p1: vec3<f32> = LtcInstance::point1(_self);
-    var p2: vec3<f32> = LtcInstance::point2(_self);
-    var p3: vec3<f32> = LtcInstance::point3(_self);
-
-    let right: vec3<f32> = normalize(_self.transform[0].xyz);
-    let forward: vec3<f32> = normalize(_self.transform[2].xyz);
-    p0 += (right + forward) * illumination_reach;
-    p1 += (-right + forward) * illumination_reach;
-    p2 += (right + -forward) * illumination_reach;
-    p3 += (-right + -forward) * illumination_reach;
-
-    let min_pos: vec3<f32> = min(min(p0, p1), min(p2, p3));
-    let max_pos: vec3<f32> = max(max(p0, p1), max(p2, p3));
-
-    let up: vec3<f32> = normalize(cross(p1 - p0, p3 - p0));
-    let offset: vec3<f32> = up * illumination_reach;
-
-    var illumination_min_pos: vec3<f32> = min(min_pos, min_pos + offset);
-    var illumination_max_pos: vec3<f32> = max(max_pos, max_pos + offset);
-    if (_self.double_sided > 0) {
-        illumination_min_pos = min(illumination_min_pos, min_pos - offset);
-        illumination_max_pos = max(illumination_max_pos, max_pos - offset);
-    }
-
-    return Aabb::new(illumination_min_pos, illumination_max_pos);
-}

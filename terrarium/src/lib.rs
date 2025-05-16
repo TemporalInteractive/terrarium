@@ -96,6 +96,7 @@ impl SizedResources {
 pub struct RenderSettings {
     pub shading_mode: ShadingMode,
     pub ambient_factor: f32,
+    pub lighting_range_bias: f32,
     pub shading_resolution_scale: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
@@ -119,6 +120,7 @@ impl Default for RenderSettings {
         Self {
             shading_mode: ShadingMode::Full,
             ambient_factor: 0.1,
+            lighting_range_bias: 0.0,
             shading_resolution_scale: 1.0,
             enable_debug_lines: true,
             apply_mipmaps: true,
@@ -161,6 +163,9 @@ impl RenderSettings {
                 }
             });
         ui.add(egui::Slider::new(&mut self.ambient_factor, 0.0..=1.0).text("Ambient Factor"));
+        ui.add(
+            egui::Slider::new(&mut self.lighting_range_bias, 0.0..=0.3).text("Lighting Range Bias"),
+        );
         ui.add(
             egui::Slider::new(&mut self.shading_resolution_scale, 0.4..=1.0)
                 .text("Resolution Scale"),
@@ -254,6 +259,11 @@ impl Renderer {
         parameters.gpu_resources.sky_mut().constants.atmosphere =
             parameters.render_settings.atmosphere;
         parameters.gpu_resources.sky_mut().constants.world_up = parameters.render_settings.world_up;
+
+        parameters
+            .gpu_resources
+            .linear_transformed_cosines_mut()
+            .range_bias = parameters.render_settings.lighting_range_bias;
 
         parameters.gpu_resources.update(
             parameters.world,
