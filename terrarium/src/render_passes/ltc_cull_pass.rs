@@ -22,7 +22,7 @@ pub fn create_ltc_instance_index_buffer(resolution: UVec2, device: &wgpu::Device
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("terrarium::ltc_cull_pass ltc_instance_indices"),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        size: (size_of::<u32>() * MAX_LTC_INSTANCES_PER_TILE * num_groups) as u64 * 2,
+        size: (size_of::<u32>() * MAX_LTC_INSTANCES_PER_TILE * num_groups) as u64,
         mapped_at_creation: false,
     })
 }
@@ -36,7 +36,7 @@ pub fn create_ltc_instance_grid_texture(
         size: wgpu::Extent3d {
             width: resolution.x.div_ceil(build_frustum_pass::TILE_SIZE),
             height: resolution.y.div_ceil(build_frustum_pass::TILE_SIZE),
-            depth_or_array_layers: 2,
+            depth_or_array_layers: 1,
         },
         mip_level_count: 1,
         sample_count: 1,
@@ -47,8 +47,7 @@ pub fn create_ltc_instance_grid_texture(
     });
 
     texture.create_view(&wgpu::TextureViewDescriptor {
-        dimension: Some(wgpu::TextureViewDimension::D2Array),
-        array_layer_count: Some(2),
+        dimension: Some(wgpu::TextureViewDimension::D2),
         ..Default::default()
     })
 }
@@ -135,7 +134,7 @@ pub fn encode(
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadWrite,
                                     format: wgpu::TextureFormat::Rg32Uint,
-                                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
                                 },
                                 count: None,
                             },

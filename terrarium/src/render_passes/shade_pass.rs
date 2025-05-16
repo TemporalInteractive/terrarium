@@ -131,7 +131,7 @@ pub fn encode(
                                 ty: wgpu::BindingType::StorageTexture {
                                     access: wgpu::StorageTextureAccess::ReadOnly,
                                     format: wgpu::TextureFormat::Rg32Uint,
-                                    view_dimension: wgpu::TextureViewDimension::D2Array,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
                                 },
                                 count: None,
                             },

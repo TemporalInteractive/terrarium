@@ -27,7 +27,7 @@ var<storage, read_write> light_index_list: array<u32>;
 
 @group(0)
 @binding(4)
-var light_grid: texture_storage_2d_array<rg32uint, read_write>;
+var light_grid: texture_storage_2d<rg32uint, read_write>;
 
 var<workgroup> gs_frustum: Frustum;
 
@@ -80,7 +80,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
         let light_index_start_offset: u32 = atomicAdd(&light_index_counter, light_count);
         atomicStore(&gs_light_index_start_offset, light_index_start_offset);
 
-        textureStore(light_grid, group_id.xy, 0, vec4<u32>(light_index_start_offset, light_count, 0, 0));
+        textureStore(light_grid, group_id.xy, vec4<u32>(light_index_start_offset, light_count, 0, 0));
     }
     workgroupBarrier();
 

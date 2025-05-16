@@ -42,7 +42,7 @@ var<storage, read> light_index_list: array<u32>;
 
 @group(0)
 @binding(6)
-var light_grid: texture_storage_2d_array<rg32uint, read>;
+var light_grid: texture_storage_2d<rg32uint, read>;
 
 fn shade_fog(shade_color: vec3<f32>, position_and_depth: GbufferPositionAndDepth, view_origin: vec3<f32>, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(view_origin, position_and_depth.position);
@@ -59,13 +59,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     if (any(id >= constants.resolution)) { return; }
     var i: u32 = id.y * constants.resolution.x + id.x;
 
+    // TODO: move to groupshared?
+    let light_offset_and_count: vec2<u32> = textureLoad(light_grid, group_id.xy).rg;
+    let light_index_start_offset: u32 = light_offset_and_count.x;
+    let light_count: u32 = light_offset_and_count.y;
+
     for (var view_index: u32 = 0; view_index < 2; view_index += 1) {
         let ray: XrCameraRay = XrCamera::raygen(xr_camera, id, constants.resolution, view_index);
-
-        // TODO: move to groupshared?
-        let light_offset_and_count: vec2<u32> = textureLoad(light_grid, group_id.xy, view_index).rg;
-        let light_index_start_offset: u32 = light_offset_and_count.x;
-        let light_count: u32 = light_offset_and_count.y;
 
         let position_and_depth: GbufferPositionAndDepth = Gbuffer::load_position_and_depth(id, view_index);
         var emission: f32 = 0.0;
