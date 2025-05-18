@@ -79,7 +79,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             let ray: XrCameraRay = XrCamera::raygen(xr_camera, full_res_id, constants.resolution, view_index);
 
             let origin: vec3<f32> = position_and_depth.position + shading_and_geometric_normal.geometric_normal * 0.001;
-            let direction: vec3<f32> = reflect(ray.direction, shading_and_geometric_normal.shading_normal);
+            let direction: vec3<f32> = reflect(ray.direction, shading_and_geometric_normal.geometric_normal);
 
             let intersection: RayIntersection = trace_ray(origin, direction);
             if (intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
