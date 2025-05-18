@@ -122,13 +122,15 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         vec3<f32>(t1.z, 0.0, t1.w)
     );
 
+    let f0: vec3<f32> = mix(vec3<f32>(0.04), material.color, material.metallic);
+
     var diffuse: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, IDENTITY_MAT3X3, instance.double_sided, behind,
         point0, point1, point2, point3);
     var specular: vec3<f32> = LtcBindings::_evaluate(normal, view_dir, hit_point, min_v, instance.double_sided, behind,
         point0, point1, point2, point3);
 
-    let mspec = vec3<f32>(0.23);
-    specular *= mspec * t2.x + (1.0 - mspec) * t2.y;
+    diffuse *= (1.0 - material.metallic);
+    specular *= f0 * t2.x + (1.0 - f0) * t2.y;
 
     let packed_inv_transform: mat3x4<f32> = ltc_instances_inv_transform[instance_idx];
     let inv_transform: mat4x4<f32> = mat4x4<f32>(

@@ -55,7 +55,6 @@ impl SizedResources {
         lighting_resolution_scale: f32,
         device: &wgpu::Device,
     ) -> Self {
-        println!("RESIZE");
         let render_resolution = UVec2::new(
             (resolution.x as f32 * render_resolution_scale).ceil() as u32,
             (resolution.y as f32 * render_resolution_scale).ceil() as u32,
@@ -112,6 +111,8 @@ impl SizedResources {
         let ltc_instance_grid_texture_view =
             ltc_cull_pass::create_ltc_instance_grid_texture(lighting_resolution, device);
 
+        device.poll(wgpu::PollType::Wait).unwrap();
+
         Self {
             resolution,
             render_resolution,
@@ -129,18 +130,15 @@ impl SizedResources {
 }
 
 pub struct RenderSettings {
+    pub render_resolution_scale: f32,
     pub shading_mode: ShadingMode,
     pub ambient_factor: f32,
+    pub enable_lighting: bool,
     pub lighting_range_bias: f32,
-    pub render_resolution_scale: f32,
     pub lighting_resolution_scale: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
     pub apply_normal_maps: bool,
-    pub enable_shadows: bool,
-    pub enable_ssao: bool,
-    pub ssao_intensity: f32,
-    pub ssao_sample_count: u32,
     pub enable_bloom: bool,
     pub bloom_intensity: f32,
     pub bloom_radius: f32,
@@ -154,18 +152,15 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            render_resolution_scale: 1.0,
             shading_mode: ShadingMode::Full,
             ambient_factor: 0.1,
+            enable_lighting: true,
             lighting_range_bias: 0.0,
-            render_resolution_scale: 1.0,
             lighting_resolution_scale: 0.9,
             enable_debug_lines: true,
             apply_mipmaps: true,
             apply_normal_maps: true,
-            enable_shadows: true,
-            enable_ssao: false,
-            ssao_intensity: 1.0,
-            ssao_sample_count: 8,
             enable_bloom: true,
             bloom_intensity: 0.04,
             bloom_radius: 1.0,
@@ -182,6 +177,10 @@ impl RenderSettings {
     #[cfg(feature = "egui")]
     pub fn egui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Shading");
+        ui.add(
+            egui::Slider::new(&mut self.render_resolution_scale, 0.4..=1.0)
+                .text("Resolution Scale"),
+        );
         egui::ComboBox::from_label("Visualization Mode")
             .selected_text(self.shading_mode.to_string())
             .show_ui(ui, |ui| {
@@ -200,24 +199,18 @@ impl RenderSettings {
                 }
             });
         ui.add(egui::Slider::new(&mut self.ambient_factor, 0.0..=1.0).text("Ambient Factor"));
-        ui.add(
-            egui::Slider::new(&mut self.lighting_range_bias, 0.0..=0.3).text("Lighting Range Bias"),
-        );
-        ui.add(
-            egui::Slider::new(&mut self.render_resolution_scale, 0.4..=1.0)
-                .text("Render Resolution Scale"),
-        );
-        ui.add(
-            egui::Slider::new(&mut self.lighting_resolution_scale, 0.4..=1.0)
-                .text("Lighting Resolution Scale"),
-        );
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
         ui.checkbox(&mut self.apply_normal_maps, "Normal Mapping");
         ui.separator();
 
-        ui.heading("Shadows");
-        ui.checkbox(&mut self.enable_shadows, "Enable");
+        ui.heading("Lighting");
+        ui.checkbox(&mut self.enable_lighting, "Enable");
+        ui.add(
+            egui::Slider::new(&mut self.lighting_resolution_scale, 0.4..=1.0)
+                .text("Resolution Scale"),
+        );
+        ui.add(egui::Slider::new(&mut self.lighting_range_bias, 0.0..=0.3).text("Range Bias"));
         ui.separator();
 
         ui.heading("Sun");
@@ -225,18 +218,6 @@ impl RenderSettings {
         ui.separator();
         ui.heading("Atmosphere");
         self.atmosphere.egui(ui);
-        ui.separator();
-
-        ui.heading("Ssao");
-        ui.checkbox(&mut self.enable_ssao, "Enable");
-        ui.add(egui::Slider::new(&mut self.ssao_intensity, 0.0..=1.0).text("Intensity"));
-        egui::ComboBox::from_label("Sample Count")
-            .selected_text(format!("{:?}", self.ssao_sample_count))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.ssao_sample_count, 8, "8");
-                ui.selectable_value(&mut self.ssao_sample_count, 16, "16");
-                ui.selectable_value(&mut self.ssao_sample_count, 32, "32");
-            });
         ui.separator();
 
         ui.heading("Bloom");
@@ -366,23 +347,30 @@ impl Renderer {
                     ..Default::default()
                 });
 
-        ltc_lighting_pass::encode(
-            &LtcLightingPassParameters {
-                resolution: self.sized_resources.render_resolution,
-                lighting_resolution: self.sized_resources.lighting_resolution,
-                gpu_resources: parameters.gpu_resources,
-                xr_camera_buffer: parameters.xr_camera_buffer,
-                gbuffer: &self.sized_resources.gbuffer,
-                ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
-                ltc_instance_grid_texture_view: &self
-                    .sized_resources
-                    .ltc_instance_grid_texture_view,
-                dst_view: &lighting_view,
-            },
-            &ctx.device,
-            command_encoder,
-            pipeline_database,
-        );
+        if parameters.render_settings.enable_lighting {
+            ltc_lighting_pass::encode(
+                &LtcLightingPassParameters {
+                    resolution: self.sized_resources.render_resolution,
+                    lighting_resolution: self.sized_resources.lighting_resolution,
+                    gpu_resources: parameters.gpu_resources,
+                    xr_camera_buffer: parameters.xr_camera_buffer,
+                    gbuffer: &self.sized_resources.gbuffer,
+                    ltc_instance_index_buffer: &self.sized_resources.ltc_instance_index_buffer,
+                    ltc_instance_grid_texture_view: &self
+                        .sized_resources
+                        .ltc_instance_grid_texture_view,
+                    dst_view: &lighting_view,
+                },
+                &ctx.device,
+                command_encoder,
+                pipeline_database,
+            );
+        } else {
+            command_encoder.clear_texture(
+                &self.sized_resources.lighting_texture,
+                &wgpu::ImageSubresourceRange::default(),
+            );
+        }
 
         let shading_view = self.sized_resources.shading_texture[self.frame_idx as usize % 2]
             .create_view(&wgpu::TextureViewDescriptor {

@@ -121,6 +121,21 @@ impl AppLoop for ExampleApp {
             );
 
             let model = ugm::Model::read_from_buffer(
+                &std::fs::read("examples/massive/assets/Suzanne.ugm")
+                .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
+            )
+            .unwrap();
+            self.world.spawn_model(
+                &model,
+                Transform::new(Vec3::new(3.0, 2.0, 0.0), Quat::IDENTITY, Vec3::splat(0.5)),
+                true,
+                None,
+                &mut self.gpu_resources,
+                command_encoder,
+                ctx,
+            );
+
+            let model = ugm::Model::read_from_buffer(
                 &std::fs::read("examples/massive/assets/Emitter.ugm")
                 .expect("It looks like you're missing the TestScene.glb model. Please download it from here https://drive.google.com/file/d/1Phta9UH7fvtCCOQMh3c0YxrL6kYzjcJc/view?usp=drive_link and place it in the assets folder."),
             )

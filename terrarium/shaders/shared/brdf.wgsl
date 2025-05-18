@@ -43,7 +43,7 @@ fn Material::eval_brdf(_self: Material, w_in_ws: vec3<f32>, w_out_ws: vec3<f32>,
     
     let kS: vec3<f32> = F;
     var kD: vec3<f32> = vec3(1.0) - kS;
-    kD *= 1.0 - _self.metallic;	  
+    kD *= 1.0 - _self.metallic;
     
     let numerator: vec3<f32> = NDF * G * F;
     let denominator: f32 = 4.0 * max(dot(normal_ws, w_out_ws), 0.0) * max(dot(normal_ws, w_in_ws), 0.0) + 0.0001;
