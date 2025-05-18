@@ -16,12 +16,17 @@ const SHADING_MODE_TEX_COORDS: u32 = 4;
 const SHADING_MODE_EMISSION: u32 = 5;
 const SHADING_MODE_VELOCITY: u32 = 6;
 const SHADING_MODE_FOG: u32 = 7;
-const SHADING_MODE_SIMPLE_LIGHTING: u32 = 8;
+const SHADING_MODE_REFLECTION: u32 = 8;
+const SHADING_MODE_SIMPLE_LIGHTING: u32 = 9;
 
 struct Constants {
     resolution: vec2<u32>,
     shading_mode: u32,
     ambient_factor: f32,
+    reflection_max_roughness: f32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 @group(0)
@@ -42,7 +47,11 @@ var lighting: texture_2d_array<f32>;
 
 @group(0)
 @binding(6)
-var lighting_sampler: sampler;
+var mirror_reflections: texture_2d_array<f32>;
+
+@group(0)
+@binding(7)
+var linear_sampler: sampler;
 
 fn shade_fog(shade_color: vec3<f32>, position_and_depth: GbufferPositionAndDepth, view_origin: vec3<f32>, view_dir: vec3<f32>, l: vec3<f32>) -> vec3<f32> {
     let density: f32 = sky_constants.atmosphere.density * Sky::atmosphere_density(view_origin, position_and_depth.position);
@@ -92,10 +101,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
             } else {
                 let l: vec3<f32> = sky_constants.world_up;
                 let ambient: vec3<f32> = material.color * constants.ambient_factor;
-                let ltc_shading: vec3<f32> = textureSampleLevel(lighting, lighting_sampler, uv, view_index, 0.0).rgb;
+                let ltc_shading: vec3<f32> = textureSampleLevel(lighting, linear_sampler, uv, view_index, 0.0).rgb;
+                var reflection: vec3<f32> = textureSampleLevel(mirror_reflections, linear_sampler, uv, view_index, 0.0).rgb;
+                reflection *= sqr(1.0 - clamp(material.roughness / constants.reflection_max_roughness, 0.0, 1.0));
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
-                    color = ltc_shading + ambient + material.emission;
+                    color = ltc_shading + ambient + material.emission + reflection;
                     color = shade_fog(color, position_and_depth, ray.origin, ray.direction, l);
                 } else if (constants.shading_mode == SHADING_MODE_LIGHTING_ONLY) {
                     color = ltc_shading;
@@ -112,6 +123,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                     color = vec3<f32>(abs(velocity) * 10.0, 0.0);
                 } else if (constants.shading_mode == SHADING_MODE_FOG) {
                     color = shade_fog(vec3<f32>(1.0), position_and_depth, ray.origin, ray.direction, l);
+                } else if (constants.shading_mode == SHADING_MODE_REFLECTION) {
+                    color = reflection;
                 }
             }
         } else {
