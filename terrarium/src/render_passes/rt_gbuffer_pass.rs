@@ -11,21 +11,46 @@ use crate::{
     },
 };
 
+pub fn create_reflection_counter_buffer(_resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("terrarium::rt_gbuffer reflection_counter"),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        size: size_of::<u32>() as u64,
+        mapped_at_creation: false,
+    })
+}
+
+pub fn create_reflection_pid_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("terrarium::rt_gbuffer reflection_pid"),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        size: (size_of::<u32>() as u32 * resolution.x * resolution.y * 2) as u64,
+        mapped_at_creation: false,
+    })
+}
+
 #[derive(Pod, Clone, Copy, Zeroable)]
 #[repr(C)]
 struct Constants {
     resolution: UVec2,
     mipmapping: u32,
     normal_mapping: u32,
+    reflection_max_roughness: f32,
+    view_index: u32,
+    _padding0: u32,
+    _padding1: u32,
 }
 
 pub struct RtGbufferPassParameters<'a> {
     pub resolution: UVec2,
     pub mipmapping: bool,
     pub normal_mapping: bool,
+    pub reflection_max_roughness: f32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
+    pub reflection_counter_buffer: &'a [wgpu::Buffer; 2],
+    pub reflection_pid_buffer: &'a [wgpu::Buffer; 2],
 }
 
 pub fn encode(
@@ -85,6 +110,26 @@ pub fn encode(
                                 },
                                 count: None,
                             },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 4,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 5,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
                         ],
                     }),
                     parameters.gpu_resources.vertex_pool().bind_group_layout(),
@@ -97,70 +142,92 @@ pub fn encode(
         },
     );
 
-    let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("terrarium::rt_gbuffer constants"),
-        contents: bytemuck::bytes_of(&Constants {
-            resolution: parameters.resolution,
-            mipmapping: parameters.mipmapping as u32,
-            normal_mapping: parameters.normal_mapping as u32,
-        }),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-
-    let bind_group_layout = pipeline.get_bind_group_layout(0);
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: None,
-        layout: &bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: constants.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: parameters.xr_camera_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: wgpu::BindingResource::AccelerationStructure(
-                    parameters.gpu_resources.static_tlas(),
-                ),
-            },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: wgpu::BindingResource::AccelerationStructure(
-                    parameters.gpu_resources.dynamic_tlas(),
-                ),
-            },
-        ],
-    });
-
-    {
-        let mut cpass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("terrarium::rt_gbuffer"),
-            timestamp_writes: None,
+    for view_index in 0..2 {
+        let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrarium::rt_gbuffer constants"),
+            contents: bytemuck::bytes_of(&Constants {
+                resolution: parameters.resolution,
+                mipmapping: parameters.mipmapping as u32,
+                normal_mapping: parameters.normal_mapping as u32,
+                reflection_max_roughness: parameters.reflection_max_roughness,
+                view_index,
+                _padding0: 0,
+                _padding1: 0,
+            }),
+            usage: wgpu::BufferUsages::UNIFORM,
         });
-        cpass.set_pipeline(&pipeline);
-        cpass.set_bind_group(0, &bind_group, &[]);
-        cpass.set_bind_group(
-            1,
-            &parameters.gpu_resources.vertex_pool().bind_group(device),
-            &[],
+
+        let bind_group_layout = pipeline.get_bind_group_layout(0);
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: constants.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: parameters.xr_camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::AccelerationStructure(
+                        parameters.gpu_resources.static_tlas(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::AccelerationStructure(
+                        parameters.gpu_resources.dynamic_tlas(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: parameters.reflection_counter_buffer[view_index as usize]
+                        .as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: parameters.reflection_pid_buffer[view_index as usize]
+                        .as_entire_binding(),
+                },
+            ],
+        });
+
+        command_encoder.clear_buffer(
+            &parameters.reflection_counter_buffer[view_index as usize],
+            0,
+            None,
         );
-        parameters.gpu_resources.material_pool().bind_group(
-            pipeline.get_bind_group_layout(2),
-            device,
-            |bind_group| {
-                cpass.set_bind_group(2, bind_group, &[]);
-            },
-        );
-        cpass.set_bind_group(3, empty_bind_group(device), &[]);
-        cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
-        cpass.insert_debug_marker("terrarium::rt_gbuffer");
-        cpass.dispatch_workgroups(
-            parameters.resolution.x.div_ceil(8),
-            parameters.resolution.y.div_ceil(8),
-            1,
-        );
+
+        {
+            let mut cpass = command_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("terrarium::rt_gbuffer"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.set_bind_group(
+                1,
+                &parameters.gpu_resources.vertex_pool().bind_group(device),
+                &[],
+            );
+            parameters.gpu_resources.material_pool().bind_group(
+                pipeline.get_bind_group_layout(2),
+                device,
+                |bind_group| {
+                    cpass.set_bind_group(2, bind_group, &[]);
+                },
+            );
+            cpass.set_bind_group(3, empty_bind_group(device), &[]);
+            cpass.set_bind_group(4, parameters.gbuffer.bind_group(), &[]);
+            cpass.insert_debug_marker("terrarium::rt_gbuffer");
+            cpass.dispatch_workgroups(
+                parameters.resolution.x.div_ceil(8),
+                parameters.resolution.y.div_ceil(8),
+                1,
+            );
+        }
     }
 }

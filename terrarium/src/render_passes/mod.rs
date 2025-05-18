@@ -14,6 +14,7 @@ pub mod ltc_cull_pass;
 pub mod ltc_lighting_pass;
 pub mod mirror_reflection_pass;
 pub mod taa_pass;
+pub mod write_indirect_args_pass;
 
 #[cfg(feature = "transform-gizmo")]
 pub mod gizmo_pass;

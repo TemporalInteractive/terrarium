@@ -1,8 +1,5 @@
 use std::num::NonZeroU32;
 
-use bytemuck::{Pod, Zeroable};
-use glam::UVec2;
-use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::{

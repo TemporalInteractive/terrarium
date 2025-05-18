@@ -1,7 +1,7 @@
 use std::{iter, sync::Arc};
 
 use debug_lines::DebugLines;
-use glam::{Mat4, Vec3, Vec4Swizzles};
+use glam::{Vec3, Vec4Swizzles};
 use linear_transformed_cosines::LinearTransformedCosines;
 use material_pool::MaterialPool;
 use sky::Sky;

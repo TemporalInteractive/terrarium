@@ -39,11 +39,11 @@ struct SizedResources {
     resolution: UVec2,
     render_resolution: UVec2,
     lighting_resolution: UVec2,
-    reflection_resolution: UVec2,
     render_resolution_scale: f32,
     lighting_resolution_scale: f32,
-    reflection_resolution_scale: f32,
 
+    reflection_counter_buffer: [wgpu::Buffer; 2],
+    reflection_pid_buffer: [wgpu::Buffer; 2],
     frustum_buffer: wgpu::Buffer,
     ltc_instance_index_buffer: wgpu::Buffer,
     ltc_instance_grid_texture_view: wgpu::TextureView,
@@ -58,7 +58,6 @@ impl SizedResources {
         resolution: UVec2,
         render_resolution_scale: f32,
         lighting_resolution_scale: f32,
-        reflection_resolution_scale: f32,
         device: &wgpu::Device,
     ) -> Self {
         let render_resolution = UVec2::new(
@@ -68,10 +67,6 @@ impl SizedResources {
         let lighting_resolution = UVec2::new(
             (render_resolution.x as f32 * lighting_resolution_scale).ceil() as u32,
             (render_resolution.y as f32 * lighting_resolution_scale).ceil() as u32,
-        );
-        let reflection_resolution = UVec2::new(
-            (render_resolution.x as f32 * reflection_resolution_scale).ceil() as u32,
-            (render_resolution.y as f32 * reflection_resolution_scale).ceil() as u32,
         );
 
         let gbuffer = Gbuffer::new(render_resolution, device);
@@ -117,8 +112,8 @@ impl SizedResources {
         let reflection_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("terrarium::reflection"),
             size: wgpu::Extent3d {
-                width: reflection_resolution.x,
-                height: reflection_resolution.y,
+                width: render_resolution.x,
+                height: render_resolution.y,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -130,6 +125,13 @@ impl SizedResources {
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::STORAGE_BINDING,
             view_formats: &[],
+        });
+
+        let reflection_counter_buffer = std::array::from_fn(|_| {
+            rt_gbuffer_pass::create_reflection_counter_buffer(resolution, device)
+        });
+        let reflection_pid_buffer = std::array::from_fn(|_| {
+            rt_gbuffer_pass::create_reflection_pid_buffer(resolution, device)
         });
 
         let frustum_buffer = build_frustum_pass::create_frustum_buffer(lighting_resolution, device);
@@ -145,11 +147,11 @@ impl SizedResources {
             resolution,
             render_resolution,
             lighting_resolution,
-            reflection_resolution,
             render_resolution_scale,
             lighting_resolution_scale,
-            reflection_resolution_scale,
 
+            reflection_counter_buffer,
+            reflection_pid_buffer,
             frustum_buffer,
             ltc_instance_index_buffer,
             ltc_instance_grid_texture_view,
@@ -169,7 +171,6 @@ pub struct RenderSettings {
     pub lighting_range_bias: f32,
     pub lighting_resolution_scale: f32,
     pub enable_reflections: bool,
-    pub reflection_resolution_scale: f32,
     pub reflection_max_roughness: f32,
     pub enable_debug_lines: bool,
     pub apply_mipmaps: bool,
@@ -194,7 +195,6 @@ impl Default for RenderSettings {
             lighting_range_bias: 0.0,
             lighting_resolution_scale: 0.9,
             enable_reflections: true,
-            reflection_resolution_scale: 1.0,
             reflection_max_roughness: 0.2,
             enable_debug_lines: true,
             apply_mipmaps: true,
@@ -255,10 +255,6 @@ impl RenderSettings {
         ui.heading("Reflections");
         ui.checkbox(&mut self.enable_reflections, "Enable");
         ui.add(
-            egui::Slider::new(&mut self.reflection_resolution_scale, 0.4..=1.0)
-                .text("Resolution Scale"),
-        );
-        ui.add(
             egui::Slider::new(&mut self.reflection_max_roughness, 0.0..=1.0).text("Max Roughness"),
         );
         ui.separator();
@@ -302,7 +298,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(resolution: UVec2, ctx: &wgpu_util::Context) -> Self {
-        let sized_resources = SizedResources::new(resolution, 1.0, 1.0, 1.0, &ctx.device);
+        let sized_resources = SizedResources::new(resolution, 1.0, 1.0, &ctx.device);
 
         Self {
             sized_resources,
@@ -321,14 +317,11 @@ impl Renderer {
             != self.sized_resources.render_resolution_scale
             || parameters.render_settings.lighting_resolution_scale
                 != self.sized_resources.lighting_resolution_scale
-            || parameters.render_settings.reflection_resolution_scale
-                != self.sized_resources.reflection_resolution_scale
         {
             self.sized_resources = SizedResources::new(
                 self.sized_resources.resolution,
                 parameters.render_settings.render_resolution_scale,
                 parameters.render_settings.lighting_resolution_scale,
-                parameters.render_settings.reflection_resolution_scale,
                 &ctx.device,
             );
         }
@@ -355,9 +348,12 @@ impl Renderer {
                 resolution: self.sized_resources.render_resolution,
                 mipmapping: parameters.render_settings.apply_mipmaps,
                 normal_mapping: parameters.render_settings.apply_normal_maps,
+                reflection_max_roughness: parameters.render_settings.reflection_max_roughness,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
+                reflection_counter_buffer: &self.sized_resources.reflection_counter_buffer,
+                reflection_pid_buffer: &self.sized_resources.reflection_pid_buffer,
             },
             &ctx.device,
             command_encoder,
@@ -437,11 +433,13 @@ impl Renderer {
             mirror_reflection_pass::encode(
                 &MirrorReflectionPassParameters {
                     resolution: self.sized_resources.render_resolution,
-                    reflection_resolution: self.sized_resources.reflection_resolution,
+                    reflection_resolution: self.sized_resources.render_resolution, // TODO!
                     ambient_factor: parameters.render_settings.ambient_factor,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     gbuffer: &self.sized_resources.gbuffer,
+                    reflection_counter_buffer: &self.sized_resources.reflection_counter_buffer,
+                    reflection_pid_buffer: &self.sized_resources.reflection_pid_buffer,
                     dst_view: &reflection_view,
                 },
                 &ctx.device,
@@ -591,7 +589,6 @@ impl Renderer {
             resolution,
             self.sized_resources.render_resolution_scale,
             self.sized_resources.lighting_resolution_scale,
-            self.sized_resources.reflection_resolution_scale,
             &ctx.device,
         );
     }
