@@ -166,6 +166,7 @@ impl SizedResources {
 pub struct RenderSettings {
     pub render_resolution_scale: f32,
     pub shading_mode: ShadingMode,
+    pub render_distance: f32,
     pub ambient_factor: f32,
     pub enable_lighting: bool,
     pub lighting_range_bias: f32,
@@ -190,6 +191,7 @@ impl Default for RenderSettings {
         Self {
             render_resolution_scale: 1.0,
             shading_mode: ShadingMode::Full,
+            render_distance: 1000.0,
             ambient_factor: 0.1,
             enable_lighting: true,
             lighting_range_bias: 0.0,
@@ -237,6 +239,7 @@ impl RenderSettings {
                     ui.selectable_value(&mut self.shading_mode, mode, mode.to_string());
                 }
             });
+        ui.add(egui::Slider::new(&mut self.render_distance, 0.0..=10000.0).text("Render Distance"));
         ui.add(egui::Slider::new(&mut self.ambient_factor, 0.0..=1.0).text("Ambient Factor"));
         ui.checkbox(&mut self.enable_debug_lines, "Debug Lines");
         ui.checkbox(&mut self.apply_mipmaps, "Mipmapping");
@@ -349,6 +352,7 @@ impl Renderer {
                 mipmapping: parameters.render_settings.apply_mipmaps,
                 normal_mapping: parameters.render_settings.apply_normal_maps,
                 reflection_max_roughness: parameters.render_settings.reflection_max_roughness,
+                render_distance: parameters.render_settings.render_distance,
                 gpu_resources: parameters.gpu_resources,
                 xr_camera_buffer: parameters.xr_camera_buffer,
                 gbuffer: &self.sized_resources.gbuffer,
@@ -435,6 +439,7 @@ impl Renderer {
                     resolution: self.sized_resources.render_resolution,
                     reflection_resolution: self.sized_resources.render_resolution, // TODO!
                     ambient_factor: parameters.render_settings.ambient_factor,
+                    render_distance: parameters.render_settings.render_distance,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     gbuffer: &self.sized_resources.gbuffer,

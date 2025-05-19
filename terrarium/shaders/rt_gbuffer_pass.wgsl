@@ -11,8 +11,8 @@ struct Constants {
     normal_mapping: u32,
     reflection_max_roughness: f32,
     view_index: u32,
+    render_distance: f32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 @group(0)
@@ -47,7 +47,7 @@ fn push_reflection_pixel(id: vec2<u32>) {
 fn trace_ray(origin: vec3<f32>, direction: vec3<f32>) -> RayIntersection {
     var rq: ray_query;
 
-    rayQueryInitialize(&rq, static_scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
+    rayQueryInitialize(&rq, static_scene, RayDesc(0u, 0xFFu, 0.0, constants.render_distance, origin, direction));
     rayQueryProceed(&rq);
     let static_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
     var static_t: f32 = 10000.0;
@@ -55,7 +55,7 @@ fn trace_ray(origin: vec3<f32>, direction: vec3<f32>) -> RayIntersection {
         static_t = static_intersection.t;
     }
 
-    rayQueryInitialize(&rq, dynamic_scene, RayDesc(0u, 0xFFu, 0.0, 10000.0, origin, direction));
+    rayQueryInitialize(&rq, dynamic_scene, RayDesc(0u, 0xFFu, 0.0, constants.render_distance, origin, direction));
     rayQueryProceed(&rq);
     let dynamic_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
     var dynamic_t: f32 = 10000.0;

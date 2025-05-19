@@ -37,8 +37,8 @@ struct Constants {
     normal_mapping: u32,
     reflection_max_roughness: f32,
     view_index: u32,
+    render_distance: f32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 pub struct RtGbufferPassParameters<'a> {
@@ -46,6 +46,7 @@ pub struct RtGbufferPassParameters<'a> {
     pub mipmapping: bool,
     pub normal_mapping: bool,
     pub reflection_max_roughness: f32,
+    pub render_distance: f32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
@@ -151,8 +152,8 @@ pub fn encode(
                 normal_mapping: parameters.normal_mapping as u32,
                 reflection_max_roughness: parameters.reflection_max_roughness,
                 view_index,
+                render_distance: parameters.render_distance,
                 _padding0: 0,
-                _padding1: 0,
             }),
             usage: wgpu::BufferUsages::UNIFORM,
         });

@@ -17,14 +17,15 @@ struct Constants {
     reflection_resolution: UVec2,
     ambient_factor: f32,
     view_index: u32,
+    render_distance: f32,
     _padding0: u32,
-    _padding1: u32,
 }
 
 pub struct MirrorReflectionPassParameters<'a> {
     pub resolution: UVec2,
     pub reflection_resolution: UVec2,
     pub ambient_factor: f32,
+    pub render_distance: f32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
@@ -142,8 +143,8 @@ pub fn encode(
                 reflection_resolution: parameters.reflection_resolution,
                 ambient_factor: parameters.ambient_factor,
                 view_index,
+                render_distance: parameters.render_distance,
                 _padding0: 0,
-                _padding1: 0,
             }),
             usage: wgpu::BufferUsages::UNIFORM,
         });
