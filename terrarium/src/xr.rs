@@ -7,7 +7,7 @@ use glam::{Mat4, Quat, Vec2, Vec3, Vec4, Vec4Swizzles};
 
 use crate::{
     wgpu_util,
-    world::transform::{FORWARD, UP},
+    world::transform::{FORWARD, RIGHT, UP},
 };
 
 pub const WGPU_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -67,6 +67,18 @@ impl XrCameraState {
                 pose.translation + pose.orientation * FORWARD,
                 pose.orientation * UP,
             );
+        }
+    }
+
+    pub fn default_stage_to_view_space(&mut self) {
+        for i in 0..2 {
+            let translation = if i == 0 {
+                RIGHT * -0.032
+            } else {
+                RIGHT * 0.032
+            };
+
+            self.stage_to_view_space[i] = Mat4::look_at_rh(translation, FORWARD, UP);
         }
     }
 

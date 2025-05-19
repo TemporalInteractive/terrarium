@@ -1,13 +1,25 @@
-use std::num::NonZeroU32;
+use std::{num::NonZeroU32, u32};
 
+use bytemuck::{Pod, Zeroable};
+use wgpu::util::DeviceExt;
 use wgsl_includes::include_wgsl;
 
 use crate::wgpu_util::PipelineDatabase;
+
+#[derive(Pod, Clone, Copy, Zeroable)]
+#[repr(C)]
+struct Constants {
+    view_index_override: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
+}
 
 pub struct BlitPassParameters<'a> {
     pub src_view: &'a wgpu::TextureView,
     pub dst_view: &'a wgpu::TextureView,
     pub multiview: Option<NonZeroU32>,
+    pub view_index_override: Option<u32>,
     pub target_format: wgpu::TextureFormat,
 }
 
@@ -72,6 +84,16 @@ pub fn encode(
                                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                                 count: None,
                             },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
                         ],
                     },
                 )],
@@ -90,6 +112,17 @@ pub fn encode(
         ..Default::default()
     });
 
+    let constants = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("terrarium::blit constants"),
+        contents: bytemuck::bytes_of(&Constants {
+            view_index_override: parameters.view_index_override.unwrap_or(u32::MAX),
+            _padding0: 0,
+            _padding1: 0,
+            _padding2: 0,
+        }),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
     let bind_group_layout = pipeline.get_bind_group_layout(0);
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
@@ -102,6 +135,10 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: constants.as_entire_binding(),
             },
         ],
     });

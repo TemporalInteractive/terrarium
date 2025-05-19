@@ -240,6 +240,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                                 src_view: &rt_texture_view,
                                 dst_view: &view,
                                 multiview: None,
+                                view_index_override: Some(1),
                                 target_format: state.surface.config().view_formats[0],
                             },
                             &state.context.device,
@@ -285,6 +286,8 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                             state
                                 .xr_camera_state
                                 .view_to_clip_space_from_openxr_views(xr_views);
+                        } else {
+                            state.xr_camera_state.default_stage_to_view_space();
                         }
 
                         let xr_camera_data = [

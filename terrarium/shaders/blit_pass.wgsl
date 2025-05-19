@@ -1,3 +1,5 @@
+@include shared/math.wgsl
+
 // Source: https://github.com/gfx-rs/wgpu/blob/trunk/examples/src/mipmap/blit.wgsl
 
 struct VertexOutput {
@@ -30,10 +32,26 @@ var r_color: texture_2d_array<f32>;
 @binding(1)
 var r_sampler: sampler;
 
+struct Constants {
+    view_index_override: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
+}
+
+@group(0)
+@binding(2)
+var<uniform> constants: Constants;
+
 @fragment
 fn fs_main(
     vertex: VertexOutput,
-    @builtin(view_index) view_index: i32
+    @builtin(view_index) _view_index: i32
 ) -> @location(0) vec4<f32> {
+    var view_index: u32 = u32(_view_index);
+    if (constants.view_index_override != U32_MAX) {
+        view_index = constants.view_index_override;
+    }
+
     return textureSample(r_color, r_sampler, vertex.tex_coords, i32(view_index));
 }

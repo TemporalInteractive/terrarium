@@ -517,6 +517,7 @@ impl Renderer {
                 src_view: &shading_view,
                 dst_view: &render_target_view,
                 multiview: Some(NonZeroU32::new(2).unwrap()),
+                view_index_override: None,
                 target_format: wgpu::TextureFormat::Rgba16Float,
             },
             &ctx.device,
