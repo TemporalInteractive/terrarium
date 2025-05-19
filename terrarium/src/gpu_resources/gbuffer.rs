@@ -34,7 +34,7 @@ impl Gbuffer {
             create_texture("position_and_depth", wgpu::TextureFormat::Rgba32Float);
         let shading_and_geometric_normal_texture = create_texture(
             "shading_and_geometric_normal",
-            wgpu::TextureFormat::Rg32Uint,
+            wgpu::TextureFormat::Rgba32Uint,
         );
         let tex_coord_and_derivatives_texture = create_texture(
             "tex_coord_and_derivatives",
@@ -64,7 +64,7 @@ impl Gbuffer {
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::Rg32Uint,
+                        format: wgpu::TextureFormat::Rgba32Uint,
                         view_dimension: wgpu::TextureViewDimension::D2Array,
                     },
                     count: None,

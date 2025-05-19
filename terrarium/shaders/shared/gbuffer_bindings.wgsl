@@ -10,7 +10,9 @@ var gbuffer_position_and_depth: texture_storage_2d_array<rgba32float, read_write
 @binding(1)
 // R: shading_normal (PackedNormalizedXyz10)
 // G: geometric_normal (PackedNormalizedXyz10)
-var gbuffer_shading_and_geometric_normal: texture_storage_2d_array<rg32uint, read_write>;
+// B: interpolated_normal (PackedNormalizedXyz10)
+// A: empty
+var gbuffer_shading_and_geometric_normal: texture_storage_2d_array<rgba32uint, read_write>;
 
 @group(4)
 @binding(2)
@@ -42,6 +44,7 @@ fn GbufferPositionAndDepth::is_sky(_self: GbufferPositionAndDepth) -> bool {
 struct GbufferShadingAndGeometricNormal {
     shading_normal: vec3<f32>,
     geometric_normal: vec3<f32>,
+    interpolated_normal: vec3<f32>,
 }
 
 struct GbufferTexCoordAndDerivatives {
@@ -68,21 +71,23 @@ fn Gbuffer::store_position_and_depth(position: vec3<f32>, depth: f32, id: vec2<u
 }
 
 fn Gbuffer::load_shading_and_geometric_normal(id: vec2<u32>, view_index: u32) -> GbufferShadingAndGeometricNormal {
-    let data: vec2<u32> = textureLoad(gbuffer_shading_and_geometric_normal, id, view_index).rg;
+    let data: vec3<u32> = textureLoad(gbuffer_shading_and_geometric_normal, id, view_index).rgb;
 
     return GbufferShadingAndGeometricNormal(
         PackedNormalizedXyz10::unpack(PackedNormalizedXyz10(data.x), 0),
-        PackedNormalizedXyz10::unpack(PackedNormalizedXyz10(data.y), 0)
+        PackedNormalizedXyz10::unpack(PackedNormalizedXyz10(data.y), 0),
+        PackedNormalizedXyz10::unpack(PackedNormalizedXyz10(data.z), 0)
     );
 }
 
-fn Gbuffer::store_shading_and_geometric_normal(shading_normal: vec3<f32>, geometric_normal: vec3<f32>, id: vec2<u32>, view_index: u32) {
-    let data = vec2<u32>(
+fn Gbuffer::store_shading_and_geometric_normal(shading_normal: vec3<f32>, geometric_normal: vec3<f32>, interpolated_normal: vec3<f32>, id: vec2<u32>, view_index: u32) {
+    let data = vec3<u32>(
         PackedNormalizedXyz10::new(shading_normal, 0).data,
-        PackedNormalizedXyz10::new(geometric_normal, 0).data
+        PackedNormalizedXyz10::new(geometric_normal, 0).data,
+        PackedNormalizedXyz10::new(interpolated_normal, 0).data
     );
 
-    textureStore(gbuffer_shading_and_geometric_normal, id, view_index, vec4<u32>(data, 0, 0));
+    textureStore(gbuffer_shading_and_geometric_normal, id, view_index, vec4<u32>(data, 0));
 }
 
 fn Gbuffer::load_tex_coord_and_derivatives(id: vec2<u32>, view_index: u32) -> GbufferTexCoordAndDerivatives {

@@ -100,10 +100,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 color = reflectance * n_dot_l + ambient + material.emission;
             } else {
                 let l: vec3<f32> = sky_constants.world_up;
-                let ambient: vec3<f32> = material.color * constants.ambient_factor;
+
+                let ambient: vec3<f32> = material.color * constants.ambient_factor * material.roughness;
+
                 let ltc_shading: vec3<f32> = textureSampleLevel(lighting, linear_sampler, uv, view_index, 0.0).rgb;
+
+                let f0: vec3<f32> = mix(vec3<f32>(0.04), material.color, material.metallic);
+                let fresnel: vec3<f32> = fresnel_schlick(dot(-ray.direction, shading_and_geometric_normal.interpolated_normal), f0);
+                let reflection_roughness_factor: f32 = sqr(1.0 - clamp(material.roughness / constants.reflection_max_roughness, 0.0, 1.0));
+
                 var reflection: vec3<f32> = textureSampleLevel(mirror_reflections, linear_sampler, uv, view_index, 0.0).rgb;
-                reflection *= sqr(1.0 - clamp(material.roughness / constants.reflection_max_roughness, 0.0, 1.0));
+                reflection *= fresnel * reflection_roughness_factor;
 
                 if (constants.shading_mode == SHADING_MODE_FULL) {
                     color = ltc_shading + ambient + material.emission + reflection;

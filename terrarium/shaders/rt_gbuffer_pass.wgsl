@@ -171,6 +171,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         }
         var front_facing_shading_normal_ws: vec3<f32> = mapped_normal_and_roughness.xyz;
         let normal_roughness: f32 = mapped_normal_and_roughness.w;
+        var front_facing_interpolated_normal_ws: vec3<f32> = hit_normal_ws;
 
         let w_out_worldspace: vec3<f32> = -direction;
 
@@ -179,6 +180,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
         if (back_face) {
             geometric_normal_ws *= -1.0;
             front_facing_shading_normal_ws *= -1.0;
+            front_facing_interpolated_normal_ws *= -1.0;
         }
 
         let current_position_cs: vec4<f32> = xr_camera.view_to_clip_space[view_index] * xr_camera.world_to_view_space[view_index] * vec4<f32>(hit_point_ws, 1.0);
@@ -192,7 +194,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
         position_ws = hit_point_ws;
         depth_ws = intersection.t;
-        Gbuffer::store_shading_and_geometric_normal(front_facing_shading_normal_ws, geometric_normal_ws, id, view_index);
+        Gbuffer::store_shading_and_geometric_normal(front_facing_shading_normal_ws, geometric_normal_ws, front_facing_interpolated_normal_ws, id, view_index);
         Gbuffer::store_tex_coord_and_derivatives(tex_coord, ddx, ddy, id, view_index);
         Gbuffer::store_velocity(velocity, id, view_index);
         Gbuffer::store_material_descriptor_idx_and_normal_roughness(material_descriptor_idx, normal_roughness, id, view_index);
