@@ -211,12 +211,26 @@ impl GpuResources {
         gpu_material
     }
 
+    pub fn duplicate_gpu_material(&mut self, gpu_material: &Arc<GpuMaterial>) -> Arc<GpuMaterial> {
+        let material_idx = self
+            .material_pool
+            .duplicate_material(gpu_material.material_idx);
+
+        let gpu_material = Arc::new(GpuMaterial { material_idx });
+        self.gpu_materials.push(gpu_material.clone());
+        gpu_material
+    }
+
     pub fn vertex_pool(&self) -> &VertexPool {
         &self.vertex_pool
     }
 
     pub fn material_pool(&self) -> &MaterialPool {
         &self.material_pool
+    }
+
+    pub fn material_pool_mut(&mut self) -> &mut MaterialPool {
+        &mut self.material_pool
     }
 
     pub fn linear_transformed_cosines(&self) -> &LinearTransformedCosines {

@@ -182,6 +182,10 @@ impl MaterialPool {
         &self.material_descriptors[i as usize]
     }
 
+    pub fn material_descriptor_mut(&mut self, i: u32) -> &mut MaterialDescriptor {
+        &mut self.material_descriptors[i as usize]
+    }
+
     pub fn alloc_material(
         &mut self,
         model: &Model,
@@ -271,6 +275,12 @@ impl MaterialPool {
             _padding2: 0,
         };
 
+        self.material_descriptors.push(material_descriptor);
+        self.material_descriptors.len() as u32 - 1
+    }
+
+    pub fn duplicate_material(&mut self, idx: u32) -> u32 {
+        let material_descriptor = self.material_descriptors[idx as usize].clone();
         self.material_descriptors.push(material_descriptor);
         self.material_descriptors.len() as u32 - 1
     }
