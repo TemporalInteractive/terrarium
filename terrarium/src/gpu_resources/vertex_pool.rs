@@ -12,7 +12,7 @@ use super::{
 const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
 const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 256;
 const MAX_VERTEX_POOL_SLICES: usize = 1024 * 8;
-const MAX_MATERIALS_PER_INSTANCE: usize = 4;
+const MAX_MATERIALS_PER_INSTANCE: usize = 32;
 
 pub struct VertexPoolWriteData<'a> {
     pub packed_vertices: &'a [PackedVertex],

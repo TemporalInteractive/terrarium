@@ -240,7 +240,7 @@ impl<R: AppLoop> ApplicationHandler for AppLoopHandler<R> {
                                 src_view: &rt_texture_view,
                                 dst_view: &view,
                                 multiview: None,
-                                view_index_override: Some(1),
+                                view_index_override: None,
                                 target_format: state.surface.config().view_formats[0],
                             },
                             &state.context.device,

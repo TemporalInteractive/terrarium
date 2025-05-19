@@ -465,6 +465,7 @@ impl XrContext {
                 src_view: rt_texture_view,
                 dst_view: &swapchain.buffers[image_index as usize],
                 multiview: Some(NonZeroU32::new(2).unwrap()),
+                view_index_override: None,
                 target_format: xr::WGPU_COLOR_FORMAT,
             },
             device,
