@@ -96,7 +96,7 @@ impl SizedResources {
             size: wgpu::Extent3d {
                 width: lighting_resolution.x,
                 height: lighting_resolution.y,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: 2,
             },
             mip_level_count: 1,
             sample_count: 1,
@@ -114,7 +114,7 @@ impl SizedResources {
             size: wgpu::Extent3d {
                 width: render_resolution.x,
                 height: render_resolution.y,
-                depth_or_array_layers: 1,
+                depth_or_array_layers: 2,
             },
             mip_level_count: 1,
             sample_count: 1,

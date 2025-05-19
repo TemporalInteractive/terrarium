@@ -114,6 +114,7 @@ impl Context {
     pub(crate) fn init_with_xr(
         required_features: wgpu::Features,
         required_limits: wgpu::Limits,
+        no_gpu_validation: bool,
     ) -> Result<Self> {
         use anyhow::Context;
         use wgpu_hal::vulkan as V;
@@ -173,7 +174,10 @@ impl Context {
 
         let vk_entry = unsafe { ash::Entry::load() }?;
 
-        let flags = wgpu::InstanceFlags::empty();
+        let mut flags = wgpu::InstanceFlags::DEBUG;
+        if !no_gpu_validation {
+            flags |= wgpu::InstanceFlags::VALIDATION;
+        }
         let extensions = V::Instance::desired_extensions(&vk_entry, vk_target_version, flags)?;
         let extensions_cchar: Vec<_> = extensions.iter().map(|s| s.as_ptr()).collect();
 
@@ -295,7 +299,7 @@ impl Context {
                     Some(Box::new(|| ())),
                     &enabled_extensions,
                     required_features,
-                    &wgpu::MemoryHints::Performance,
+                    &wgpu::MemoryHints::MemoryUsage,
                     family_info.queue_family_index,
                     0,
                 )
@@ -461,6 +465,7 @@ impl XrContext {
                 src_view: rt_texture_view,
                 dst_view: &swapchain.buffers[image_index as usize],
                 multiview: Some(NonZeroU32::new(2).unwrap()),
+                view_index_override: None,
                 target_format: xr::WGPU_COLOR_FORMAT,
             },
             device,

@@ -35,7 +35,7 @@ pub fn create_frustum_buffer(resolution: UVec2, device: &wgpu::Device) -> wgpu::
     device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("terrarium::build_frustum_pass frustums"),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        size: (size_of::<Frustum>() * num_groups) as u64 * 2,
+        size: (size_of::<Frustum>() * num_groups) as u64,
         mapped_at_creation: false,
     })
 }

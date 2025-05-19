@@ -377,9 +377,11 @@ impl<R: AppLoop> State<R> {
         window: Arc<Window>,
         no_gpu_validation: bool,
     ) -> Self {
-        let context = if let Ok(context) =
-            wgpu_util::Context::init_with_xr(R::required_features(), R::required_limits())
-        {
+        let context = if let Ok(context) = wgpu_util::Context::init_with_xr(
+            R::required_features(),
+            R::required_limits(),
+            no_gpu_validation,
+        ) {
             context
         } else {
             wgpu_util::Context::init_with_window(

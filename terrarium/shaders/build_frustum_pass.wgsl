@@ -63,10 +63,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
 
         let eye: vec3<f32> = (XrCamera::origin(xr_camera, 0) + XrCamera::origin(xr_camera, 1)) / 2.0;
 
-        let top_left_dir: vec3<f32> = (XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0)) / 2.0;
-        let top_right_dir: vec3<f32> = (XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0)) / 2.0;
-        let bottom_left_dir: vec3<f32> = (XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 0)) / 2.0;
-        let bottom_right_dir: vec3<f32> = (XrCamera::direction(xr_camera, bottom_right_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, bottom_right_ss, constants.resolution, 0)) / 2.0;
+        let top_left_dir: vec3<f32> = (XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, top_left_ss, constants.resolution, 1)) / 2.0;
+        let top_right_dir: vec3<f32> = (XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, top_right_ss, constants.resolution, 1)) / 2.0;
+        let bottom_left_dir: vec3<f32> = (XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, bottom_left_ss, constants.resolution, 1)) / 2.0;
+        let bottom_right_dir: vec3<f32> = (XrCamera::direction(xr_camera, bottom_right_ss, constants.resolution, 0) + XrCamera::direction(xr_camera, bottom_right_ss, constants.resolution, 1)) / 2.0;
 
         let top_left_near_ws: vec3<f32> = eye + top_left_dir * depth_min;
         let top_right_near_ws: vec3<f32> = eye + top_right_dir * depth_min;
