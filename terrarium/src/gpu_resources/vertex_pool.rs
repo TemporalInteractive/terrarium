@@ -9,10 +9,10 @@ use super::{
     GpuMaterial, MAX_DYNAMIC_INSTANCES, MAX_STATIC_INSTANCES,
 };
 
-const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 32;
-const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 256;
+const MAX_VERTEX_POOL_VERTICES: usize = 1024 * 1024 * 24;
+const MAX_VERTEX_POOL_INDICES: usize = 1024 * 1024 * 64;
 const MAX_VERTEX_POOL_SLICES: usize = 1024 * 8;
-const MAX_MATERIALS_PER_INSTANCE: usize = 32;
+const MAX_MATERIALS_PER_INSTANCE: usize = 64;
 
 pub struct VertexPoolWriteData<'a> {
     pub packed_vertices: &'a [PackedVertex],

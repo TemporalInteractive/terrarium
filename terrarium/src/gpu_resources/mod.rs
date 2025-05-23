@@ -31,7 +31,7 @@ pub mod sky;
 pub mod vertex_pool;
 
 pub struct GpuModel {
-    pub gpu_meshes: Vec<Arc<GpuMesh>>,
+    pub gpu_meshes: Vec<Option<Arc<GpuMesh>>>,
     pub gpu_materials: Vec<Arc<GpuMaterial>>,
 }
 
@@ -42,7 +42,7 @@ impl GpuModel {
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
     ) -> Self {
-        let gpu_meshes: Vec<Arc<GpuMesh>> = model
+        let gpu_meshes: Vec<Option<Arc<GpuMesh>>> = model
             .meshes
             .iter()
             .map(|mesh| gpu_resources.create_gpu_mesh(mesh, command_encoder, ctx))
@@ -134,7 +134,11 @@ impl GpuResources {
         mesh: &Mesh,
         command_encoder: &mut wgpu::CommandEncoder,
         ctx: &wgpu_util::Context,
-    ) -> Arc<GpuMesh> {
+    ) -> Option<Arc<GpuMesh>> {
+        if mesh.is_empty() {
+            return None;
+        }
+
         let vertex_pool_alloc = self
             .vertex_pool
             .alloc(mesh.packed_vertices.len() as u32, mesh.indices.len() as u32);
@@ -193,7 +197,7 @@ impl GpuResources {
             bounds_max: mesh.bounds_max.into(),
         });
         self.gpu_meshes.push(gpu_mesh.clone());
-        gpu_mesh
+        Some(gpu_mesh)
     }
 
     pub fn create_gpu_material(

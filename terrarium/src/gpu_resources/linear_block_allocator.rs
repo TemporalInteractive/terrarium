@@ -22,6 +22,8 @@ impl LinearBlockAllocation {
 pub struct LinearBlockAllocator {
     free_regions: BTreeMap<u64, u64>, // start -> size
     used_regions: BTreeMap<u64, u64>, // start -> size
+    used_bytes: u64,
+    total_bytes: u64,
 }
 
 impl LinearBlockAllocator {
@@ -31,10 +33,14 @@ impl LinearBlockAllocator {
         Self {
             free_regions,
             used_regions: BTreeMap::new(),
+            used_bytes: 0,
+            total_bytes: total_size,
         }
     }
 
     pub fn allocate(&mut self, size: u64) -> Option<LinearBlockAllocation> {
+        println!("USAGE: {} / {}", self.used_bytes, self.total_bytes);
+
         for (&start, &region_size) in &self.free_regions {
             if region_size >= size {
                 let end = start + size;
@@ -43,6 +49,8 @@ impl LinearBlockAllocator {
                     self.free_regions.insert(end, region_size - size);
                 }
                 self.used_regions.insert(start, size);
+
+                self.used_bytes += size;
 
                 return Some(LinearBlockAllocation { start, end });
             }
@@ -56,6 +64,7 @@ impl LinearBlockAllocator {
         let size = allocation.end - allocation.start;
         if self.used_regions.remove(&start).is_some() {
             self.insert_free_region(start, size);
+            self.used_bytes -= size;
         } else {
             panic!("Attempted to free unallocated region: {:?}", allocation);
         }
