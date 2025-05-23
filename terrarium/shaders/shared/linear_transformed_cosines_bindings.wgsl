@@ -88,7 +88,7 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
 }
 
 fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, geometric_normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>,
-    static_scene: acceleration_structure, dynamic_scene: acceleration_structure, shadows: bool) -> vec3<f32> {
+    static_scene: acceleration_structure, dynamic_scene: acceleration_structure, shadows: bool, shadow_bias: f32) -> vec3<f32> {
     let instance: LtcInstance = PackedLtcInstance::unpack(ltc_instances[instance_idx]);
 
     let point0 = LtcInstance::point0(instance);
@@ -147,7 +147,7 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         
         let shadow_origin: vec3<f32> = hit_point + geometric_normal * 0.01;
         let shadow_direction: vec3<f32> = normalize(center - hit_point);
-        let shadow_distance: f32 = distance(center, hit_point) - 0.01;
+        let shadow_distance: f32 = distance(center, hit_point) - 0.01 - shadow_bias;
 
         const TERMINATE_ON_FIRST_HIT: u32 = 0x4;
 

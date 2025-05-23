@@ -12,9 +12,9 @@ struct Constants {
     resolution: vec2<u32>,
     lighting_resolution: vec2<u32>,
     shadows: u32,
+    shadow_bias: f32,
     _padding0: u32,
     _padding1: u32,
-    _padding2: u32,
 }
 
 @group(0)
@@ -82,7 +82,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
                 let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
 
                 lighting += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, shading_and_geometric_normal.geometric_normal, -ray.direction, position_and_depth.position,
-                    static_scene, dynamic_scene, constants.shadows > 0);
+                    static_scene, dynamic_scene, constants.shadows > 0, constants.shadow_bias);
             }
         }
 

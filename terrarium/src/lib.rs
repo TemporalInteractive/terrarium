@@ -170,6 +170,7 @@ pub struct RenderSettings {
     pub ambient_factor: f32,
     pub enable_lighting: bool,
     pub enable_shadows: bool,
+    pub shadow_bias: f32,
     pub lighting_range_bias: f32,
     pub lighting_resolution_scale: f32,
     pub enable_reflections: bool,
@@ -196,6 +197,7 @@ impl Default for RenderSettings {
             ambient_factor: 0.1,
             enable_lighting: true,
             enable_shadows: true,
+            shadow_bias: 0.1,
             lighting_range_bias: 0.0,
             lighting_resolution_scale: 0.9,
             enable_reflections: true,
@@ -250,12 +252,13 @@ impl RenderSettings {
 
         ui.heading("Lighting");
         ui.checkbox(&mut self.enable_lighting, "Enable");
-        ui.checkbox(&mut self.enable_shadows, "Shadows");
         ui.add(
             egui::Slider::new(&mut self.lighting_resolution_scale, 0.4..=1.0)
                 .text("Resolution Scale"),
         );
         ui.add(egui::Slider::new(&mut self.lighting_range_bias, 0.0..=0.3).text("Range Bias"));
+        ui.checkbox(&mut self.enable_shadows, "Shadows");
+        ui.add(egui::Slider::new(&mut self.shadow_bias, 0.0..=1.0).text("Shadow Bias"));
         ui.separator();
 
         ui.heading("Reflections");
@@ -409,6 +412,7 @@ impl Renderer {
                     resolution: self.sized_resources.render_resolution,
                     lighting_resolution: self.sized_resources.lighting_resolution,
                     shadows: parameters.render_settings.enable_shadows,
+                    shadow_bias: parameters.render_settings.shadow_bias,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     gbuffer: &self.sized_resources.gbuffer,

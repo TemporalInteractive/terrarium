@@ -16,15 +16,16 @@ struct Constants {
     resolution: UVec2,
     lighting_resolution: UVec2,
     shadows: u32,
+    shadow_bias: f32,
     _padding0: u32,
     _padding1: u32,
-    _padding2: u32,
 }
 
 pub struct LtcLightingPassParameters<'a> {
     pub resolution: UVec2,
     pub lighting_resolution: UVec2,
     pub shadows: bool,
+    pub shadow_bias: f32,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
@@ -144,9 +145,9 @@ pub fn encode(
             resolution: parameters.resolution,
             lighting_resolution: parameters.lighting_resolution,
             shadows: parameters.shadows as u32,
+            shadow_bias: parameters.shadow_bias,
             _padding0: 0,
             _padding1: 0,
-            _padding2: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
