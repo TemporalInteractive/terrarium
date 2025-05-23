@@ -96,7 +96,7 @@ impl Context {
                 label: None,
                 required_features: (optional_features & adapter_features) | required_features,
                 required_limits,
-                memory_hints: wgpu::MemoryHints::Performance,
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
                 trace: wgpu::Trace::Off,
             })
             .await
