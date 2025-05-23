@@ -169,6 +169,7 @@ pub struct RenderSettings {
     pub render_distance: f32,
     pub ambient_factor: f32,
     pub enable_lighting: bool,
+    pub enable_shadows: bool,
     pub lighting_range_bias: f32,
     pub lighting_resolution_scale: f32,
     pub enable_reflections: bool,
@@ -194,6 +195,7 @@ impl Default for RenderSettings {
             render_distance: 1000.0,
             ambient_factor: 0.1,
             enable_lighting: true,
+            enable_shadows: true,
             lighting_range_bias: 0.0,
             lighting_resolution_scale: 0.9,
             enable_reflections: true,
@@ -248,6 +250,7 @@ impl RenderSettings {
 
         ui.heading("Lighting");
         ui.checkbox(&mut self.enable_lighting, "Enable");
+        ui.checkbox(&mut self.enable_shadows, "Shadows");
         ui.add(
             egui::Slider::new(&mut self.lighting_resolution_scale, 0.4..=1.0)
                 .text("Resolution Scale"),
@@ -405,6 +408,7 @@ impl Renderer {
                 &LtcLightingPassParameters {
                     resolution: self.sized_resources.render_resolution,
                     lighting_resolution: self.sized_resources.lighting_resolution,
+                    shadows: parameters.render_settings.enable_shadows,
                     gpu_resources: parameters.gpu_resources,
                     xr_camera_buffer: parameters.xr_camera_buffer,
                     gbuffer: &self.sized_resources.gbuffer,

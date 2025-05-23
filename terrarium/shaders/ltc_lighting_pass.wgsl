@@ -11,6 +11,10 @@
 struct Constants {
     resolution: vec2<u32>,
     lighting_resolution: vec2<u32>,
+    shadows: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 @group(0)
@@ -20,6 +24,14 @@ var<uniform> constants: Constants;
 @group(0)
 @binding(1)
 var<uniform> xr_camera: XrCamera;
+
+@group(0)
+@binding(2)
+var static_scene: acceleration_structure;
+
+@group(0)
+@binding(3)
+var dynamic_scene: acceleration_structure;
 
 @group(0)
 @binding(4)
@@ -68,7 +80,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
 
             for (var local_light_index: u32 = 0; local_light_index < light_count; local_light_index += 1) {
                 let light_index: u32 = light_index_list[light_index_start_offset + local_light_index];
-                lighting += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, -ray.direction, position_and_depth.position);
+
+                lighting += LtcBindings::shade(material, light_index, shading_and_geometric_normal.shading_normal, shading_and_geometric_normal.geometric_normal, -ray.direction, position_and_depth.position,
+                    static_scene, dynamic_scene, constants.shadows > 0);
             }
         }
 

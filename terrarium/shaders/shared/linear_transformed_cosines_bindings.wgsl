@@ -87,7 +87,8 @@ fn LtcBindings::_evaluate(normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec
     return vec3<f32>(len * scale);
 }
 
-fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>) -> vec3<f32> {
+fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, geometric_normal: vec3<f32>, view_dir: vec3<f32>, hit_point: vec3<f32>,
+    static_scene: acceleration_structure, dynamic_scene: acceleration_structure, shadows: bool) -> vec3<f32> {
     let instance: LtcInstance = PackedLtcInstance::unpack(ltc_instances[instance_idx]);
 
     let point0 = LtcInstance::point0(instance);
@@ -140,13 +141,39 @@ fn LtcBindings::shade(material: Material, instance_idx: u32, normal: vec3<f32>, 
         vec4<f32>(packed_inv_transform[0].w, packed_inv_transform[1].w, packed_inv_transform[2].w, 1.0)
     );
 
+    var shadow_factor: f32 = 1.0;
+    if (shadows) {
+        let center: vec3<f32> = LtcInstance::closest_point(instance, hit_point, inv_transform);
+        
+        let shadow_origin: vec3<f32> = hit_point + geometric_normal * 0.01;
+        let shadow_direction: vec3<f32> = normalize(center - hit_point);
+        let shadow_distance: f32 = distance(center, hit_point) - 0.01;
+
+        const TERMINATE_ON_FIRST_HIT: u32 = 0x4;
+
+        var rq: ray_query;
+        rayQueryInitialize(&rq, static_scene, RayDesc(TERMINATE_ON_FIRST_HIT, 0xFFu, 0.0, shadow_distance, shadow_origin, shadow_direction));
+        rayQueryProceed(&rq);
+        let static_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
+        if (static_intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+            shadow_factor = 0.0;
+        } else {
+            rayQueryInitialize(&rq, dynamic_scene, RayDesc(TERMINATE_ON_FIRST_HIT, 0xFFu, 0.0, shadow_distance, shadow_origin, shadow_direction));
+            rayQueryProceed(&rq);
+            let dynamic_intersection: RayIntersection = rayQueryGetCommittedIntersection(&rq);
+            if (dynamic_intersection.kind == RAY_QUERY_INTERSECTION_TRIANGLE) {
+                shadow_factor = 0.0;
+            }
+        }
+    }
+
     let area: f32 = LtcInstance::area(instance);
     let distance: f32 = LtcInstance::distance(instance, hit_point, inv_transform);
 
     let range_bias: f32 = ltc_constants.range_bias * instance.range_bias_factor;
     let attenuation: f32 = max(area / (distance * distance + area) - range_bias, 0.0);
 
-    return attenuation * instance.color * (specular + material.color * diffuse);
+    return attenuation * instance.color * (specular + material.color * diffuse) * shadow_factor;
 }
 
 fn LtcInstance::illuminated_aabb(_self: LtcInstance) -> Aabb {

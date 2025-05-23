@@ -15,11 +15,16 @@ use super::build_frustum_pass;
 struct Constants {
     resolution: UVec2,
     lighting_resolution: UVec2,
+    shadows: u32,
+    _padding0: u32,
+    _padding1: u32,
+    _padding2: u32,
 }
 
 pub struct LtcLightingPassParameters<'a> {
     pub resolution: UVec2,
     pub lighting_resolution: UVec2,
+    pub shadows: bool,
     pub gpu_resources: &'a GpuResources,
     pub xr_camera_buffer: &'a wgpu::Buffer,
     pub gbuffer: &'a Gbuffer,
@@ -68,6 +73,22 @@ pub fn encode(
                                     ty: wgpu::BufferBindingType::Uniform,
                                     has_dynamic_offset: false,
                                     min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::AccelerationStructure {
+                                    vertex_return: false,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 3,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::AccelerationStructure {
+                                    vertex_return: false,
                                 },
                                 count: None,
                             },
@@ -122,6 +143,10 @@ pub fn encode(
         contents: bytemuck::bytes_of(&Constants {
             resolution: parameters.resolution,
             lighting_resolution: parameters.lighting_resolution,
+            shadows: parameters.shadows as u32,
+            _padding0: 0,
+            _padding1: 0,
+            _padding2: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -138,6 +163,18 @@ pub fn encode(
             wgpu::BindGroupEntry {
                 binding: 1,
                 resource: parameters.xr_camera_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::AccelerationStructure(
+                    parameters.gpu_resources.static_tlas(),
+                ),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::AccelerationStructure(
+                    parameters.gpu_resources.dynamic_tlas(),
+                ),
             },
             wgpu::BindGroupEntry {
                 binding: 4,

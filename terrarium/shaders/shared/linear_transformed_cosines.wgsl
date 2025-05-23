@@ -50,6 +50,16 @@ fn LtcInstance::area(_self: LtcInstance) -> f32 {
     return width * height;
 }
 
+fn LtcInstance::closest_point(_self: LtcInstance, point: vec3<f32>, inv_transform: mat4x4<f32>) -> vec3<f32> {
+    let point_local: vec3<f32> = (inv_transform * vec4<f32>(point, 1.0)).xyz;
+
+    let clamped_x: f32 = clamp(point_local.x, -1.0, 1.0);
+    let clamped_z: f32 = clamp(point_local.z, -1.0, 1.0);
+    let closest_point: vec3<f32> = vec3<f32>(clamped_x, 0.0, clamped_z);
+
+    return (_self.transform * vec4<f32>(closest_point, 1.0)).xyz;
+}
+
 fn LtcInstance::distance(_self: LtcInstance, point: vec3<f32>, inv_transform: mat4x4<f32>) -> f32 {
     let point_local: vec3<f32> = (inv_transform * vec4<f32>(point, 1.0)).xyz;
 
